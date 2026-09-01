@@ -1,5 +1,5 @@
 // ============================================================================
-// CareLoop AI - Internationalization (English, Tamil, Hindi)
+// CareLoop Health — Internationalization (English, Tamil, Hindi)
 // ============================================================================
 
 export type Language = 'en' | 'ta' | 'hi';
@@ -7,9 +7,11 @@ export type TranslationKey = keyof typeof translations.en;
 
 export const translations = {
   en: {
-    appName: 'CareLoop AI',
+    // Branding
+    appName: 'CareLoop Health',
     tagline: 'No Patient Lost in the Referral Loop',
-    loading: 'Loading...',
+    // General
+    loading: 'Loading…',
     save: 'Save',
     cancel: 'Cancel',
     submit: 'Submit',
@@ -21,7 +23,7 @@ export const translations = {
     close: 'Close',
     edit: 'Edit',
     delete: 'Delete',
-    view: 'View',
+    view: 'View Details',
     details: 'Details',
     status: 'Status',
     date: 'Date',
@@ -34,7 +36,7 @@ export const translations = {
     notifications: 'Notifications',
     settings: 'Settings',
     profile: 'Profile',
-    logout: 'Log Out',
+    logout: 'Sign Out',
     offline: 'Offline Mode',
     online: 'Online',
     syncPending: 'Sync pending',
@@ -62,11 +64,11 @@ export const translations = {
     followUpReminders: 'Follow-ups',
     // Triage
     triageTitle: 'AI Symptom Assessment',
-    triageSubtitle: 'Describe your symptoms for an AI-assisted risk assessment',
-    enterSymptoms: 'Describe your symptoms...',
+    triageSubtitle: 'Describe your symptoms for an AI-assisted risk assessment. This is clinical decision support — not a diagnosis.',
+    enterSymptoms: 'Describe your symptoms here…',
     startVoiceInput: 'Tap to start voice input',
     stopVoiceInput: 'Tap to stop recording',
-    assessing: 'Assessing your symptoms...',
+    assessing: 'Analysing your symptoms…',
     riskLow: 'Low Risk',
     riskMedium: 'Medium Risk',
     riskHigh: 'High Risk',
@@ -104,7 +106,7 @@ export const translations = {
     // Health Worker
     hwDashboard: 'Health Worker Dashboard',
     todayPatients: "Today's Patients",
-    highRiskCases: 'High Risk Cases',
+    highRiskCases: 'High-Risk Cases',
     pendingReferrals: 'Pending Referrals',
     missedFollowups: 'Missed Follow-ups',
     registerPatient: 'Register Patient',
@@ -124,7 +126,7 @@ export const translations = {
     adminDashboard: 'Hospital Admin Dashboard',
     referralInbox: 'Referral Inbox',
     acceptReferral: 'Accept Referral',
-    qrScan: 'QR Scan - Patient Arrival',
+    qrScan: 'QR Scan — Patient Arrival',
     departmentAvail: 'Department Availability',
     specialistAvail: 'Specialist Availability',
     diagnosticAvail: 'Diagnostic Availability',
@@ -135,7 +137,7 @@ export const translations = {
     patientsServed: 'Patients Served',
     totalReferrals: 'Total Referrals',
     closureRate: 'Referral Closure Rate',
-    avgWaitTime: 'Avg Waiting Time',
+    avgWaitTime: 'Avg. Waiting Time',
     ruralAccessScore: 'Rural Healthcare Access Score',
     facilityCapacity: 'Facility Capacity',
     referralFunnel: 'Referral Funnel',
@@ -145,7 +147,7 @@ export const translations = {
     goodAccess: 'Good Access',
     moderateAccess: 'Moderate Access',
     underserved: 'Underserved',
-    // General terms
+    // Status labels
     low: 'Low',
     medium: 'Medium',
     high: 'High',
@@ -166,15 +168,16 @@ export const translations = {
     today: 'Today',
     tomorrow: 'Tomorrow',
     thisWeek: 'This Week',
+    // Language selector
     selectLanguage: 'Select Language',
     english: 'English',
     tamil: 'தமிழ்',
     hindi: 'हिन्दी',
   },
   ta: {
-    appName: 'CareLoop AI',
+    appName: 'CareLoop Health',
     tagline: 'பரிந்துரை சுழற்சியில் நோயாளி இழக்கப்படமாட்டார்',
-    loading: 'ஏற்றுகிறது...',
+    loading: 'ஏற்றுகிறது…',
     save: 'சேமி',
     cancel: 'ரத்து செய்',
     submit: 'சமர்ப்பி',
@@ -224,11 +227,11 @@ export const translations = {
     consentCenter: 'தனியுரிமை & சம்மதம்',
     followUpReminders: 'தொடர் விழிப்பூட்டல்கள்',
     triageTitle: 'AI அறிகுறி மதிப்பீடு',
-    triageSubtitle: 'AI உதவியுடன் ஆபத்து மதிப்பீட்டிற்காக உங்கள் அறிகுறிகளை விவரிக்கவும்',
-    enterSymptoms: 'உங்கள் அறிகுறிகளை விவரிக்கவும்...',
+    triageSubtitle: 'AI உதவியுடன் ஆபத்து மதிப்பீட்டிற்காக உங்கள் அறிகுறிகளை விவரிக்கவும். இது மருத்துவ முடிவு ஆதரவு — நோயறிதல் அல்ல.',
+    enterSymptoms: 'உங்கள் அறிகுறிகளை விவரிக்கவும்…',
     startVoiceInput: 'குரல் உள்ளீட்டைத் தொடங்க தட்டவும்',
     stopVoiceInput: 'பதிவை நிறுத்த தட்டவும்',
-    assessing: 'உங்கள் அறிகுறிகளை மதிப்பிடுகிறது...',
+    assessing: 'உங்கள் அறிகுறிகளை மதிப்பிடுகிறது…',
     riskLow: 'குறைந்த ஆபத்து',
     riskMedium: 'நடுத்த ஆபத்து',
     riskHigh: 'உயர் ஆபத்து',
@@ -280,7 +283,7 @@ export const translations = {
     adminDashboard: 'மருத்துவமனை நிர்வாக டாஷ்போர்டு',
     referralInbox: 'பரிந்துரை இன்பாக்ஸ்',
     acceptReferral: 'பரிந்துரையை ஏற்க',
-    qrScan: 'QR ஸ்கேன் - நோயாளி வருகை',
+    qrScan: 'QR ஸ்கேன் — நோயாளி வருகை',
     departmentAvail: 'துறை கிடைப்பு',
     specialistAvail: 'நிபுணர் கிடைப்பு',
     diagnosticAvail: 'ஆய்வக கிடைப்பு',
@@ -326,9 +329,9 @@ export const translations = {
     hindi: 'हिन्दी',
   },
   hi: {
-    appName: 'CareLoop AI',
+    appName: 'CareLoop Health',
     tagline: 'रेफरल लूप में कोई मरीज नहीं खोएगा',
-    loading: 'लोड हो रहा है...',
+    loading: 'लोड हो रहा है…',
     save: 'सहेजें',
     cancel: 'रद्द करें',
     submit: 'जमा करें',
@@ -378,11 +381,11 @@ export const translations = {
     consentCenter: 'गोपनीयता और सहमति',
     followUpReminders: 'फॉलो-अप रिमाइंडर',
     triageTitle: 'AI लक्षण मूल्यांकन',
-    triageSubtitle: 'AI-सहायित जोखिम मूल्यांकन के लिए अपने लक्षणों का वर्णन करें',
-    enterSymptoms: 'अपने लक्षणों का वर्णन करें...',
+    triageSubtitle: 'AI-सहायित जोखिम मूल्यांकन के लिए अपने लक्षणों का वर्णन करें। यह क्लिनिकल निर्णय सहायता है — निदान नहीं।',
+    enterSymptoms: 'अपने लक्षणों का वर्णन करें…',
     startVoiceInput: 'वॉइस इनपुट शुरू करने के लिए टैप करें',
     stopVoiceInput: 'रिकॉर्डिंग रोकने के लिए टैप करें',
-    assessing: 'आपके लक्षणों का मूल्यांकन हो रहा है...',
+    assessing: 'आपके लक्षणों का मूल्यांकन हो रहा है…',
     riskLow: 'कम जोखिम',
     riskMedium: 'मध्यम जोखिम',
     riskHigh: 'उच्च जोखिम',
@@ -434,7 +437,7 @@ export const translations = {
     adminDashboard: 'अस्पताल प्रशासन डैशबोर्ड',
     referralInbox: 'रेफरल इनबॉक्स',
     acceptReferral: 'रेफरल स्वीकार करें',
-    qrScan: 'QR स्कैन - मरीज आगमन',
+    qrScan: 'QR स्कैन — मरीज आगमन',
     departmentAvail: 'विभाग उपलब्धता',
     specialistAvail: 'विशेषज्ञ उपलब्धता',
     diagnosticAvail: 'डायग्नोस्टिक उपलब्धता',

@@ -1,5 +1,5 @@
 // ============================================================================
-// CareLoop AI - Type Definitions
+// CareLoop Health - Type Definitions
 // ============================================================================
 
 export type Role = 'patient' | 'health_worker' | 'doctor' | 'hospital_admin' | 'gov_admin';

@@ -1,5 +1,5 @@
 // ============================================================================
-// CareLoop AI - Main Application Layout
+// CareLoop Health - Main Application Layout
 // ============================================================================
 
 import { useState } from 'react';
@@ -139,7 +139,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <div className="hidden sm:block">
             <span className="text-base font-bold text-foreground tracking-tight">CareLoop</span>
-            <span className="text-base font-bold text-primary tracking-tight ml-0.5">AI</span>
+            <span className="text-base font-bold text-primary tracking-tight ml-0.5">Health</span>
           </div>
         </Link>
 
@@ -263,7 +263,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="p-3 border-t border-border">
           <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
             <Activity className="h-3.5 w-3.5" />
-            <span>SIH2026 • SIH26133</span>
+            <span>SIH2026 · SIH26133</span>
           </div>
         </div>
       </aside>

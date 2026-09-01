@@ -1,11 +1,11 @@
 {
-  "name": "freebuff.com application",
-  "short_name": "freebuff.com",
-  "description": "freebuff.com application",
+  "name": "CareLoop Health",
+  "short_name": "CareLoop",
+  "description": "AI-assisted rural healthcare access, referral closure, and follow-up platform",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "background_color": "#f8fffe",
+  "theme_color": "#0d9488",
   "icons": [
     {
       "src": "/logo.png",

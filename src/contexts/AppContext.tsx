@@ -1,5 +1,5 @@
 // ============================================================================
-// CareLoop AI - Application Context Provider
+// CareLoop Health - Application Context Provider
 // ============================================================================
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';

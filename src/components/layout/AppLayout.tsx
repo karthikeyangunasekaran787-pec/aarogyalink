@@ -1,8 +1,8 @@
 // ============================================================================
-// CareLoop Health - Main Application Layout
+// CareLoop Health — Main Application Layout
 // ============================================================================
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/contexts/AppContext';
@@ -13,9 +13,8 @@ import {
   Heart, Menu, X, ChevronDown, Globe, Wifi, WifiOff,
   Home, Stethoscope, Building2, Users, Activity, FileText,
   Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
-  Pill, TestTube, Phone, BarChart3, Syringe, UserPlus,
-  ScanLine, Package, TrendingUp, Building, Megaphone,
-  AlertTriangle, Clock, MessageSquare, BookOpen
+  Pill, TestTube, Phone, BarChart3, UserPlus,
+  Package, TrendingUp, MessageSquare, Inbox
 } from 'lucide-react';
 
 interface NavItem {
@@ -72,7 +71,7 @@ const GOV_NAV: NavItem[] = [
   { label: 'diagnosticAvail', path: '/gov/diagnostics', icon: TestTube },
 ];
 
-import { Inbox } from 'lucide-react';
+import { Clock } from 'lucide-react';
 
 const ROLE_NAV_MAP = {
   patient: PATIENT_NAV,
@@ -82,12 +81,12 @@ const ROLE_NAV_MAP = {
   gov_admin: GOV_NAV,
 };
 
-const ROLE_LABELS = {
+const ROLE_LABELS: Record<string, string> = {
   patient: 'Patient',
   health_worker: 'Health Worker',
   doctor: 'Doctor',
   hospital_admin: 'Hospital Admin',
-  gov_admin: 'Gov Admin',
+  gov_admin: 'District Admin',
 };
 
 const ROLE_PATHS: Record<string, string> = {
@@ -98,8 +97,47 @@ const ROLE_PATHS: Record<string, string> = {
   gov_admin: '/gov',
 };
 
+// Click-outside hook
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
+  useEffect(() => {
+    function listener(e: MouseEvent | TouchEvent) {
+      if (!ref.current || ref.current.contains(e.target as Node)) return;
+      handler();
+    }
+    document.addEventListener('mousedown', listener);
+    document.addEventListener('touchstart', listener);
+    return () => {
+      document.removeEventListener('mousedown', listener);
+      document.removeEventListener('touchstart', listener);
+    };
+  }, [ref, handler]);
+}
+
+function Dropdown({ open, onOpenChange, trigger, children }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  trigger: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useClickOutside(ref, () => onOpenChange(false));
+
+  return (
+    <div className="relative" ref={ref}>
+      <div onClick={() => onOpenChange(!open)}>
+        {trigger}
+      </div>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-border rounded-xl shadow-lg py-1.5 min-w-[180px]">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { currentRole, setCurrentRole, language, setLanguage, isOffline, sidebarOpen, setSidebarOpen } = useApp();
+  const { currentRole, setCurrentRole, language, setLanguage, isOffline, sidebarOpen } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -118,7 +156,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className={cn('min-h-screen bg-background', isOffline && 'pt-10')}>
       <OfflineIndicator isOffline={isOffline} />
 
-      {/* Top bar */}
+      {/* ── Top Bar ──────────────────────────────────────────────── */}
       <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-border flex items-center px-4 gap-3">
         {isOffline && <div className="absolute top-0" />}
 
@@ -135,7 +173,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <Link to={ROLE_PATHS[currentRole] || '/app'} className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <Heart className="h-[1.125rem] w-[1.125rem] text-primary-foreground" fill="currentColor" />
+            <Heart className="h-4 w-4 text-primary-foreground" fill="currentColor" />
           </div>
           <div className="hidden sm:block">
             <span className="text-base font-bold text-foreground tracking-tight">CareLoop</span>
@@ -151,82 +189,64 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <span>{isOffline ? t('offline', language) : t('online', language)}</span>
         </div>
 
-        {/* Role selector */}
-        <div className="relative">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs gap-1.5"
-            onClick={() => { setRoleOpen(!roleOpen); setLangOpen(false); }}
-          >
-            <Users className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{ROLE_LABELS[currentRole]}</span>
-            <ChevronDown className="h-3 w-3" />
-          </Button>
-          {roleOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setRoleOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-white border border-border rounded-xl shadow-lg py-1.5">
-                {Object.entries(ROLE_LABELS).map(([role, label]) => (
-                  <button
-                    key={role}
-                    className={cn(
-                      'w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors',
-                      currentRole === role && 'bg-primary/5 text-primary font-medium'
-                    )}
-                    onClick={() => handleRoleChange(role as typeof currentRole)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        {/* Role selector dropdown */}
+        <Dropdown open={roleOpen} onOpenChange={setRoleOpen}
+          trigger={
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
+              <Users className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{ROLE_LABELS[currentRole]}</span>
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          }
+        >
+          {Object.entries(ROLE_LABELS).map(([role, label]) => (
+            <button
+              key={role}
+              className={cn(
+                'w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer',
+                currentRole === role && 'bg-primary/5 text-primary font-medium'
+              )}
+              onClick={() => handleRoleChange(role as typeof currentRole)}
+            >
+              {label}
+            </button>
+          ))}
+        </Dropdown>
 
-        {/* Language selector */}
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => { setLangOpen(!langOpen); setRoleOpen(false); }}
-          >
-            <Globe className="h-4 w-4" />
-          </Button>
-          {langOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setLangOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 z-50 w-36 bg-white border border-border rounded-xl shadow-lg py-1.5">
-                {[
-                  { code: 'en' as const, label: 'English' },
-                  { code: 'ta' as const, label: 'தமிழ்' },
-                  { code: 'hi' as const, label: 'हिन्दी' },
-                ].map((lang) => (
-                  <button
-                    key={lang.code}
-                    className={cn(
-                      'w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors',
-                      language === lang.code && 'bg-primary/5 text-primary font-medium'
-                    )}
-                    onClick={() => { setLanguage(lang.code); setLangOpen(false); }}
-                  >
-                    {lang.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        {/* Language selector dropdown */}
+        <Dropdown open={langOpen} onOpenChange={setLangOpen}
+          trigger={
+            <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer">
+              <Globe className="h-4 w-4" />
+            </Button>
+          }
+        >
+          {[
+            { code: 'en' as const, label: 'English' },
+            { code: 'ta' as const, label: 'தமிழ்' },
+            { code: 'hi' as const, label: 'हिन्दी' },
+          ].map((lang) => (
+            <button
+              key={lang.code}
+              className={cn(
+                'w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer',
+                language === lang.code && 'bg-primary/5 text-primary font-medium'
+              )}
+              onClick={() => { setLanguage(lang.code); setLangOpen(false); }}
+            >
+              {lang.label}
+            </button>
+          ))}
+        </Dropdown>
 
         {/* Notification bell */}
-        <Button variant="ghost" size="icon" className="h-8 w-8 relative">
+        <Button variant="ghost" size="icon" className="h-8 w-8 relative cursor-pointer">
           <Bell className="h-4 w-4" />
           <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
         </Button>
       </header>
 
-      {/* Desktop Sidebar */}
+      {/* ── Desktop Sidebar ──────────────────────────────────────── */}
       <aside
         className={cn(
           'hidden lg:flex fixed top-14 left-0 bottom-0 z-30 flex-col w-60 bg-white border-r border-border transition-all duration-200',
@@ -251,7 +271,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
-                  <Icon className="h-[1.125rem] w-[1.125rem] flex-shrink-0" />
+                  <Icon className="h-4 w-4 flex-shrink-0" />
                   <span>{t(item.label as any, language)}</span>
                 </Link>
               );
@@ -263,12 +283,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="p-3 border-t border-border">
           <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
             <Activity className="h-3.5 w-3.5" />
-            <span>SIH2026 · SIH26133</span>
+            <span>CareLoop Health</span>
           </div>
         </div>
       </aside>
 
-      {/* Mobile sidebar overlay */}
+      {/* ── Mobile Sidebar ───────────────────────────────────────── */}
       {mobileMenuOpen && (
         <>
           <div
@@ -304,7 +324,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </>
       )}
 
-      {/* Main content */}
+      {/* ── Main Content ─────────────────────────────────────────── */}
       <main
         className={cn(
           'pt-14 min-h-screen transition-all duration-200',

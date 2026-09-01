@@ -31,6 +31,7 @@ const Emergency = lazy(() => import("./pages/patient/Emergency.tsx"));
 
 // Health Worker pages
 const HWDashboard = lazy(() => import("./pages/healthworker/Dashboard.tsx"));
+const HWRegisterPatient = lazy(() => import("./pages/healthworker/RegisterPatient.tsx"));
 
 // Doctor pages
 const DoctorDashboard = lazy(() => import("./pages/doctor/Dashboard.tsx"));
@@ -132,6 +133,7 @@ createRoot(document.getElementById("root")!).render(
 
                 {/* Health Worker Routes */}
                 <Route path="/hw" element={<RequireAuth><App><HWDashboard /></App></RequireAuth>} />
+                <Route path="/hw/register" element={<RequireAuth><App><HWRegisterPatient /></App></RequireAuth>} />
                 <Route path="/hw/*" element={<RequireAuth><App><HWDashboard /></App></RequireAuth>} />
 
                 {/* Doctor Routes */}

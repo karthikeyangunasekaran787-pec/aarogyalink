@@ -65,10 +65,7 @@ export default function Landing() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-emerald-50/20" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 sm:py-28 relative">
           <motion.div {...fadeIn} className="max-w-3xl mx-auto text-center">
-            <Badge variant="outline" className="mb-5 gap-1.5 text-xs h-7">
-              <Zap className="h-3 w-3 text-primary" />
-              Smart India Hackathon 2026 · SIH26133
-            </Badge>
+
             <h1 className="text-3xl sm:text-5xl lg:text-[3.4rem] font-bold text-foreground tracking-tight leading-[1.15]">
               No Patient Lost in the{" "}
               <span className="text-primary">Referral Loop</span>

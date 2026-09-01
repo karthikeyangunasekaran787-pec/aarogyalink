@@ -11,6 +11,18 @@ import { Phone, MapPin, Ambulance, Shield, AlertTriangle, Navigation } from 'luc
 export default function Emergency() {
   const { language } = useApp();
 
+  const handleSOS = () => {
+    window.location.href = 'tel:108';
+  };
+
+  const handleCall = (number: string) => {
+    window.location.href = `tel:${number}`;
+  };
+
+  const handleNavigate = () => {
+    window.open('https://www.google.com/maps/search/nearby+hospital', '_blank');
+  };
+
   return (
     <div className="max-w-lg mx-auto space-y-6">
       <div className="text-center">
@@ -28,7 +40,12 @@ export default function Emergency() {
       {/* SOS Button */}
       <Card className="border-red-200 bg-red-50">
         <CardContent className="p-6 text-center">
-          <Button variant="destructive" size="lg" className="h-20 w-20 rounded-full text-lg font-bold shadow-lg">
+          <Button
+            variant="destructive"
+            size="lg"
+            className="h-20 w-20 rounded-full text-lg font-bold shadow-lg cursor-pointer"
+            onClick={handleSOS}
+          >
             SOS
           </Button>
           <p className="text-sm text-red-700 mt-3 font-medium">Tap for immediate emergency assistance</p>
@@ -40,7 +57,7 @@ export default function Emergency() {
         {[
           { label: 'Ambulance', number: '108', icon: Ambulance, color: 'bg-red-50 text-red-600' },
           { label: 'Health Helpline', number: '104', icon: Phone, color: 'bg-blue-50 text-blue-600' },
-          { label: 'Nearest PHC', number: '0452-2345001', icon: MapPin, color: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Nearest PHC', number: '04522345001', icon: MapPin, color: 'bg-emerald-50 text-emerald-600' },
           { label: 'Police', number: '100', icon: Shield, color: 'bg-amber-50 text-amber-600' },
         ].map(contact => {
           const Icon = contact.icon;
@@ -51,7 +68,12 @@ export default function Emergency() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <p className="text-sm font-medium text-foreground">{contact.label}</p>
-                <Button variant="outline" size="sm" className="mt-2 h-8 text-xs gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 h-8 text-xs gap-1 cursor-pointer"
+                  onClick={() => handleCall(contact.number)}
+                >
                   <Phone className="h-3 w-3" />
                   {contact.number}
                 </Button>
@@ -61,7 +83,7 @@ export default function Emergency() {
         })}
       </div>
 
-      <Button variant="outline" className="w-full gap-2">
+      <Button variant="outline" className="w-full gap-2 h-11 cursor-pointer" onClick={handleNavigate}>
         <Navigation className="h-4 w-4" />
         {language === 'ta' ? 'அருகிலுள்ள மருத்துவமனைக்கு வழிகாட்டு' :
          language === 'hi' ? 'निकटतम अस्पताल तक नेविगेशन' :

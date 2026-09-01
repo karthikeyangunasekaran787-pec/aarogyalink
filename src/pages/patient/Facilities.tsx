@@ -125,10 +125,16 @@ export default function Facilities() {
                 </div>
 
                 <div className="grid grid-cols-4 gap-2 text-center">
-                  <div className="rounded-md bg-muted/50 p-1.5">
-                    <Navigation className="h-3 w-3 mx-auto text-muted-foreground mb-0.5" />
-                    <p className="text-xs font-medium">{f.id === 'f1' ? '3.2km' : f.id === 'f2' ? '2.1km' : f.id === 'f3' ? '15km' : f.id === 'f4' ? '5.5km' : '18km'}</p>
-                  </div>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(f.name + ', ' + f.village + ', ' + f.district)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md bg-muted/50 p-1.5 hover:bg-primary/10 transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Navigation className="h-3 w-3 mx-auto text-primary mb-0.5" />
+                    <p className="text-xs font-medium text-primary">{f.id === 'f1' ? '3.2km' : f.id === 'f2' ? '2.1km' : f.id === 'f3' ? '15km' : f.id === 'f4' ? '5.5km' : '18km'}</p>
+                  </a>
                   <div className="rounded-md bg-muted/50 p-1.5">
                     <Clock className="h-3 w-3 mx-auto text-muted-foreground mb-0.5" />
                     <p className="text-xs font-medium">{f.averageWaitTime}m</p>
@@ -202,9 +208,11 @@ export default function Facilities() {
                             <p className="text-xs font-medium">{d.name}</p>
                             <p className="text-[10px] text-muted-foreground">{d.specialization}</p>
                           </div>
+                          <Link to={`/app/book-appointment?facility=${facility?.id}&doctor=${d.id}`}>
                           <Button size="sm" variant="outline" className="h-7 text-[10px]">
                             {t('bookAppointment', language)}
                           </Button>
+                        </Link>
                         </div>
                       ))}
                     </div>
@@ -224,7 +232,7 @@ export default function Facilities() {
                   </div>
                 </div>
 
-                <Link to="/app/appointments">
+                <Link to={`/app/book-appointment?facility=${facility.id}`}>
                   <Button className="w-full h-10">
                     {t('bookAppointment', language)}
                     <ChevronRight className="h-4 w-4 ml-1" />

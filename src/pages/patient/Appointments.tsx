@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { appointments, facilities } from '@/lib/mock-data';
 import { Calendar, Clock, MapPin, Plus } from 'lucide-react';
+import { Link } from 'react-router';
 
 const STATUS_COLORS: Record<string, string> = {
   scheduled: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -38,10 +39,12 @@ export default function Appointments() {
              'Manage your upcoming and past appointments'}
           </p>
         </div>
-        <Button className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          {t('bookAppointment', language)}
-        </Button>
+        <Link to="/app/book-appointment">
+          <Button className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            {t('bookAppointment', language)}
+          </Button>
+        </Link>
       </div>
 
       {/* Upcoming */}

@@ -13,7 +13,7 @@ import {
   Heart, Menu, X, ChevronDown, Globe, Wifi, WifiOff,
   Home, Stethoscope, Building2, Users, Activity, FileText,
   Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
-  Pill, TestTube, BarChart3, UserPlus,
+  Pill, TestTube, BarChart3, UserPlus, Clock,
   Package, TrendingUp, MessageSquare, Inbox
 } from 'lucide-react';
 
@@ -70,8 +70,6 @@ const GOV_NAV: NavItem[] = [
   { label: 'medicineStock', path: '/gov/medicines', icon: Pill },
   { label: 'diagnosticAvail', path: '/gov/diagnostics', icon: TestTube },
 ];
-
-import { Clock } from 'lucide-react';
 
 const ROLE_NAV_MAP = {
   patient: PATIENT_NAV,
@@ -143,6 +141,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const navItems = ROLE_NAV_MAP[currentRole] || PATIENT_NAV;
 
@@ -240,10 +239,37 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </Dropdown>
 
         {/* Notification bell */}
-        <Button variant="ghost" size="icon" className="h-8 w-8 relative cursor-pointer">
-          <Bell className="h-4 w-4" />
-          <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
-        </Button>
+        <Dropdown open={notifOpen} onOpenChange={setNotifOpen}
+          trigger={
+            <Button variant="ghost" size="icon" className="h-8 w-8 relative cursor-pointer">
+              <Bell className="h-4 w-4" />
+              <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
+            </Button>
+          }
+        >
+          <div className="px-3 py-2 border-b border-border">
+            <p className="text-sm font-semibold text-foreground">Notifications</p>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {[
+              { title: 'Follow-up Reminder', msg: 'Your follow-up with Dr. Rajesh Verma is on Jul 30.', type: 'info' },
+              { title: 'Referral Update', msg: 'REF-2026-001 has been closed successfully.', type: 'success' },
+              { title: 'Prescription Refill', msg: 'Warfarin prescription may need a refill in 5 days.', type: 'warning' },
+            ].map((n, i) => (
+              <div key={i} className="px-3 py-2.5 hover:bg-muted transition-colors border-b border-border/50 last:border-0">
+                <div className="flex items-start gap-2">
+                  <span className={cn('h-2 w-2 rounded-full mt-1.5 flex-shrink-0',
+                    n.type === 'info' ? 'bg-blue-500' : n.type === 'success' ? 'bg-emerald-500' : 'bg-amber-500'
+                  )} />
+                  <div>
+                    <p className="text-xs font-medium text-foreground">{n.title}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{n.msg}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Dropdown>
       </header>
 
       {/* ── Desktop Sidebar ──────────────────────────────────────── */}

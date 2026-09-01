@@ -247,23 +247,26 @@ export default function PatientHome() {
       )}
 
       {/* Emergency Banner */}
-      <Card className="border-red-200 bg-red-50/50">
-        <CardContent className="flex items-center gap-4 p-4">
-          <div className="h-11 w-11 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-            <Phone className="h-5 w-5 text-red-600" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-red-900">{t('emergencySupport', language)}</h3>
-            <p className="text-xs text-red-700/80 mt-0.5">
-              {language === 'ta' ? 'அவசர உதவிக்கு அழைக்கவும்' : language === 'hi' ? 'आपातकालीन सहायता के लिए कॉल करें' : 'Call for immediate emergency assistance'}
-            </p>
-          </div>
-          <Button variant="destructive" size="sm" className="gap-1.5">
-            <Phone className="h-4 w-4" />
-            108
-          </Button>
-        </CardContent>
-      </Card>
+      <Link to="/app/emergency">
+        <Card className="border-red-200 bg-red-50/50 hover:bg-red-50 transition-colors cursor-pointer">
+          <CardContent className="flex items-center gap-4 p-4">
+            <div className="h-11 w-11 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+              <Phone className="h-5 w-5 text-red-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-red-900">{t('emergencySupport', language)}</h3>
+              <p className="text-xs text-red-700/80 mt-0.5">
+                {language === 'ta' ? 'அவசர உதவிக்கு அழைக்கவும்' : language === 'hi' ? 'आपातकालीन सहायता के लिए कॉल करें' : 'Tap for emergency assistance'}
+              </p>
+            </div>
+          <a href="tel:108">
+            <Button variant="destructive" size="sm" className="gap-1.5">
+              <Phone className="h-4 w-4" />
+              108
+            </Button>
+          </a>
+        </CardContent>        </Card>
+      </Link>
     </div>
   );
 }

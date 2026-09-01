@@ -2,7 +2,7 @@
 // AI Symptom Triage - Patient-facing AI assessment
 // ============================================================================
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -77,6 +77,41 @@ export default function AITriage() {
   const [symptoms, setSymptoms] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isAssessing, setIsAssessing] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  const startRecording = useCallback(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSymptoms(prev => prev + (prev ? '\n' : '') + '[Voice input not supported in this browser]');
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = language === 'ta' ? 'ta-IN' : language === 'hi' ? 'hi-IN' : 'en-IN';
+    let finalTranscript = symptoms;
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += (finalTranscript && !finalTranscript.endsWith('\n') ? ' ' : '') + event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setSymptoms(finalTranscript + (interim ? ' ' + interim : ''));
+    };
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+  }, [language, symptoms]);
+
+  const stopRecording = useCallback(() => {
+    recognitionRef.current?.stop();
+    setIsRecording(false);
+  }, []);
   const [result, setResult] = useState<TriageResult | null>(null);
   const [age, setAge] = useState('62');
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
@@ -167,7 +202,7 @@ export default function AITriage() {
               variant={isRecording ? 'destructive' : 'outline'}
               size="icon"
               className="absolute right-3 bottom-3 h-9 w-9"
-              onClick={() => setIsRecording(!isRecording)}
+              onClick={() => isRecording ? stopRecording() : startRecording()}
               disabled={isAssessing}
             >
               {isRecording ? (

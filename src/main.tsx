@@ -28,6 +28,7 @@ const DiagnosticsPage = lazy(() => import("./pages/patient/Diagnostics.tsx"));
 const Followups = lazy(() => import("./pages/patient/Followups.tsx"));
 const Privacy = lazy(() => import("./pages/patient/Privacy.tsx"));
 const Emergency = lazy(() => import("./pages/patient/Emergency.tsx"));
+const BookAppointment = lazy(() => import("./pages/patient/BookAppointment.tsx"));
 
 // Health Worker pages
 const HWDashboard = lazy(() => import("./pages/healthworker/Dashboard.tsx"));
@@ -129,6 +130,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/app/diagnostics" element={<RequireAuth><App><DiagnosticsPage /></App></RequireAuth>} />
                 <Route path="/app/followups" element={<RequireAuth><App><Followups /></App></RequireAuth>} />
                 <Route path="/app/privacy" element={<RequireAuth><App><Privacy /></App></RequireAuth>} />
+                <Route path="/app/book-appointment" element={<RequireAuth><App><BookAppointment /></App></RequireAuth>} />
                 <Route path="/app/emergency" element={<RequireAuth><App><Emergency /></App></RequireAuth>} />
 
                 {/* Health Worker Routes */}

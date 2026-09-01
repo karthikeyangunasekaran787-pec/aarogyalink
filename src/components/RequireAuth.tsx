@@ -1,29 +1,41 @@
-import { useAuth } from "@/hooks/use-auth";
-import { Loader2 } from "lucide-react";
-import type { ReactNode } from "react";
-import { Navigate, useLocation } from "react-router";
+// ============================================================================
+// AarogyaLink - Protected Route Component with Role-Based Access
+// ============================================================================
 
-export function RequireAuth({ children }: { children: ReactNode }) {
-  const { isLoading, isAuthenticated } = useAuth();
+import { useApp } from '@/contexts/AppContext';
+import { Navigate, useLocation } from 'react-router';
+import { Button } from '@/components/ui/button';
+import { Shield } from 'lucide-react';
+
+interface RequireAuthProps {
+  children: React.ReactNode;
+  allowedRoles?: string[];
+}
+
+export function RequireAuth({ children, allowedRoles }: RequireAuthProps) {
+  const { isAuthenticated, currentUser } = useApp();
   const location = useLocation();
 
-  if (isLoading) {
+  if (!isAuthenticated || !currentUser) {
+    return <Navigate to="/role-select" state={{ from: location }} replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </main>
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-md text-center">
+          <div className="h-16 w-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+            <Shield className="h-8 w-8 text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Access Restricted</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Your account does not have permission to access this area.
+          </p>
+          <Button onClick={() => window.history.back()}>Go Back</Button>
+        </div>
+      </div>
     );
   }
 
-  if (!isAuthenticated) {
-    const returnTo = `${location.pathname}${location.search}`;
-    return (
-      <Navigate
-        to={`/auth?returnTo=${encodeURIComponent(returnTo)}`}
-        replace
-      />
-    );
-  }
-
-  return children;
+  return <>{children}</>;
 }

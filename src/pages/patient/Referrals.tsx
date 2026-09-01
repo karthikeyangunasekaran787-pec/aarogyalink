@@ -11,13 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { ReferralTimeline, ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import { QRCode } from '@/components/shared/QRCode';
-import { referrals, referralEvents } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import {
   FileText,
   AlertTriangle, CheckCircle2, QrCode
 } from 'lucide-react';
 
 export default function Referrals() {
+  const { referrals, referralEvents, getReferralEvents } = useData();
   const { language } = useApp();
   const [selectedReferral, setSelectedReferral] = useState<string | null>(null);
 

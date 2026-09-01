@@ -6,7 +6,7 @@ import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { healthRecords } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import { Clock, FileText, FlaskConical, Pill, Syringe, ArrowUpRight } from 'lucide-react';
 
 const TYPE_CONFIG = {
@@ -18,6 +18,7 @@ const TYPE_CONFIG = {
 };
 
 export default function Timeline() {
+  const { healthRecords } = useData();
   const { language } = useApp();
   const records = healthRecords.filter(r => r.patientId === 'p1').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 

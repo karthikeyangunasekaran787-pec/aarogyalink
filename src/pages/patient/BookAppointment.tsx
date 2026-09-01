@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { facilities, doctors } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import { Calendar, Clock, MapPin, CheckCircle2, ArrowRight, User } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 
@@ -17,6 +17,7 @@ const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00
 
 export default function BookAppointment() {
   const { language } = useApp();
+  const { facilities, doctors, bookAppointment } = useData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedFacility = searchParams.get('facility') || '';
@@ -37,6 +38,17 @@ export default function BookAppointment() {
   const doctor = doctors.find(d => d.id === selectedDoctor);
 
   const handleBook = () => {
+    if (!doctor || !facility) return;
+    bookAppointment({
+      patientId: 'p1',
+      doctorId: doctor.id,
+      facilityId: facility.id,
+      department: doctor.specialization,
+      date: selectedDate,
+      time: selectedTime,
+      status: 'scheduled',
+      reason: reason || 'General consultation',
+    });
     setStep('success');
   };
 
@@ -59,8 +71,8 @@ export default function BookAppointment() {
             </div>
             <Badge variant="outline" className="text-xs mt-2">APT-{Date.now().toString().slice(-6)}</Badge>
             <div className="flex gap-3 justify-center mt-6">
-              <Button variant="outline" onClick={() => navigate('/app/appointments')}>View My Appointments</Button>
-              <Button onClick={() => navigate('/app')}>Back to Home</Button>
+              <Button variant="outline" onClick={() => navigate('/patient/appointments')}>View My Appointments</Button>
+              <Button onClick={() => navigate('/patient/dashboard')}>Back to Home</Button>
             </div>
           </CardContent>
         </Card>

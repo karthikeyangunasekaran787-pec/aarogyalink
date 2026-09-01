@@ -343,7 +343,7 @@ export default function AITriage() {
                   <p className="text-sm text-muted-foreground mt-0.5">{result.suggestedFacility}</p>
                   <p className="text-xs text-primary mt-0.5">{result.suggestedDepartment}</p>
                 </div>
-                <Link to="/app/facilities">
+                <Link to="/patient/facilities">
                   <Button size="sm" className="gap-1">
                     <MapPin className="h-3.5 w-3.5" />
                     {t('findNearestFacility', language)}

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { facilities, doctors } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import { Link } from 'react-router';
 import {
   Search, MapPin, Star, Clock, Bed, Users,
@@ -34,6 +34,7 @@ const FACILITY_TYPE_COLORS = {
 };
 
 export default function Facilities() {
+  const { facilities, doctors } = useData();
   const { language } = useApp();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -208,7 +209,7 @@ export default function Facilities() {
                             <p className="text-xs font-medium">{d.name}</p>
                             <p className="text-[10px] text-muted-foreground">{d.specialization}</p>
                           </div>
-                          <Link to={`/app/book-appointment?facility=${facility?.id}&doctor=${d.id}`}>
+                          <Link to={`/patient/book-appointment?facility=${facility?.id}&doctor=${d.id}`}>
                           <Button size="sm" variant="outline" className="h-7 text-[10px]">
                             {t('bookAppointment', language)}
                           </Button>
@@ -232,7 +233,7 @@ export default function Facilities() {
                   </div>
                 </div>
 
-                <Link to={`/app/book-appointment?facility=${facility.id}`}>
+                <Link to={`/patient/book-appointment?facility=${facility.id}`}>
                   <Button className="w-full h-10">
                     {t('bookAppointment', language)}
                     <ChevronRight className="h-4 w-4 ml-1" />

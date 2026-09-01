@@ -51,7 +51,7 @@ export default function Landing() {
               <span className="text-border">|</span>
               <button onClick={() => setLanguage('hi')} className="hover:text-primary transition-colors">हिन्दी</button>
             </div>
-            <Link to="/auth">
+            <Link to="/role-select">
               <Button size="sm" className="gap-1.5 h-9 px-4">
                 Get Started <ArrowRight className="h-3.5 w-3.5" />
               </Button>
@@ -77,13 +77,13 @@ export default function Landing() {
               the cracks.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-9">
-              <Link to="/auth">
+              <Link to="/role-select">
                 <Button size="lg" className="gap-2 h-12 px-8 text-base font-semibold">
                   Enter as Patient
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/auth">
+              <Link to="/role-select">
                 <Button size="lg" variant="outline" className="gap-2 h-12 px-8 text-base">
                   Healthcare Professional
                 </Button>
@@ -323,7 +323,7 @@ export default function Landing() {
               district officials.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
-              <Link to="/auth">
+              <Link to="/role-select">
                 <Button size="lg" className="gap-2 h-12 px-8 font-semibold">
                   Launch Platform <ArrowRight className="h-4 w-4" />
                 </Button>

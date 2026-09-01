@@ -7,7 +7,7 @@ import { t } from '@/lib/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { appointments, facilities } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import { Calendar, Clock, MapPin, Plus } from 'lucide-react';
 import { Link } from 'react-router';
 
@@ -20,6 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function Appointments() {
+  const { appointments, facilities } = useData();
   const { language } = useApp();
   const patientAppointments = appointments.filter(a => a.patientId === 'p1');
   const upcoming = patientAppointments.filter(a => a.status === 'scheduled');
@@ -39,7 +40,7 @@ export default function Appointments() {
              'Manage your upcoming and past appointments'}
           </p>
         </div>
-        <Link to="/app/book-appointment">
+        <Link to="/patient/book-appointment">
           <Button className="gap-1.5">
             <Plus className="h-4 w-4" />
             {t('bookAppointment', language)}

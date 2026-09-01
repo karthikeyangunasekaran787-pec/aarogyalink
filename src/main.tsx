@@ -8,10 +8,12 @@ import React, { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { AppProvider } from "@/contexts/AppContext";
+import { DataProvider } from "@/contexts/DataContext";
 import "./index.css";
 
 // Lazy load route components
 const Landing = lazy(() => import("./pages/Landing.tsx"));
+const RoleSelect = lazy(() => import("./pages/RoleSelect.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -20,6 +22,7 @@ const PatientHome = lazy(() => import("./pages/patient/Home.tsx"));
 const AITriage = lazy(() => import("./pages/patient/AITriage.tsx"));
 const Facilities = lazy(() => import("./pages/patient/Facilities.tsx"));
 const Appointments = lazy(() => import("./pages/patient/Appointments.tsx"));
+const BookAppointment = lazy(() => import("./pages/patient/BookAppointment.tsx"));
 const Referrals = lazy(() => import("./pages/patient/Referrals.tsx"));
 const HealthCard = lazy(() => import("./pages/patient/HealthCard.tsx"));
 const Timeline = lazy(() => import("./pages/patient/Timeline.tsx"));
@@ -28,7 +31,6 @@ const DiagnosticsPage = lazy(() => import("./pages/patient/Diagnostics.tsx"));
 const Followups = lazy(() => import("./pages/patient/Followups.tsx"));
 const Privacy = lazy(() => import("./pages/patient/Privacy.tsx"));
 const Emergency = lazy(() => import("./pages/patient/Emergency.tsx"));
-const BookAppointment = lazy(() => import("./pages/patient/BookAppointment.tsx"));
 
 // Health Worker pages
 const HWDashboard = lazy(() => import("./pages/healthworker/Dashboard.tsx"));
@@ -111,49 +113,59 @@ createRoot(document.getElementById("root")!).render(
         <BrowserRouter>
           <RouteSyncer />
           <AppProvider>
-            <Suspense fallback={<RouteLoading />}>
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/" element={<Landing />} />
-                <Route path="/auth" element={<AuthPage redirectAfterAuth="/app" />} />
+            <DataProvider>
+              <Suspense fallback={<RouteLoading />}>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/role-select" element={<RoleSelect />} />
+                  <Route path="/auth" element={<AuthPage />} />
 
-                {/* Patient App Routes */}
-                <Route path="/app" element={<RequireAuth><App><PatientHome /></App></RequireAuth>} />
-                <Route path="/app/ai-triage" element={<RequireAuth><App><AITriage /></App></RequireAuth>} />
-                <Route path="/app/facilities" element={<RequireAuth><App><Facilities /></App></RequireAuth>} />
-                <Route path="/app/appointments" element={<RequireAuth><App><Appointments /></App></RequireAuth>} />
-                <Route path="/app/referrals" element={<RequireAuth><App><Referrals /></App></RequireAuth>} />
-                <Route path="/app/referrals/:id" element={<RequireAuth><App><Referrals /></App></RequireAuth>} />
-                <Route path="/app/health-card" element={<RequireAuth><App><HealthCard /></App></RequireAuth>} />
-                <Route path="/app/timeline" element={<RequireAuth><App><Timeline /></App></RequireAuth>} />
-                <Route path="/app/medicines" element={<RequireAuth><App><Medicines /></App></RequireAuth>} />
-                <Route path="/app/diagnostics" element={<RequireAuth><App><DiagnosticsPage /></App></RequireAuth>} />
-                <Route path="/app/followups" element={<RequireAuth><App><Followups /></App></RequireAuth>} />
-                <Route path="/app/privacy" element={<RequireAuth><App><Privacy /></App></RequireAuth>} />
-                <Route path="/app/book-appointment" element={<RequireAuth><App><BookAppointment /></App></RequireAuth>} />
-                <Route path="/app/emergency" element={<RequireAuth><App><Emergency /></App></RequireAuth>} />
+                  {/* Patient Routes */}
+                  <Route path="/patient/dashboard" element={<RequireAuth allowedRoles={['patient']}><App><PatientHome /></App></RequireAuth>} />
+                  <Route path="/patient/ai-triage" element={<RequireAuth allowedRoles={['patient']}><App><AITriage /></App></RequireAuth>} />
+                  <Route path="/patient/facilities" element={<RequireAuth allowedRoles={['patient']}><App><Facilities /></App></RequireAuth>} />
+                  <Route path="/patient/appointments" element={<RequireAuth allowedRoles={['patient']}><App><Appointments /></App></RequireAuth>} />
+                  <Route path="/patient/book-appointment" element={<RequireAuth allowedRoles={['patient']}><App><BookAppointment /></App></RequireAuth>} />
+                  <Route path="/patient/referrals" element={<RequireAuth allowedRoles={['patient']}><App><Referrals /></App></RequireAuth>} />
+                  <Route path="/patient/referrals/:id" element={<RequireAuth allowedRoles={['patient']}><App><Referrals /></App></RequireAuth>} />
+                  <Route path="/patient/health-card" element={<RequireAuth allowedRoles={['patient']}><App><HealthCard /></App></RequireAuth>} />
+                  <Route path="/patient/timeline" element={<RequireAuth allowedRoles={['patient']}><App><Timeline /></App></RequireAuth>} />
+                  <Route path="/patient/medicines" element={<RequireAuth allowedRoles={['patient']}><App><Medicines /></App></RequireAuth>} />
+                  <Route path="/patient/diagnostics" element={<RequireAuth allowedRoles={['patient']}><App><DiagnosticsPage /></App></RequireAuth>} />
+                  <Route path="/patient/followups" element={<RequireAuth allowedRoles={['patient']}><App><Followups /></App></RequireAuth>} />
+                  <Route path="/patient/privacy" element={<RequireAuth allowedRoles={['patient']}><App><Privacy /></App></RequireAuth>} />
+                  <Route path="/patient/emergency" element={<RequireAuth allowedRoles={['patient']}><App><Emergency /></App></RequireAuth>} />
 
-                {/* Health Worker Routes */}
-                <Route path="/hw" element={<RequireAuth><App><HWDashboard /></App></RequireAuth>} />
-                <Route path="/hw/register" element={<RequireAuth><App><HWRegisterPatient /></App></RequireAuth>} />
-                <Route path="/hw/*" element={<RequireAuth><App><HWDashboard /></App></RequireAuth>} />
+                  {/* Health Worker Routes */}
+                  <Route path="/health-worker/dashboard" element={<RequireAuth allowedRoles={['health_worker']}><App><HWDashboard /></App></RequireAuth>} />
+                  <Route path="/health-worker/register" element={<RequireAuth allowedRoles={['health_worker']}><App><HWRegisterPatient /></App></RequireAuth>} />
+                  <Route path="/health-worker/referrals" element={<RequireAuth allowedRoles={['health_worker']}><App><HWDashboard /></App></RequireAuth>} />
+                  <Route path="/health-worker/followups" element={<RequireAuth allowedRoles={['health_worker']}><App><HWDashboard /></App></RequireAuth>} />
 
-                {/* Doctor Routes */}
-                <Route path="/doc" element={<RequireAuth><App><DoctorDashboard /></App></RequireAuth>} />
-                <Route path="/doc/*" element={<RequireAuth><App><DoctorDashboard /></App></RequireAuth>} />
+                  {/* Doctor Routes */}
+                  <Route path="/doctor/dashboard" element={<RequireAuth allowedRoles={['doctor']}><App><DoctorDashboard /></App></RequireAuth>} />
+                  <Route path="/doctor/appointments" element={<RequireAuth allowedRoles={['doctor']}><App><DoctorDashboard /></App></RequireAuth>} />
+                  <Route path="/doctor/referrals" element={<RequireAuth allowedRoles={['doctor']}><App><DoctorDashboard /></App></RequireAuth>} />
+                  <Route path="/doctor/followups" element={<RequireAuth allowedRoles={['doctor']}><App><DoctorDashboard /></App></RequireAuth>} />
 
-                {/* Hospital Admin Routes */}
-                <Route path="/admin" element={<RequireAuth><App><HospitalAdminDashboard /></App></RequireAuth>} />
-                <Route path="/admin/*" element={<RequireAuth><App><HospitalAdminDashboard /></App></RequireAuth>} />
+                  {/* Hospital Admin Routes */}
+                  <Route path="/hospital-admin/dashboard" element={<RequireAuth allowedRoles={['hospital_admin']}><App><HospitalAdminDashboard /></App></RequireAuth>} />
+                  <Route path="/hospital-admin/referrals" element={<RequireAuth allowedRoles={['hospital_admin']}><App><HospitalAdminDashboard /></App></RequireAuth>} />
+                  <Route path="/hospital-admin/medicines" element={<RequireAuth allowedRoles={['hospital_admin']}><App><HospitalAdminDashboard /></App></RequireAuth>} />
+                  <Route path="/hospital-admin/analytics" element={<RequireAuth allowedRoles={['hospital_admin']}><App><HospitalAdminDashboard /></App></RequireAuth>} />
 
-                {/* Government Admin Routes */}
-                <Route path="/gov" element={<RequireAuth><App><GovDashboard /></App></RequireAuth>} />
-                <Route path="/gov/*" element={<RequireAuth><App><GovDashboard /></App></RequireAuth>} />
+                  {/* District Admin Routes */}
+                  <Route path="/district-admin/dashboard" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
+                  <Route path="/district-admin/analytics" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
+                  <Route path="/district-admin/facilities" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
+                  <Route path="/district-admin/reports" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
 
-                {/* 404 */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
+                  {/* 404 */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </DataProvider>
           </AppProvider>
         </BrowserRouter>
         <Toaster />

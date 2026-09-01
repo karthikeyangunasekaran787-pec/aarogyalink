@@ -1,33 +1,96 @@
 // ============================================================================
-// Hospital Admin Dashboard
+// Hospital Admin Dashboard — Functional Referral Management
 // ============================================================================
 
-
+import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
-import { referrals, facilities, medicineStock, diagnostics } from '@/lib/mock-data';
 import {
-  Inbox, CheckCircle2, ScanLine, Package,
-  Users, Building2
+  Inbox, CheckCircle2, ScanLine, Package, XCircle,
+  Users, Building2, Clock, Calendar, Search, ChevronDown
 } from 'lucide-react';
 
 export default function HospitalAdminDashboard() {
   const { language } = useApp();
+  const {
+    referrals, facilities, medicineStock, diagnostics,
+    acceptReferral, rejectReferral, scheduleReferral, confirmArrival
+  } = useData();
+
   const facility = facilities[2]; // Madurai District Hospital
   const facilityReferrals = referrals.filter(r => r.destinationFacilityId === facility.id);
-  const incomingReferrals = facilityReferrals.filter(r => r.status === 'created' || r.status === 'accepted');
+  const pendingReferrals = facilityReferrals.filter(r => r.status === 'created');
+  const acceptedReferrals = facilityReferrals.filter(r => r.status === 'accepted');
+  const activeReferrals = facilityReferrals.filter(r => !['closed', 'created'].includes(r.status));
   const closedReferrals = facilityReferrals.filter(r => r.status === 'closed');
   const facilityMeds = medicineStock.filter(m => m.facilityId === facility.id);
   const facilityDiags = diagnostics.filter(d => d.facilityId === facility.id);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [schedulingRef, setSchedulingRef] = useState<string | null>(null);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [scannedRef, setScannedRef] = useState('');
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+
+  const showFeedback = (msg: string) => {
+    setActionFeedback(msg);
+    setTimeout(() => setActionFeedback(null), 3000);
+  };
+
+  const handleAccept = (refId: string) => {
+    acceptReferral(refId);
+    showFeedback('Referral accepted successfully');
+  };
+
+  const handleReject = (refId: string) => {
+    rejectReferral(refId);
+    showFeedback('Referral rejected');
+  };
+
+  const handleSchedule = (refId: string) => {
+    if (!scheduleDate || !scheduleTime) return;
+    scheduleReferral(refId, scheduleDate, scheduleTime);
+    setSchedulingRef(null);
+    setScheduleDate('');
+    setScheduleTime('');
+    showFeedback('Appointment scheduled successfully');
+  };
+
+  const handleConfirmArrival = () => {
+    const ref = facilityReferrals.find(r => r.referralId === scannedRef || r.id === scannedRef);
+    if (ref) {
+      confirmArrival(ref.id);
+      setScannedRef('');
+      showFeedback(`Patient arrival confirmed for ${ref.patientName}`);
+    } else {
+      showFeedback('Referral not found. Please check the referral ID.');
+    }
+  };
+
+  const filteredReferrals = facilityReferrals.filter(r => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return r.patientName.toLowerCase().includes(q) || r.referralId.toLowerCase().includes(q) || r.department.toLowerCase().includes(q);
+  });
+
   return (
     <div className="space-y-6">
+      {/* Feedback Toast */}
+      {actionFeedback && (
+        <div className="fixed top-20 right-6 z-50 bg-white border border-border rounded-xl shadow-lg px-4 py-3 text-sm font-medium text-foreground animate-in fade-in slide-in-from-top-2">
+          {actionFeedback}
+        </div>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold text-foreground">
           {language === 'ta' ? 'வணக்கம்' : language === 'hi' ? 'नमस्ते' : 'Welcome'}, Hospital Admin
@@ -40,20 +103,20 @@ export default function HospitalAdminDashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
                 <Inbox className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{incomingReferrals.length}</p>
-                <p className="text-xs text-muted-foreground">{t('referralInbox', language)}</p>
+                <p className="text-2xl font-bold text-foreground">{pendingReferrals.length}</p>
+                <p className="text-xs text-muted-foreground">Pending Acceptance</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
@@ -66,20 +129,20 @@ export default function HospitalAdminDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
                 <Package className="h-5 w-5 text-amber-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{facilityMeds.length}</p>
+                <p className="text-2xl font-bold text-foreground">{facilityMeds.filter(m => m.status !== 'out_of_stock').length}/{facilityMeds.length}</p>
                 <p className="text-xs text-muted-foreground">{t('medicineStock', language)}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center">
@@ -102,54 +165,110 @@ export default function HospitalAdminDashboard() {
           <TabsTrigger value="diags">{t('diagnosticAvail', language)}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="referrals" className="mt-4 space-y-3">
-          {facilityReferrals.length === 0 ? (
+        {/* ── Referrals Tab ──────────────────────────────── */}
+        <TabsContent value="referrals" className="mt-4 space-y-4">
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by patient, referral ID, or department..."
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          {filteredReferrals.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No referrals found</CardContent></Card>
-          ) : facilityReferrals.map(ref => {
-            return (
-              <Card key={ref.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-foreground">{ref.patientName}</p>
-                        <PriorityBadge priority={ref.priority} />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {ref.referralId} • {ref.department} • From: {ref.sourceFacilityName}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{ref.reason}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
+          ) : filteredReferrals.map(ref => (
+            <Card key={ref.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold text-foreground">{ref.patientName}</p>
+                      <PriorityBadge priority={ref.priority} />
                       <Badge variant="outline" className="text-[10px] capitalize">{ref.status.replace(/_/g, ' ')}</Badge>
-                      {(ref.status === 'created') && (
-                        <Button size="sm" className="h-7 text-xs gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Accept
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {ref.referralId} • {ref.department} • From: {ref.sourceFacilityName}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{ref.reason}</p>
+                    {ref.appointmentDate && (
+                      <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> {ref.appointmentDate} at {ref.appointmentTime}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {ref.status === 'created' && (
+                    <>
+                      <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handleAccept(ref.id)}>
+                        <CheckCircle2 className="h-3 w-3" /> Accept Referral
+                      </Button>
+                      <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={() => handleReject(ref.id)}>
+                        <XCircle className="h-3 w-3" /> Reject
+                      </Button>
+                    </>
+                  )}
+                  {ref.status === 'accepted' && (
+                    <div className="flex items-center gap-2">
+                      {schedulingRef === ref.id ? (
+                        <div className="flex items-center gap-2">
+                          <Input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="h-7 text-xs w-36" />
+                          <Input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="h-7 text-xs w-24" />
+                          <Button size="sm" className="h-7 text-xs" onClick={() => handleSchedule(ref.id)}>Confirm</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSchedulingRef(null)}>Cancel</Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setSchedulingRef(ref.id)}>
+                          <Clock className="h-3 w-3" /> Schedule Appointment
                         </Button>
                       )}
                     </div>
-                  </div>
+                  )}
+                  {(ref.status === 'scheduled') && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setScannedRef(ref.referralId)}>
+                      <ScanLine className="h-3 w-3" /> Confirm Arrival (QR)
+                    </Button>
+                  )}
+                </div>
+
+                <div className="mt-3">
                   <ReferralProgressMini currentStep={ref.currentStep} totalSteps={ref.totalSteps} isOverdue={ref.isOverdue} />
-                </CardContent>
-              </Card>
-            );
-          })}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
 
+        {/* ── QR Scan Tab ────────────────────────────────── */}
         <TabsContent value="qr" className="mt-4">
           <Card>
             <CardContent className="py-12 text-center">
               <ScanLine className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm font-medium text-foreground mb-1">QR Scan - Patient Arrival</p>
-              <p className="text-xs text-muted-foreground mb-4">Scan the patient's referral QR code to verify arrival</p>
-              <Button className="gap-2">
-                <ScanLine className="h-4 w-4" />
-                Open Camera Scanner
-              </Button>
+              <p className="text-sm font-medium text-foreground mb-1">QR Scan — Patient Arrival Verification</p>
+              <p className="text-xs text-muted-foreground mb-6">Enter or scan the patient's referral ID to confirm arrival</p>
+              <div className="flex items-center gap-2 max-w-md mx-auto">
+                <Input
+                  value={scannedRef}
+                  onChange={(e) => setScannedRef(e.target.value)}
+                  placeholder="Enter referral ID (e.g. REF-2026-006)"
+                  className="flex-1"
+                />
+                <Button onClick={handleConfirmArrival} disabled={!scannedRef}>
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> Confirm Arrival
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
+        {/* ── Medicine Stock Tab ─────────────────────────── */}
         <TabsContent value="meds" className="mt-4 space-y-3">
           {facilityMeds.map(ms => (
             <Card key={ms.id}>
@@ -173,6 +292,7 @@ export default function HospitalAdminDashboard() {
           ))}
         </TabsContent>
 
+        {/* ── Diagnostics Tab ────────────────────────────── */}
         <TabsContent value="diags" className="mt-4 space-y-3">
           {facilityDiags.map(d => (
             <Card key={d.id}>

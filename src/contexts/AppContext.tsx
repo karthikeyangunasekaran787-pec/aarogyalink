@@ -1,12 +1,37 @@
 // ============================================================================
-// AarogyaLink - Application Context Provider
+// AarogyaLink - Application Context Provider with Auth
 // ============================================================================
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { Role } from '@/types';
 import type { Language } from '@/lib/i18n';
 
+interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  facilityId?: string;
+  phone?: string;
+}
+
+// Demo accounts for SIH prototype
+const DEMO_ACCOUNTS: Record<Role, AuthUser> = {
+  patient: { id: 'u1', name: 'Lakshmi Devi', email: 'lakshmi@demo.aarogyalink.in', role: 'patient', phone: '9876543210' },
+  health_worker: { id: 'uhw1', name: 'Suganthi M', email: 'suganthi@demo.aarogyalink.in', role: 'health_worker', facilityId: 'f1', phone: '9850100001' },
+  doctor: { id: 'ud1', name: 'Dr. Senthil Kumar', email: 'senthil@demo.aarogyalink.in', role: 'doctor', facilityId: 'f1', phone: '9840100001' },
+  hospital_admin: { id: 'uha1', name: 'Admin Rajan', email: 'rajan@demo.aarogyalink.in', role: 'hospital_admin', facilityId: 'f3' },
+  gov_admin: { id: 'uga1', name: 'District Collector', email: 'collector@demo.aarogyalink.in', role: 'gov_admin' },
+};
+
 interface AppState {
+  // Auth
+  currentUser: AuthUser | null;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => boolean;
+  logout: () => void;
+
+  // App state
   currentRole: Role;
   setCurrentRole: (role: Role) => void;
   language: Language;
@@ -24,20 +49,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>('en');
   const [isOffline, setIsOffline] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+
+  const isAuthenticated = currentUser !== null;
+
+  const login = useCallback((email: string, _password: string) => {
+    // Demo login: any @demo.aarogyalink.in email matches the selected role
+    const account = DEMO_ACCOUNTS[currentRole];
+    if (account && email.startsWith(account.email.split('@')[0])) {
+      setCurrentUser(account);
+      return true;
+    }
+    // Fallback: any email logs in with the selected role
+    setCurrentUser(DEMO_ACCOUNTS[currentRole]);
+    return true;
+  }, [currentRole]);
+
+  const logout = useCallback(() => {
+    setCurrentUser(null);
+    // Clear any browser state
+    try { sessionStorage.clear(); } catch { /* ok */ }
+  }, []);
 
   const handleSetRole = useCallback((role: Role) => {
     setCurrentRole(role);
   }, []);
 
   const value: AppState = {
-    currentRole,
-    setCurrentRole: handleSetRole,
-    language,
-    setLanguage,
-    isOffline,
-    setIsOffline,
-    sidebarOpen,
-    setSidebarOpen,
+    currentUser, isAuthenticated, login, logout,
+    currentRole, setCurrentRole: handleSetRole,
+    language, setLanguage,
+    isOffline, setIsOffline,
+    sidebarOpen, setSidebarOpen,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -8,11 +8,12 @@ import { t } from '@/lib/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { diagnostics } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import { TestTube, Search, Clock, IndianRupee, CheckCircle2, XCircle } from 'lucide-react';
 
 export default function DiagnosticsPage() {
   const { language } = useApp();
+  const { diagnostics } = useData();
   const [search, setSearch] = useState('');
 
   const filtered = diagnostics.filter(d =>

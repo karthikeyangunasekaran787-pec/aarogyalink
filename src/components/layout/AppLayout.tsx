@@ -2,19 +2,20 @@
 // AarogyaLink — Main Application Layout
 // ============================================================================
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/contexts/AppContext';
+import { useData } from '@/contexts/DataContext';
 import { t, type TranslationKey } from '@/lib/i18n';
 import { OfflineIndicator } from '@/components/shared/OfflineIndicator';
 import { Button } from '@/components/ui/button';
 import {
-  Heart, Menu, X, ChevronDown, Globe, Wifi, WifiOff,
+  Heart, Menu, X, ChevronDown, Globe, Wifi, WifiOff, LogOut,
   Home, Stethoscope, Building2, Users, Activity, FileText,
   Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
-  Pill, TestTube, BarChart3, UserPlus, Clock,
-  Package, TrendingUp, MessageSquare, Inbox
+  Pill, TestTube, BarChart3, UserPlus,
+  Package, TrendingUp, MessageSquare, Inbox, Clock
 } from 'lucide-react';
 
 interface NavItem {
@@ -24,54 +25,48 @@ interface NavItem {
 }
 
 const PATIENT_NAV: NavItem[] = [
-  { label: 'home', path: '/app', icon: Home },
-  { label: 'aiAssistant', path: '/app/ai-triage', icon: Stethoscope },
-  { label: 'findFacilities', path: '/app/facilities', icon: MapPin },
-  { label: 'myAppointments', path: '/app/appointments', icon: Calendar },
-  { label: 'myReferrals', path: '/app/referrals', icon: FileText },
-  { label: 'myHealthCard', path: '/app/health-card', icon: CreditCard },
-  { label: 'myTimeline', path: '/app/timeline', icon: Clock },
-  { label: 'medicines', path: '/app/medicines', icon: Pill },
-  { label: 'diagnostics', path: '/app/diagnostics', icon: TestTube },
-  { label: 'followUpReminders', path: '/app/followups', icon: Bell },
-  { label: 'consentCenter', path: '/app/privacy', icon: Shield },
+  { label: 'home', path: '/patient/dashboard', icon: Home },
+  { label: 'aiAssistant', path: '/patient/ai-triage', icon: Stethoscope },
+  { label: 'findFacilities', path: '/patient/facilities', icon: MapPin },
+  { label: 'myAppointments', path: '/patient/appointments', icon: Calendar },
+  { label: 'myReferrals', path: '/patient/referrals', icon: FileText },
+  { label: 'myHealthCard', path: '/patient/health-card', icon: CreditCard },
+  { label: 'myTimeline', path: '/patient/timeline', icon: Clock },
+  { label: 'medicines', path: '/patient/medicines', icon: Pill },
+  { label: 'diagnostics', path: '/patient/diagnostics', icon: TestTube },
+  { label: 'followUpReminders', path: '/patient/followups', icon: Bell },
+  { label: 'consentCenter', path: '/patient/privacy', icon: Shield },
 ];
 
 const HW_NAV: NavItem[] = [
-  { label: 'dashboard', path: '/hw', icon: Home },
-  { label: 'registerPatient', path: '/hw/register', icon: UserPlus },
-  { label: 'aiAssistant', path: '/hw/ai-triage', icon: Stethoscope },
-  { label: 'createReferral', path: '/hw/create-referral', icon: FileText },
-  { label: 'myReferrals', path: '/hw/referrals', icon: ClipboardList },
-  { label: 'followUpReminders', path: '/hw/followups', icon: Bell },
-  { label: 'offlineCapture', path: '/hw/sync', icon: Wifi },
+  { label: 'dashboard', path: '/health-worker/dashboard', icon: Home },
+  { label: 'registerPatient', path: '/health-worker/register', icon: UserPlus },
+  { label: 'myReferrals', path: '/health-worker/referrals', icon: ClipboardList },
+  { label: 'followUpReminders', path: '/health-worker/followups', icon: Bell },
 ];
 
 const DOCTOR_NAV: NavItem[] = [
-  { label: 'dashboard', path: '/doc', icon: Home },
-  { label: 'appointmentQueue', path: '/doc/queue', icon: Calendar },
-  { label: 'myReferrals', path: '/doc/referrals', icon: FileText },
-  { label: 'followUpReminders', path: '/doc/followups', icon: Bell },
+  { label: 'dashboard', path: '/doctor/dashboard', icon: Home },
+  { label: 'appointmentQueue', path: '/doctor/appointments', icon: Calendar },
+  { label: 'myReferrals', path: '/doctor/referrals', icon: FileText },
+  { label: 'followUpReminders', path: '/doctor/followups', icon: Bell },
 ];
 
 const HOSP_ADMIN_NAV: NavItem[] = [
-  { label: 'dashboard', path: '/admin', icon: Home },
-  { label: 'referralInbox', path: '/admin/referrals', icon: Inbox },
-  { label: 'medicineStock', path: '/admin/medicines', icon: Package },
-  { label: 'completionAnalytics', path: '/admin/analytics', icon: BarChart3 },
+  { label: 'dashboard', path: '/hospital-admin/dashboard', icon: Home },
+  { label: 'referralInbox', path: '/hospital-admin/referrals', icon: Inbox },
+  { label: 'medicineStock', path: '/hospital-admin/medicines', icon: Package },
+  { label: 'completionAnalytics', path: '/hospital-admin/analytics', icon: BarChart3 },
 ];
 
 const GOV_NAV: NavItem[] = [
-  { label: 'dashboard', path: '/gov', icon: Home },
-  { label: 'referralFunnel', path: '/gov/funnel', icon: TrendingUp },
-  { label: 'villageMap', path: '/gov/villages', icon: MapPin },
-  { label: 'insights', path: '/gov/insights', icon: MessageSquare },
-  { label: 'facilityCapacity', path: '/gov/facilities', icon: Building2 },
-  { label: 'medicineStock', path: '/gov/medicines', icon: Pill },
-  { label: 'diagnosticAvail', path: '/gov/diagnostics', icon: TestTube },
+  { label: 'dashboard', path: '/district-admin/dashboard', icon: Home },
+  { label: 'referralFunnel', path: '/district-admin/analytics', icon: TrendingUp },
+  { label: 'villageMap', path: '/district-admin/facilities', icon: MapPin },
+  { label: 'insights', path: '/district-admin/reports', icon: MessageSquare },
 ];
 
-const ROLE_NAV_MAP = {
+const ROLE_NAV_MAP: Record<string, NavItem[]> = {
   patient: PATIENT_NAV,
   health_worker: HW_NAV,
   doctor: DOCTOR_NAV,
@@ -79,20 +74,12 @@ const ROLE_NAV_MAP = {
   gov_admin: GOV_NAV,
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  patient: 'Patient',
-  health_worker: 'Health Worker',
-  doctor: 'Doctor',
-  hospital_admin: 'Hospital Admin',
-  gov_admin: 'District Admin',
-};
-
-const ROLE_PATHS: Record<string, string> = {
-  patient: '/app',
-  health_worker: '/hw',
-  doctor: '/doc',
-  hospital_admin: '/admin',
-  gov_admin: '/gov',
+const ROLE_PATH_MAP: Record<string, string> = {
+  patient: '/patient/dashboard',
+  health_worker: '/health-worker/dashboard',
+  doctor: '/doctor/dashboard',
+  hospital_admin: '/hospital-admin/dashboard',
+  gov_admin: '/district-admin/dashboard',
 };
 
 // Click-outside hook
@@ -135,21 +122,22 @@ function Dropdown({ open, onOpenChange, trigger, children }: {
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { currentRole, setCurrentRole, language, setLanguage, isOffline, sidebarOpen } = useApp();
+  const { currentRole, language, setLanguage, isOffline, sidebarOpen, currentUser, logout } = useApp();
+  const { notifications, getNotificationsForUser } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
-  const [roleOpen, setRoleOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
   const navItems = ROLE_NAV_MAP[currentRole] || PATIENT_NAV;
+  const userNotifications = currentUser ? getNotificationsForUser(currentUser.id) : [];
+  const unreadCount = userNotifications.filter(n => !n.read).length;
 
-  const handleRoleChange = (role: typeof currentRole) => {
-    setCurrentRole(role);
-    navigate(ROLE_PATHS[role] || '/app');
-    setRoleOpen(false);
-  };
+  const handleLogout = useCallback(() => {
+    logout();
+    navigate('/role-select', { replace: true });
+  }, [logout, navigate]);
 
   return (
     <div className={cn('min-h-screen bg-background', isOffline && 'pt-10')}>
@@ -170,7 +158,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </Button>
 
         {/* Logo */}
-        <Link to={ROLE_PATHS[currentRole] || '/app'} className="flex items-center gap-2.5">
+        <Link to={ROLE_PATH_MAP[currentRole] || '/patient/dashboard'} className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
             <Heart className="h-4 w-4 text-primary-foreground" fill="currentColor" />
           </div>
@@ -188,31 +176,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <span>{isOffline ? t('offline', language) : t('online', language)}</span>
         </div>
 
-        {/* Role selector dropdown */}
-        <Dropdown open={roleOpen} onOpenChange={setRoleOpen}
-          trigger={
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
-              <Users className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{ROLE_LABELS[currentRole]}</span>
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          }
-        >
-          {Object.entries(ROLE_LABELS).map(([role, label]) => (
-            <button
-              key={role}
-              className={cn(
-                'w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer',
-                currentRole === role && 'bg-primary/5 text-primary font-medium'
-              )}
-              onClick={() => handleRoleChange(role as typeof currentRole)}
-            >
-              {label}
-            </button>
-          ))}
-        </Dropdown>
-
-        {/* Language selector dropdown */}
+        {/* Language selector */}
         <Dropdown open={langOpen} onOpenChange={setLangOpen}
           trigger={
             <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer">
@@ -243,7 +207,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           trigger={
             <Button variant="ghost" size="icon" className="h-8 w-8 relative cursor-pointer">
               <Bell className="h-4 w-4" />
-              <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
+              )}
             </Button>
           }
         >
@@ -251,25 +217,36 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <p className="text-sm font-semibold text-foreground">Notifications</p>
           </div>
           <div className="max-h-64 overflow-y-auto">
-            {[
-              { title: 'Follow-up Reminder', msg: 'Your follow-up with Dr. Rajesh Verma is on Jul 30.', type: 'info' },
-              { title: 'Referral Update', msg: 'REF-2026-001 has been closed successfully.', type: 'success' },
-              { title: 'Prescription Refill', msg: 'Warfarin prescription may need a refill in 5 days.', type: 'warning' },
-            ].map((n, i) => (
-              <div key={i} className="px-3 py-2.5 hover:bg-muted transition-colors border-b border-border/50 last:border-0">
-                <div className="flex items-start gap-2">
-                  <span className={cn('h-2 w-2 rounded-full mt-1.5 flex-shrink-0',
-                    n.type === 'info' ? 'bg-blue-500' : n.type === 'success' ? 'bg-emerald-500' : 'bg-amber-500'
-                  )} />
-                  <div>
-                    <p className="text-xs font-medium text-foreground">{n.title}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{n.msg}</p>
+            {userNotifications.length === 0 ? (
+              <div className="px-3 py-4 text-center text-xs text-muted-foreground">No notifications</div>
+            ) : (
+              userNotifications.slice(0, 5).map((n) => (
+                <div key={n.id} className="px-3 py-2.5 hover:bg-muted transition-colors border-b border-border/50 last:border-0">
+                  <div className="flex items-start gap-2">
+                    <span className={cn('h-2 w-2 rounded-full mt-1.5 flex-shrink-0',
+                      n.type === 'alert' ? 'bg-red-500' : n.type === 'warning' ? 'bg-amber-500' : n.type === 'success' ? 'bg-emerald-500' : 'bg-blue-500'
+                    )} />
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{n.title}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{n.message}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </Dropdown>
+
+        {/* User + Logout */}
+        <div className="hidden sm:flex items-center gap-2">
+          <div className="text-right">
+            <p className="text-xs font-medium text-foreground leading-tight">{currentUser?.name || 'User'}</p>
+            <p className="text-[10px] text-muted-foreground">{currentRole.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600" onClick={handleLogout}>
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       {/* ── Desktop Sidebar ──────────────────────────────────────── */}
@@ -283,8 +260,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="space-y-0.5">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path ||
-                (item.path !== '/app' && item.path !== '/hw' && item.path !== '/doc' && item.path !== '/admin' && item.path !== '/gov' && location.pathname.startsWith(item.path));
+              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
               return (
                 <Link
@@ -307,10 +283,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Sidebar footer */}
         <div className="p-3 border-t border-border">
-          <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
-            <Activity className="h-3.5 w-3.5" />
-            <span>AarogyaLink</span>
-          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-all w-full cursor-pointer"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>{t('logout', language)}</span>
+          </button>
         </div>
       </aside>
 
@@ -325,8 +304,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <nav className="p-3 space-y-0.5">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path ||
-                  (item.path !== '/app' && item.path !== '/hw' && item.path !== '/doc' && item.path !== '/admin' && item.path !== '/gov' && location.pathname.startsWith(item.path));
+                const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
                 return (
                   <Link
@@ -346,6 +324,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 );
               })}
             </nav>
+            <div className="p-3 border-t border-border">
+              <button
+                onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-all w-full cursor-pointer"
+              >
+                <LogOut className="h-5 w-5" />
+                <span>{t('logout', language)}</span>
+              </button>
+            </div>
           </aside>
         </>
       )}

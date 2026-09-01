@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { RiskBadge } from '@/components/shared/RiskBadge';
-import { patients, referrals, appointments, notifications, facilities } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import { Link } from 'react-router';
 import {
   Stethoscope, MapPin, Calendar, FileText, CreditCard, Clock,
@@ -19,10 +19,11 @@ import {
 
 export default function PatientHome() {
   const { language } = useApp();
+  const { patients, referrals, appointments, facilities, getReferralsForPatient } = useData();
   const patient = patients[0]; // Demo: Lakshmi Devi
-  const activeReferrals = referrals.filter(r => r.patientId === patient.id && r.status !== 'closed');
+  const activeReferrals = getReferralsForPatient(patient.id).filter(r => r.status !== 'closed');
   const upcomingAppointments = appointments.filter(a => a.patientId === patient.id && a.status === 'scheduled');
-  const recentNotifications = notifications.filter(n => n.userId === patient.id && !n.read).slice(0, 3);
+  const recentNotifications: { id: string; userId: string; title: string; message: string; type: string; read: boolean; createdAt: string; }[] = [];
   const latestVitals = {
     bloodPressureSystolic: 152,
     bloodPressureDiastolic: 95,
@@ -32,10 +33,10 @@ export default function PatientHome() {
   };
 
   const quickActions = [
-    { label: t('aiAssistant', language), path: '/app/ai-triage', icon: Stethoscope, color: 'bg-primary/10 text-primary' },
-    { label: t('findFacilities', language), path: '/app/facilities', icon: MapPin, color: 'bg-emerald-50 text-emerald-600' },
-    { label: t('emergency', language), path: '/app/emergency', icon: Phone, color: 'bg-red-50 text-red-600' },
-    { label: t('myHealthCard', language), path: '/app/health-card', icon: CreditCard, color: 'bg-violet-50 text-violet-600' },
+    { label: t('aiAssistant', language), path: '/patient/ai-triage', icon: Stethoscope, color: 'bg-primary/10 text-primary' },
+    { label: t('findFacilities', language), path: '/patient/facilities', icon: MapPin, color: 'bg-emerald-50 text-emerald-600' },
+    { label: t('emergency', language), path: '/patient/emergency', icon: Phone, color: 'bg-red-50 text-red-600' },
+    { label: t('myHealthCard', language), path: '/patient/health-card', icon: CreditCard, color: 'bg-violet-50 text-violet-600' },
   ];
 
   return (
@@ -132,7 +133,7 @@ export default function PatientHome() {
                 <FileText className="h-[1.125rem] w-[1.125rem] text-primary" />
                 {t('myReferrals', language)}
               </CardTitle>
-              <Link to="/app/referrals">
+              <Link to="/patient/referrals">
                 <Button variant="ghost" size="sm" className="text-xs h-7 gap-1">
                   {t('view', language)} <ChevronRight className="h-3 w-3" />
                 </Button>
@@ -175,7 +176,7 @@ export default function PatientHome() {
                 <Calendar className="h-[1.125rem] w-[1.125rem] text-primary" />
                 {t('myAppointments', language)}
               </CardTitle>
-              <Link to="/app/appointments">
+              <Link to="/patient/appointments">
                 <Button variant="ghost" size="sm" className="text-xs h-7 gap-1">
                   {t('view', language)} <ChevronRight className="h-3 w-3" />
                 </Button>
@@ -247,7 +248,7 @@ export default function PatientHome() {
       )}
 
       {/* Emergency Banner */}
-      <Link to="/app/emergency">
+      <Link to="/patient/emergency">
         <Card className="border-red-200 bg-red-50/50 hover:bg-red-50 transition-colors cursor-pointer">
           <CardContent className="flex items-center gap-4 p-4">
             <div className="h-11 w-11 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">

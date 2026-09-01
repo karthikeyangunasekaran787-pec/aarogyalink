@@ -8,7 +8,7 @@ import { t } from '@/lib/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { medicineStock } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import { Pill, Search, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -18,6 +18,7 @@ const STATUS_CONFIG = {
 };
 
 export default function Medicines() {
+  const { medicineStock } = useData();
   const { language } = useApp();
   const [search, setSearch] = useState('');
 

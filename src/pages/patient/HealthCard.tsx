@@ -6,10 +6,11 @@ import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { QRCode } from '@/components/shared/QRCode';
-import { patients } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import { CreditCard, Download, Share2, Heart, Droplets, Phone, AlertTriangle, Shield } from 'lucide-react';
 
 export default function HealthCard() {
+  const { patients } = useData();
   const { language } = useApp();
   const patient = patients[0]; // Lakshmi Devi
 

@@ -7,7 +7,7 @@ import { t } from '@/lib/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { followups } from '@/lib/mock-data';
+import { useData } from '@/contexts/DataContext';
 import { Bell, Calendar, Clock, AlertTriangle, CheckCircle2, User } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -19,6 +19,7 @@ const STATUS_CONFIG = {
 };
 
 export default function Followups() {
+  const { followups } = useData();
   const { language } = useApp();
   const patientFollowups = followups.filter(f => f.patientId === 'p1');
   const upcoming = patientFollowups.filter(f => f.status === 'scheduled');

@@ -37,7 +37,7 @@ export default function HealthCard() {
                 <Heart className="h-5 w-5" fill="currentColor" />
               </div>
               <div>
-                <p className="text-lg font-bold">CareLoop Health</p>
+                <p className="text-lg font-bold">AarogyaLink</p>
                 <p className="text-xs text-primary-foreground/80">Government of Tamil Nadu · Digital Health Card</p>
               </div>
             </div>

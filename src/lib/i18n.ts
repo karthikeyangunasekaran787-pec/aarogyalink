@@ -1,5 +1,5 @@
 // ============================================================================
-// CareLoop Health — Internationalization (English, Tamil, Hindi)
+// AarogyaLink — Internationalization (English, Tamil, Hindi)
 // ============================================================================
 
 export type Language = 'en' | 'ta' | 'hi';
@@ -8,8 +8,8 @@ export type TranslationKey = keyof typeof translations.en;
 export const translations = {
   en: {
     // Branding
-    appName: 'CareLoop Health',
-    tagline: 'No Patient Lost in the Referral Loop',
+    appName: 'AarogyaLink',
+    tagline: 'Connecting Rural Patients to the Right Care — Until Recovery.',
     // General
     loading: 'Loading…',
     save: 'Save',
@@ -175,8 +175,8 @@ export const translations = {
     hindi: 'हिन्दी',
   },
   ta: {
-    appName: 'CareLoop Health',
-    tagline: 'பரிந்துரை சுழற்சியில் நோயாளி இழக்கப்படமாட்டார்',
+    appName: 'AarogyaLink',
+    tagline: 'சரியான பராமரிப்புக்கு கிராமப்புற நோயாளிகளை இணைக்கிறது — மீட்பு வரை.',
     loading: 'ஏற்றுகிறது…',
     save: 'சேமி',
     cancel: 'ரத்து செய்',
@@ -329,8 +329,8 @@ export const translations = {
     hindi: 'हिन्दी',
   },
   hi: {
-    appName: 'CareLoop Health',
-    tagline: 'रेफरल लूप में कोई मरीज नहीं खोएगा',
+    appName: 'AarogyaLink',
+    tagline: 'ग्रामीण मरीजों को सही देखभाल से जोड़ना — रिकवरी तक.',
     loading: 'लोड हो रहा है…',
     save: 'सहेजें',
     cancel: 'रद्द करें',

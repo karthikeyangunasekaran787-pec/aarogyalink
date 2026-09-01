@@ -1,5 +1,5 @@
 // ============================================================================
-// CareLoop Health — Landing Page
+// AarogyaLink — Landing Page
 // ============================================================================
 
 import { motion } from "framer-motion";
@@ -38,8 +38,8 @@ export default function Landing() {
               <Heart className="h-5 w-5 text-primary-foreground" fill="currentColor" />
             </div>
             <div>
-              <span className="text-lg font-bold text-foreground tracking-tight">CareLoop</span>
-              <span className="text-lg font-bold text-primary tracking-tight ml-0.5">Health</span>
+              <span className="text-lg font-bold text-foreground tracking-tight">Aarogya</span>
+              <span className="text-lg font-bold text-primary tracking-tight ml-0">Link</span>
             </div>
           </Link>
           <div className="flex items-center gap-3">
@@ -262,7 +262,7 @@ export default function Landing() {
               <Shield className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground leading-relaxed">
                 <span className="font-semibold text-foreground">Clinical Decision Support Only.</span>{" "}
-                All AI outputs in CareLoop Health are assistive tools that require healthcare
+                All AI outputs in AarogyaLink are assistive tools that require healthcare
                 professional review. They are never autonomous medical diagnoses.
               </p>
             </CardContent>
@@ -314,7 +314,7 @@ export default function Landing() {
               <Heart className="h-8 w-8 text-primary" fill="currentColor" />
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
-              Experience CareLoop Health
+              Experience AarogyaLink
             </h2>
             <p className="text-sm text-muted-foreground mt-3 max-w-lg mx-auto leading-relaxed">
               Explore the full platform with realistic synthetic data. Sign in as a patient
@@ -340,7 +340,7 @@ export default function Landing() {
             <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
               <Heart className="h-3.5 w-3.5 text-primary-foreground" fill="currentColor" />
             </div>
-            <span className="text-sm font-bold text-foreground tracking-tight">CareLoop Health</span>
+            <span className="text-sm font-bold text-foreground tracking-tight">AarogyaLink</span>
           </div>
           <p className="text-xs text-muted-foreground">
             Smart India Hackathon 2026 · Problem Statement SIH26133

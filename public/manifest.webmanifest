@@ -1,7 +1,7 @@
 {
-  "name": "CareLoop Health",
-  "short_name": "CareLoop",
-  "description": "AI-assisted rural healthcare access, referral closure, and follow-up platform",
+  "name": "AarogyaLink",
+  "short_name": "AarogyaLink",
+  "description": "AI-assisted rural healthcare access, referral closure, and follow-up platform — No Patient Lost in the Referral Loop",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fffe",

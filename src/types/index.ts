@@ -1,5 +1,5 @@
 // ============================================================================
-// CareLoop Health - Type Definitions
+// AarogyaLink - Type Definitions
 // ============================================================================
 
 export type Role = 'patient' | 'health_worker' | 'doctor' | 'hospital_admin' | 'gov_admin';

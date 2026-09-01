@@ -1,5 +1,5 @@
 // ============================================================================
-// CareLoop Health — Main Application Layout
+// AarogyaLink — Main Application Layout
 // ============================================================================
 
 import { useState, useRef, useEffect } from 'react';
@@ -175,8 +175,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <Heart className="h-4 w-4 text-primary-foreground" fill="currentColor" />
           </div>
           <div className="hidden sm:block">
-            <span className="text-base font-bold text-foreground tracking-tight">CareLoop</span>
-            <span className="text-base font-bold text-primary tracking-tight ml-0.5">Health</span>
+            <span className="text-base font-bold text-foreground tracking-tight">Aarogya</span>
+            <span className="text-base font-bold text-primary tracking-tight ml-0">Link</span>
           </div>
         </Link>
 
@@ -309,7 +309,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="p-3 border-t border-border">
           <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
             <Activity className="h-3.5 w-3.5" />
-            <span>CareLoop Health</span>
+            <span>AarogyaLink</span>
           </div>
         </div>
       </aside>

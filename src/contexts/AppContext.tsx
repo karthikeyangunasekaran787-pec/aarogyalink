@@ -1,5 +1,5 @@
 // ============================================================================
-// CareLoop Health - Application Context Provider
+// AarogyaLink - Application Context Provider
 // ============================================================================
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';

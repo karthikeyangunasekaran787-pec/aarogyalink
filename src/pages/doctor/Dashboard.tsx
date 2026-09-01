@@ -15,16 +15,16 @@ import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import {
   Calendar, Users, FileText, Clock, Stethoscope, Activity,
-  CheckCircle2, PlayCircle, AlertTriangle
+  CheckCircle2, PlayCircle
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
   const { language } = useApp();
   const {
-    doctors, patients, appointments, referrals, followups, consultations,
+    doctors, patients, referrals, followups,
     getAppointmentsForDoctor, getReferralsForPatient, getVitalsForPatient,
     getConsultationsForPatient,
-    startConsultation, completeConsultation, addTreatment, scheduleFollowup, closeReferral,
+    startConsultation, completeConsultation, scheduleFollowup,
     addConsultation: addConsultationToData
   } = useData();
 
@@ -49,7 +49,7 @@ export default function DoctorDashboard() {
 
   const patient = selectedPatient ? patients.find(p => p.id === selectedPatient) : null;
   const patientVitals = patient ? getVitalsForPatient(patient.id) : [];
-  const patientReferrals = patient ? getReferralsForPatient(patient.id) : [];
+  // patient referrals available via getReferralsForPatient
   const patientConsultations = patient ? getConsultationsForPatient(patient.id) : [];
 
   const handleStartConsultation = (refId: string) => {

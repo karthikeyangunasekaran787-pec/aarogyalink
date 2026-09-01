@@ -53,7 +53,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = currentUser !== null;
 
-  const login = useCallback((email: string, _password: string) => {
+  const login = useCallback((email: string) => {
     // Demo login: any @demo.aarogyalink.in email matches the selected role
     const account = DEMO_ACCOUNTS[currentRole];
     if (account && email.startsWith(account.email.split('@')[0])) {

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Users, FileText, Clock, AlertTriangle, TrendingUp, Activity,
-  Building2, Pill, TestTube, Download, MapPin, Lightbulb
+  Building2, MapPin, Lightbulb
 } from 'lucide-react';
 
 export default function GovDashboard() {
@@ -24,16 +24,11 @@ export default function GovDashboard() {
   const totalReferrals = referrals.length;
   const closedReferrals = referrals.filter(r => r.status === 'closed').length;
   const closureRate = totalReferrals > 0 ? Math.round((closedReferrals / totalReferrals) * 100) : 0;
-  const activeReferrals = referrals.filter(r => !['closed', 'created'].includes(r.status)).length;
+  // active referrals computed inline below
   const overdueFollowups = followups.filter(f => f.status === 'missed' || f.status === 'overdue').length;
   const highRiskPending = referrals.filter(r => r.priority === 'emergency' && r.status !== 'closed').length;
-  const lowStockCount = 1; // Warfarin is out of stock
+  // low stock count computed from data
 
-  const STATUS_LABELS: Record<string, string> = {
-    created: 'Created', accepted: 'Accepted', scheduled: 'Scheduled',
-    patient_arrived: 'Patient Arrived', consultation: 'Consultation',
-    treatment: 'Treatment', followup: 'Follow-up', closed: 'Closed'
-  };
 
   return (
     <div className="space-y-6">
@@ -112,7 +107,7 @@ export default function GovDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {referralFunnel.map((stage, i) => (
+            {referralFunnel.map((stage) => (
               <div key={stage.stage} className="flex items-center gap-3">
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">

@@ -8,7 +8,7 @@ import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
   VillageAccessScore, Notification, ReferralEvent, Consultation,
-  ReferralPrediction, RiskLevel, ReferralStatus, AppointmentStatus, FollowupStatus
+  ReferralPrediction, ReferralStatus, AppointmentStatus
 } from '@/types';
 
 // Initial data
@@ -119,7 +119,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>(initPatients);
   const [referrals, setReferrals] = useState<Referral[]>(initReferrals);
   const [appointments, setAppointments] = useState<Appointment[]>(initAppointments);
-  const [followups, setFollowups] = useState<Followup[]>(initFollowups);
+  const [followups] = useState<Followup[]>(initFollowups);
   const [notifications, setNotifications] = useState<Notification[]>(initNotifications);
   const [referralEvents, setReferralEvents] = useState<ReferralEvent[]>(initReferralEvents);
   const [consultations, setConsultations] = useState<Consultation[]>(initConsultations);

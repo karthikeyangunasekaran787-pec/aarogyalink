@@ -15,7 +15,7 @@ import { PriorityBadge } from '@/components/shared/RiskBadge';
 import { Link } from 'react-router';
 import {
   Users, AlertTriangle, FileText, Bell, UserPlus,
-  Search, Clock, CheckCircle2, Activity, Wifi, WifiOff, Stethoscope
+  Search, CheckCircle2, Activity, Wifi, WifiOff, Stethoscope
 } from 'lucide-react';
 
 export default function HWDashboard() {

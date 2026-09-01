@@ -2,10 +2,10 @@
 // AarogyaLink - Authentication Page (Convex Auth Email OTP)
 // ============================================================================
 
-import { useState, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthActions } from '@convex-dev/auth/react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,16 +31,17 @@ type AuthStep = 'email' | 'code';
 
 export default function AuthPage() {
   const { currentRole } = useApp();
-  const { signIn, isAuthenticated } = useAuth();
+  const { signIn } = useAuthActions();
   const navigate = useNavigate();
   const location = useLocation();
+  const emailFormRef = useRef<HTMLFormElement>(null);
+  const codeFormRef = useRef<HTMLFormElement>(null);
 
   const [step, setStep] = useState<AuthStep>('email');
-  const [email, setEmail] = useState('');
+  const [emailValue, setEmailValue] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [codeSent, setCodeSent] = useState(false);
 
   const returnTo = (location.state as { from?: { pathname: string } })?.from?.pathname || ROLE_ROUTES[currentRole] || '/patient/dashboard';
 
@@ -48,15 +49,17 @@ export default function AuthPage() {
     e.preventDefault();
     setError('');
 
-    if (!email || !email.includes('@')) {
+    if (!emailValue || !emailValue.includes('@')) {
       setError('Please enter a valid email address.');
       return;
     }
 
     setLoading(true);
     try {
-      await signIn('email-otp', { email });
-      setCodeSent(true);
+      // Create FormData with email field
+      const formData = new FormData();
+      formData.set('email', emailValue);
+      await signIn('email-otp', formData);
       setStep('code');
       setCode(['', '', '', '', '', '']);
     } catch (err) {
@@ -65,7 +68,7 @@ export default function AuthPage() {
     } finally {
       setLoading(false);
     }
-  }, [email, signIn]);
+  }, [emailValue, signIn]);
 
   const handleVerifyCode = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,24 +82,27 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      await signIn('email-otp', { email, code: enteredCode });
-      // If signIn succeeds, Convex Auth will update the auth state
-      // Navigate after a brief delay to allow auth state to propagate
-      setTimeout(() => {
-        navigate(returnTo, { replace: true });
-      }, 300);
+      // Create FormData with email + code fields
+      const formData = new FormData();
+      formData.set('email', emailValue);
+      formData.set('code', enteredCode);
+      await signIn('email-otp', formData);
+      // On success, navigate to dashboard
+      navigate(returnTo, { replace: true });
     } catch (err) {
       console.error('Verify code error:', err);
       setError('Invalid or expired verification code. Please try again.');
       setLoading(false);
     }
-  }, [code, email, signIn, navigate, returnTo]);
+  }, [code, emailValue, signIn, navigate, returnTo]);
 
   const handleResendCode = useCallback(async () => {
     setError('');
     setLoading(true);
     try {
-      await signIn('email-otp', { email });
+      const formData = new FormData();
+      formData.set('email', emailValue);
+      await signIn('email-otp', formData);
       setCode(['', '', '', '', '', '']);
     } catch (err) {
       console.error('Resend code error:', err);
@@ -104,7 +110,7 @@ export default function AuthPage() {
     } finally {
       setLoading(false);
     }
-  }, [email, signIn]);
+  }, [emailValue, signIn]);
 
   const handleCodeInput = (index: number, value: string) => {
     if (value.length > 1) return;
@@ -168,22 +174,23 @@ export default function AuthPage() {
             <p className="text-xs text-muted-foreground mt-1">
               {step === 'email'
                 ? 'Enter your email to receive a verification code'
-                : `A 6-digit code has been sent to ${email}`
+                : `A 6-digit code has been sent to ${emailValue}`
               }
             </p>
           </div>
 
           {/* ── Step 1: Email ────────────────────────────── */}
           {step === 'email' && (
-            <form onSubmit={handleSendCode} className="space-y-4">
+            <form ref={emailFormRef} onSubmit={handleSendCode} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Email Address</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    name="email"
+                    value={emailValue}
+                    onChange={(e) => setEmailValue(e.target.value)}
                     placeholder="you@example.com"
                     className="pl-9 h-11"
                     autoFocus
@@ -217,16 +224,16 @@ export default function AuthPage() {
 
           {/* ── Step 2: Verification Code ────────────────── */}
           {step === 'code' && (
-            <form onSubmit={handleVerifyCode} className="space-y-4">
+            <form ref={codeFormRef} onSubmit={handleVerifyCode} className="space-y-4">
               {/* Email shown for reference */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-foreground">{email}</span>
+                  <span className="text-sm text-foreground">{emailValue}</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => { setStep('email'); setError(''); setCode(['', '', '', '', '', '']); setCodeSent(false); }}
+                  onClick={() => { setStep('email'); setError(''); setCode(['', '', '', '', '', '']); }}
                   className="text-xs text-primary hover:underline cursor-pointer"
                 >
                   Change

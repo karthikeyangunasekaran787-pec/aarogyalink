@@ -11,8 +11,8 @@ import { t, type TranslationKey } from '@/lib/i18n';
 import { OfflineIndicator } from '@/components/shared/OfflineIndicator';
 import { Button } from '@/components/ui/button';
 import {
-  Heart, Menu, X, ChevronDown, Globe, Wifi, WifiOff, LogOut,
-  Home, Stethoscope, Building2, Users, Activity, FileText,
+  Heart, Menu, X, Globe, Wifi, WifiOff, LogOut,
+  Home, Stethoscope, FileText,
   Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
   Pill, TestTube, BarChart3, UserPlus,
   Package, TrendingUp, MessageSquare, Inbox, Clock
@@ -123,7 +123,7 @@ function Dropdown({ open, onOpenChange, trigger, children }: {
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { currentRole, language, setLanguage, isOffline, sidebarOpen, currentUser, logout } = useApp();
-  const { notifications, getNotificationsForUser } = useData();
+  const { getNotificationsForUser } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

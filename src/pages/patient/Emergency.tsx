@@ -20,7 +20,7 @@ export default function Emergency() {
   };
 
   const handleNavigate = () => {
-    window.open('https://www.google.com/maps/search/nearby+hospital', '_blank');
+    window.open('https://www.google.com/maps/search/nearby+hospital+emergency+near+me', '_blank', 'noopener,noreferrer');
   };
 
   return (

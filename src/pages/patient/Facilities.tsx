@@ -233,6 +233,16 @@ export default function Facilities() {
                   </div>
                 </div>
 
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(facility.name + ', ' + facility.village + ', ' + facility.district)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="outline" className="w-full h-10 gap-2">
+                    <Navigation className="h-4 w-4" />
+                    {language === 'ta' ? 'வழிகாட்டு' : language === 'hi' ? 'नेविगेशन' : 'Navigate to Hospital'}
+                  </Button>
+                </a>
                 <Link to={`/patient/book-appointment?facility=${facility.id}`}>
                   <Button className="w-full h-10">
                     {t('bookAppointment', language)}

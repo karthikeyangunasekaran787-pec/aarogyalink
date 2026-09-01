@@ -1,10 +1,11 @@
 // ============================================================================
-// AarogyaLink - Authentication Page (Email Verification Code)
+// AarogyaLink - Authentication Page (Convex Auth Email OTP)
 // ============================================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,50 +27,22 @@ const ROLE_ROUTES: Record<string, string> = {
   gov_admin: '/district-admin/dashboard',
 };
 
-// Generate a 6-digit verification code
-function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-// Format time remaining
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
 type AuthStep = 'email' | 'code';
 
 export default function AuthPage() {
-  const { currentRole, login } = useApp();
+  const { currentRole } = useApp();
+  const { signIn, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [step, setStep] = useState<AuthStep>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
-  const [generatedCode, setGeneratedCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [codeExpiry, setCodeExpiry] = useState(0);
   const [codeSent, setCodeSent] = useState(false);
 
   const returnTo = (location.state as { from?: { pathname: string } })?.from?.pathname || ROLE_ROUTES[currentRole] || '/patient/dashboard';
-
-  // Countdown timer for code expiry
-  useEffect(() => {
-    if (codeExpiry <= 0) return;
-    const timer = setInterval(() => {
-      setCodeExpiry(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [codeExpiry]);
 
   const handleSendCode = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,17 +54,18 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    // Simulate sending verification code
-    await new Promise(r => setTimeout(r, 1200));
-
-    const newCode = generateCode();
-    setGeneratedCode(newCode);
-    setCodeSent(true);
-    setCodeExpiry(300); // 5 minutes
-    setStep('code');
-    setLoading(false);
-    setCode(['', '', '', '', '', '']);
-  }, [email]);
+    try {
+      await signIn('email-otp', { email });
+      setCodeSent(true);
+      setStep('code');
+      setCode(['', '', '', '', '', '']);
+    } catch (err) {
+      console.error('Send code error:', err);
+      setError('Failed to send verification code. Please check your email and try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [email, signIn]);
 
   const handleVerifyCode = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,49 +77,43 @@ export default function AuthPage() {
       return;
     }
 
-    if (codeExpiry <= 0) {
-      setError('Verification code has expired. Please request a new one.');
-      return;
-    }
-
     setLoading(true);
-    // Simulate verification
-    await new Promise(r => setTimeout(r, 800));
-
-    if (enteredCode === generatedCode) {
-      const success = login(email, 'verified');
-      setLoading(false);
-      if (success) {
+    try {
+      await signIn('email-otp', { email, code: enteredCode });
+      // If signIn succeeds, Convex Auth will update the auth state
+      // Navigate after a brief delay to allow auth state to propagate
+      setTimeout(() => {
         navigate(returnTo, { replace: true });
-      } else {
-        setError('Login failed. Please try again.');
-      }
-    } else {
+      }, 300);
+    } catch (err) {
+      console.error('Verify code error:', err);
+      setError('Invalid or expired verification code. Please try again.');
       setLoading(false);
-      setError('Invalid verification code. Please check and try again.');
     }
-  }, [code, generatedCode, codeExpiry, email, login, navigate, returnTo]);
+  }, [code, email, signIn, navigate, returnTo]);
 
   const handleResendCode = useCallback(async () => {
     setError('');
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    const newCode = generateCode();
-    setGeneratedCode(newCode);
-    setCodeExpiry(300);
-    setCode(['', '', '', '', '', '']);
-    setLoading(false);
-  }, []);
+    try {
+      await signIn('email-otp', { email });
+      setCode(['', '', '', '', '', '']);
+    } catch (err) {
+      console.error('Resend code error:', err);
+      setError('Failed to resend verification code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [email, signIn]);
 
   const handleCodeInput = (index: number, value: string) => {
-    if (value.length > 1) return; // Only single digit
-    if (value && !/^\d$/.test(value)) return; // Only digits
+    if (value.length > 1) return;
+    if (value && !/^\d$/.test(value)) return;
 
     const newCode = [...code];
     newCode[index] = value;
     setCode(newCode);
 
-    // Auto-focus next input
     if (value && index < 5) {
       const nextInput = document.querySelector(`input[name="code-${index + 1}"]`) as HTMLInputElement;
       nextInput?.focus();
@@ -164,7 +132,6 @@ export default function AuthPage() {
     if (pasted) {
       const newCode = pasted.split('').concat(Array(6).fill('')).slice(0, 6);
       setCode(newCode);
-      // Focus last filled or next empty
       const focusIndex = Math.min(pasted.length, 5);
       const nextInput = document.querySelector(`input[name="code-${focusIndex}"]`) as HTMLInputElement;
       nextInput?.focus();
@@ -201,7 +168,7 @@ export default function AuthPage() {
             <p className="text-xs text-muted-foreground mt-1">
               {step === 'email'
                 ? 'Enter your email to receive a verification code'
-                : `Verification code sent to ${email}`
+                : `A 6-digit code has been sent to ${email}`
               }
             </p>
           </div>
@@ -287,16 +254,6 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              {/* Timer */}
-              {codeExpiry > 0 && (
-                <p className="text-center text-xs text-muted-foreground">
-                  Code expires in <span className="font-mono font-medium text-foreground">{formatTime(codeExpiry)}</span>
-                </p>
-              )}
-              {codeExpiry <= 0 && codeSent && (
-                <p className="text-center text-xs text-red-600">Code expired</p>
-              )}
-
               {error && (
                 <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -304,7 +261,7 @@ export default function AuthPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full h-11" disabled={loading || codeExpiry <= 0}>
+              <Button type="submit" className="w-full h-11" disabled={loading || code.join('').length !== 6}>
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <RefreshCw className="h-4 w-4 animate-spin" />
@@ -323,10 +280,10 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={handleResendCode}
-                  disabled={codeExpiry > 0 || loading}
+                  disabled={loading}
                   className="text-xs text-primary hover:underline disabled:text-muted-foreground disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {codeExpiry > 0 ? `Resend code in ${formatTime(codeExpiry)}` : 'Resend verification code'}
+                  {loading ? 'Sending...' : 'Resend verification code'}
                 </button>
               </div>
 
@@ -341,32 +298,8 @@ export default function AuthPage() {
               </button>
             </form>
           )}
-
-          {/* Prototype notice */}
-          <div className="text-center p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-[11px] text-amber-800 font-medium">Prototype Mode</p>
-            <p className="text-[10px] text-amber-700 mt-0.5">
-              The verification code will appear in a banner at the top of the screen since no email service is connected.
-            </p>
-          </div>
         </CardContent>
       </Card>
-
-      {/* ═══ Code Display Banner (for prototype) ═══ */}
-      {step === 'code' && codeSent && generatedCode && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-          <div className="text-center">
-            <p className="text-[10px] opacity-80 font-medium uppercase tracking-wider">Verification Code</p>
-            <p className="text-2xl font-mono font-bold tracking-[0.3em]">{generatedCode}</p>
-          </div>
-          <button
-            onClick={() => navigator.clipboard.writeText(generatedCode)}
-            className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
-          >
-            Copy
-          </button>
-        </div>
-      )}
     </div>
   );
 }

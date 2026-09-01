@@ -5,11 +5,11 @@
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { medicineStock } from '@/lib/mock-data';
-import { Pill, Search, Package, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Pill, Search, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 const STATUS_CONFIG = {
   in_stock: { icon: CheckCircle2, color: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'In Stock' },

@@ -12,8 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { facilities, doctors } from '@/lib/mock-data';
 import { Link } from 'react-router';
 import {
-  Search, MapPin, Star, Clock, Bed, Users, Filter,
-  ChevronRight, Ambulance, Stethoscope, Pill, TestTube,
+  Search, MapPin, Star, Clock, Bed, Users,
+  ChevronRight, Ambulance, TestTube,
   Navigation, Phone
 } from 'lucide-react';
 

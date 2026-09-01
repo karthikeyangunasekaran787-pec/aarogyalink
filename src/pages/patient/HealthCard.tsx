@@ -4,9 +4,7 @@
 
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { QRCode } from '@/components/shared/QRCode';
 import { patients } from '@/lib/mock-data';
 import { CreditCard, Download, Share2, Heart, Droplets, Phone, AlertTriangle, Shield } from 'lucide-react';

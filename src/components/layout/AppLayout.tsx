@@ -6,14 +6,14 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/contexts/AppContext';
-import { t } from '@/lib/i18n';
+import { t, type TranslationKey } from '@/lib/i18n';
 import { OfflineIndicator } from '@/components/shared/OfflineIndicator';
 import { Button } from '@/components/ui/button';
 import {
   Heart, Menu, X, ChevronDown, Globe, Wifi, WifiOff,
   Home, Stethoscope, Building2, Users, Activity, FileText,
   Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
-  Pill, TestTube, Phone, BarChart3, UserPlus,
+  Pill, TestTube, BarChart3, UserPlus,
   Package, TrendingUp, MessageSquare, Inbox
 } from 'lucide-react';
 
@@ -272,7 +272,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   )}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
-                  <span>{t(item.label as any, language)}</span>
+                  <span>{t(item.label as TranslationKey, language)}</span>
                 </Link>
               );
             })}
@@ -315,7 +315,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     )}
                   >
                     <Icon className="h-5 w-5 flex-shrink-0" />
-                    <span>{t(item.label as any, language)}</span>
+                    <span>{t(item.label as TranslationKey, language)}</span>
                   </Link>
                 );
               })}

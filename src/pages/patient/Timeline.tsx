@@ -4,7 +4,7 @@
 
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { healthRecords } from '@/lib/mock-data';
 import { Clock, FileText, FlaskConical, Pill, Syringe, ArrowUpRight } from 'lucide-react';

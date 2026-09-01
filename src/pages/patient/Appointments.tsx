@@ -4,11 +4,11 @@
 
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { appointments, facilities } from '@/lib/mock-data';
-import { Calendar, Clock, MapPin, User, Plus } from 'lucide-react';
+import { Calendar, Clock, MapPin, Plus } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
   scheduled: 'bg-blue-50 text-blue-700 border-blue-200',

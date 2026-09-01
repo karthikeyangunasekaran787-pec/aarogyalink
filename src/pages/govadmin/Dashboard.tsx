@@ -15,12 +15,11 @@ import {
 } from '@/lib/mock-data';
 import {
   Users, FileText, Clock, AlertTriangle, TrendingUp, Download,
-  MapPin, Activity, Building2, Pill, TestTube, BarChart3,
-  Brain, ChevronRight, MessageSquare, Heart, Wifi, WifiOff
+  MapPin, Brain
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, PieChart, Pie, Cell
+  LineChart, Line
 } from 'recharts';
 
 const COLORS = ['#0d9488', '#2563eb', '#7c3aed', '#ea580c', '#dc2626', '#059669', '#d97706'];

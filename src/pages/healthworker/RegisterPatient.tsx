@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, CheckCircle2, ArrowRight, Heart } from 'lucide-react';
+import { UserPlus, CheckCircle2, ArrowRight } from 'lucide-react';
 
 interface PatientForm {
   name: string;
@@ -42,6 +42,7 @@ export default function RegisterPatient() {
   const [allergyInput, setAllergyInput] = useState('');
   const [conditionInput, setConditionInput] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [generatedId] = useState(() => `PAT-${Date.now().toString().slice(-6)}`);
 
   const update = (field: keyof PatientForm, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
@@ -87,7 +88,7 @@ export default function RegisterPatient() {
               {form.name} has been added to the system. You can now create a referral or run an AI triage assessment.
             </p>
             <div className="flex items-center justify-center gap-2 mt-4">
-              <Badge variant="outline" className="text-xs">ID: PAT-{Date.now().toString().slice(-6)}</Badge>
+              <Badge variant="outline" className="text-xs">ID: {generatedId}</Badge>
             </div>
             <div className="flex gap-3 justify-center mt-6">
               <Button variant="outline" onClick={() => { setSubmitted(false); setForm(INITIAL); }}>

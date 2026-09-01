@@ -9,15 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+
 import { RiskBadge } from '@/components/shared/RiskBadge';
-import { AIDisclaimer, AIInsightCard } from '@/components/shared/AIDisclaimer';
-import { patients } from '@/lib/mock-data';
+import { AIDisclaimer } from '@/components/shared/AIDisclaimer';
 import { Link } from 'react-router';
 import {
-  Mic, MicOff, Stethoscope, Send, Loader2, MapPin,
-  ChevronRight, AlertTriangle, Shield, Activity, Thermometer,
-  Heart, Brain, ArrowRight, Info, Sparkles
+  Mic, MicOff, Stethoscope, Loader2, MapPin,
+  ChevronRight, Brain, ArrowRight, Sparkles
 } from 'lucide-react';
 
 const SYMPTOM_PRESETS = [

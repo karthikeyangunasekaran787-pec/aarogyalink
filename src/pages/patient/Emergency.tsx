@@ -4,7 +4,7 @@
 
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Phone, MapPin, Ambulance, Shield, AlertTriangle, Navigation } from 'lucide-react';
 

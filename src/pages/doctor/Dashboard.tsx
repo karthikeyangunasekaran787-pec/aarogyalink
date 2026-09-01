@@ -17,7 +17,7 @@ import {
 } from '@/lib/mock-data';
 import {
   Calendar, Users, FileText, Clock, Activity, Stethoscope,
-  ChevronRight, ClipboardList, Pill, TestTube, AlertTriangle
+  ChevronRight
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
@@ -33,7 +33,6 @@ export default function DoctorDashboard() {
   const patient = selectedPatient ? patients.find(p => p.id === selectedPatient) : null;
   const patientVitals = patient ? vitals.find(v => v.patientId === patient.id) : null;
   const patientRecords = patient ? healthRecords.filter(r => r.patientId === patient.id) : [];
-  const patientConsultations = consultations.filter(c => c.patientId === patient?.id);
 
   return (
     <div className="space-y-6">

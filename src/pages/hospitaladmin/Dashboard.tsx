@@ -2,19 +2,19 @@
 // Hospital Admin Dashboard
 // ============================================================================
 
-import { useState } from 'react';
+
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
-import { referrals, facilities, medicineStock, diagnostics, patients } from '@/lib/mock-data';
+import { referrals, facilities, medicineStock, diagnostics } from '@/lib/mock-data';
 import {
-  Inbox, CheckCircle2, ScanLine, Calendar, Package, TestTube,
-  BarChart3, Clock, AlertTriangle, Users, ChevronRight, Building2
+  Inbox, CheckCircle2, ScanLine, Package,
+  Users, Building2
 } from 'lucide-react';
 
 export default function HospitalAdminDashboard() {
@@ -22,7 +22,6 @@ export default function HospitalAdminDashboard() {
   const facility = facilities[2]; // Madurai District Hospital
   const facilityReferrals = referrals.filter(r => r.destinationFacilityId === facility.id);
   const incomingReferrals = facilityReferrals.filter(r => r.status === 'created' || r.status === 'accepted');
-  const activeReferrals = facilityReferrals.filter(r => r.status !== 'closed');
   const closedReferrals = facilityReferrals.filter(r => r.status === 'closed');
   const facilityMeds = medicineStock.filter(m => m.facilityId === facility.id);
   const facilityDiags = diagnostics.filter(d => d.facilityId === facility.id);
@@ -107,7 +106,6 @@ export default function HospitalAdminDashboard() {
           {facilityReferrals.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No referrals found</CardContent></Card>
           ) : facilityReferrals.map(ref => {
-            const patient = patients.find(p => p.id === ref.patientId);
             return (
               <Card key={ref.id}>
                 <CardContent className="p-4">

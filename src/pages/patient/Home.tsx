@@ -9,12 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { RiskBadge } from '@/components/shared/RiskBadge';
-import { patients, referrals, appointments, followups, notifications, facilities } from '@/lib/mock-data';
+import { patients, referrals, appointments, notifications, facilities } from '@/lib/mock-data';
 import { Link } from 'react-router';
 import {
   Stethoscope, MapPin, Calendar, FileText, CreditCard, Clock,
-  Bell, Pill, TestTube, Phone, Shield, Activity, ChevronRight,
-  Heart, Thermometer, Droplets, Mic, AlertTriangle, PillBottle
+  Bell, Phone, Activity, ChevronRight,
+  Heart, Thermometer, Droplets
 } from 'lucide-react';
 
 export default function PatientHome() {
@@ -187,7 +187,6 @@ export default function PatientHome() {
               <p className="text-sm text-muted-foreground text-center py-4">No upcoming appointments</p>
             ) : (
               upcomingAppointments.map((apt) => {
-                const doctor = appointments.length > 0;
                 return (
                   <div key={apt.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-start justify-between">

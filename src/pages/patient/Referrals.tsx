@@ -9,12 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ReferralTimeline, ReferralProgressMini } from '@/components/shared/ReferralTimeline';
-import { RiskBadge, PriorityBadge, StatusBadge } from '@/components/shared/RiskBadge';
+import { PriorityBadge } from '@/components/shared/RiskBadge';
 import { QRCode } from '@/components/shared/QRCode';
 import { referrals, referralEvents } from '@/lib/mock-data';
 import {
-  FileText, ChevronRight, Calendar, Clock, MapPin, User,
-  AlertTriangle, CheckCircle2, QrCode, ExternalLink
+  FileText,
+  AlertTriangle, CheckCircle2, QrCode
 } from 'lucide-react';
 
 export default function Referrals() {

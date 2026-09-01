@@ -11,7 +11,7 @@ import { useApp } from "@/contexts/AppContext";
 import {
   Heart, ArrowRight, Shield, Users, Activity, MapPin,
   FileText, Bell, CheckCircle2, Globe,
-  Stethoscope, Brain, Clock, Zap, Building2,
+  Stethoscope, Brain, Clock, Building2,
   TrendingUp, BarChart3, QrCode
 } from "lucide-react";
 

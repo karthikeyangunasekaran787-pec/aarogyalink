@@ -13,7 +13,7 @@ import { patients, referrals, followups, healthWorkers, notifications } from '@/
 import { Link } from 'react-router';
 import {
   Users, AlertTriangle, FileText, Clock, UserPlus, Stethoscope,
-  Wifi, ChevronRight, Bell, Activity, WifiOff, CloudOff, ClipboardList
+  Wifi, ChevronRight, Bell, WifiOff, CloudOff, ClipboardList
 } from 'lucide-react';
 
 export default function HWDashboard() {
@@ -29,7 +29,6 @@ export default function HWDashboard() {
   );
 
   const missedFollowups = followups.filter(f => f.status === 'missed' || f.status === 'overdue');
-  const dueFollowups = followups.filter(f => f.status === 'scheduled');
 
   const unreadNotifs = notifications.filter(n => n.userId === hw.userId && !n.read);
 

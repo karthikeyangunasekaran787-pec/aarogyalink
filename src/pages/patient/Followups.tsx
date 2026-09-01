@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { followups } from '@/lib/mock-data';
-import { Bell, Calendar, Clock, AlertTriangle, CheckCircle2, User, MapPin } from 'lucide-react';
+import { Bell, Calendar, Clock, AlertTriangle, CheckCircle2, User } from 'lucide-react';
 
 const STATUS_CONFIG = {
   scheduled: { icon: Calendar, color: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Scheduled' },

@@ -2,10 +2,11 @@
 // AarogyaLink - Authentication Page (Convex Auth Email OTP)
 // ============================================================================
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
 import { useAuthActions } from '@convex-dev/auth/react';
+import { useConvexAuth } from 'convex/react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,10 +33,9 @@ type AuthStep = 'email' | 'code';
 export default function AuthPage() {
   const { currentRole } = useApp();
   const { signIn } = useAuthActions();
+  const { isAuthenticated } = useConvexAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const emailFormRef = useRef<HTMLFormElement>(null);
-  const codeFormRef = useRef<HTMLFormElement>(null);
 
   const [step, setStep] = useState<AuthStep>('email');
   const [emailValue, setEmailValue] = useState('');
@@ -44,6 +44,13 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   const returnTo = (location.state as { from?: { pathname: string } })?.from?.pathname || ROLE_ROUTES[currentRole] || '/patient/dashboard';
+
+  // Once authenticated, navigate to dashboard
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(returnTo, { replace: true });
+    }
+  }, [isAuthenticated, navigate, returnTo]);
 
   const handleSendCode = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +63,6 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      // Create FormData with email field
       const formData = new FormData();
       formData.set('email', emailValue);
       await signIn('email-otp', formData);
@@ -82,19 +88,17 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      // Create FormData with email + code fields
       const formData = new FormData();
       formData.set('email', emailValue);
       formData.set('code', enteredCode);
       await signIn('email-otp', formData);
-      // On success, navigate to dashboard
-      navigate(returnTo, { replace: true });
+      // Auth state will update → useEffect will navigate
     } catch (err) {
       console.error('Verify code error:', err);
       setError('Invalid or expired verification code. Please try again.');
       setLoading(false);
     }
-  }, [code, emailValue, signIn, navigate, returnTo]);
+  }, [code, emailValue, signIn]);
 
   const handleResendCode = useCallback(async () => {
     setError('');
@@ -144,6 +148,18 @@ export default function AuthPage() {
     }
   };
 
+  // If already authenticated, show loading while redirecting
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <span className="text-sm text-muted-foreground">Signed in successfully. Redirecting...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8">
       {/* Back to role selection */}
@@ -181,7 +197,7 @@ export default function AuthPage() {
 
           {/* ── Step 1: Email ────────────────────────────── */}
           {step === 'email' && (
-            <form ref={emailFormRef} onSubmit={handleSendCode} className="space-y-4">
+            <form onSubmit={handleSendCode} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Email Address</label>
                 <div className="relative">
@@ -224,7 +240,7 @@ export default function AuthPage() {
 
           {/* ── Step 2: Verification Code ────────────────── */}
           {step === 'code' && (
-            <form ref={codeFormRef} onSubmit={handleVerifyCode} className="space-y-4">
+            <form onSubmit={handleVerifyCode} className="space-y-4">
               {/* Email shown for reference */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
                 <div className="flex items-center gap-2">

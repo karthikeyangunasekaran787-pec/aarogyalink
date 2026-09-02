@@ -37,17 +37,6 @@ import {
 } from '@/lib/mock-data';
 
 // Valid referral status transitions
-const VALID_TRANSITIONS: Record<ReferralStatus, ReferralStatus> = {
-  created: 'accepted',
-  accepted: 'scheduled',
-  scheduled: 'patient_arrived',
-  patient_arrived: 'consultation',
-  consultation: 'treatment',
-  treatment: 'followup',
-  followup: 'closed',
-  closed: 'closed',
-};
-
 const REFERRAL_STEP_MAP: Record<ReferralStatus, number> = {
   created: 1,
   accepted: 2,
@@ -186,13 +175,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const computedAnalytics = useMemo<DistrictAnalytics>(() => {
     const totalReferrals = referrals.length;
     const closedReferrals = referrals.filter(r => r.status === 'closed').length;
-    const activeReferrals = referrals.filter(r => r.status !== 'closed' && r.status !== 'created').length;
-    const pendingReferrals = referrals.filter(r => r.status === 'created').length;
     const closureRate = totalReferrals > 0 ? Math.round((closedReferrals / totalReferrals) * 100) : 0;
 
     const missedFollowups = followups.filter(f => f.status === 'missed').length;
     const overdueFollowups = followups.filter(f => f.status === 'overdue').length;
-    const completedFollowups = followups.filter(f => f.status === 'completed').length;
 
     const highRiskPending = referrals.filter(r =>
       r.priority === 'emergency' && r.status !== 'closed'
@@ -201,7 +187,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const lowStockMedicines = medicineStockList.filter(m => m.status === 'low_stock').length;
     const outOfStockMedicines = medicineStockList.filter(m => m.status === 'out_of_stock').length;
     const totalMedicines = medicineStockList.filter(m => m.status !== 'out_of_stock').length;
-    const unavailableDiagnostics = initDiagnostics.filter((d: Diagnostic) => !d.available).length;
     const availableDiagnostics = initDiagnostics.filter((d: Diagnostic) => d.available).length;
 
     const totalBeds = initFacilities.reduce((sum: number, f: Facility) => sum + f.totalBeds, 0);
@@ -329,7 +314,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (r.status !== 'treatment') return r;
       return { ...r, status: 'followup' as ReferralStatus, currentStep: 7, updatedAt: now() };
     }));
-    addReferralEvent(referralId, 'followup', `Follow-up scheduled for ${date}`, 'Doctor');
+    addReferralEvent(referralId, 'followup', `Follow-up scheduled for ${date} at ${time}`, 'Doctor');
   }, [addReferralEvent]);
 
   const completeFollowup = useCallback((referralId: string) => {
@@ -438,10 +423,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // ── Staff management ─────────────────────────────────────────
   const [staffUsersList, setStaffUsersList] = useState<User[]>(initStaffUsers);
-  let nextStaffId = staffUsersList.length + 1;
 
   const addStaffUser = useCallback((data: Omit<User, 'id' | 'createdAt'>) => {
-    const id = `ustaff-${Date.now()}-${nextStaffId++}`;
+    const id = `ustaff-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const user: User = { ...data, id, createdAt: now().split('T')[0] };
     setStaffUsersList(prev => [...prev, user]);
     return user;
@@ -464,10 +448,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // ── Hospital management ────────────────────────────────────────
   const [hospitalsList, setHospitalsList] = useState<Hospital[]>(initHospitals);
-  let nextHospitalNum = hospitalsList.length + 1;
 
   const addHospital = useCallback((data: Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'>) => {
-    const num = nextHospitalNum++;
+    const num = hospitalsList.length + 1;
     const hospital: Hospital = {
       ...data,
       id: `h${num}`,
@@ -476,7 +459,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
     setHospitalsList(prev => [...prev, hospital]);
     return hospital;
-  }, []);
+  }, [hospitalsList.length]);
 
   const updateHospital = useCallback((hospitalId: string, data: Partial<Hospital>) => {
     setHospitalsList(prev => prev.map(h => h.id === hospitalId ? { ...h, ...data } : h));

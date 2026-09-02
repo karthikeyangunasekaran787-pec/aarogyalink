@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Building2, Plus, Search, MapPin, Phone, Mail,
-  Users, Bed, Edit2, Power, PowerOff, ChevronDown, ChevronUp,
+  Bed, Edit2, Power, PowerOff, ChevronDown, ChevronUp,
   AlertCircle, CheckCircle2, X
 } from 'lucide-react';
 import type { Hospital } from '@/types';

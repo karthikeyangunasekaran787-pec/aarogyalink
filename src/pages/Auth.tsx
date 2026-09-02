@@ -4,7 +4,7 @@
 // Staff: login via username/password against staffUsers records
 // ============================================================================
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
@@ -127,7 +127,7 @@ export default function AuthPage() {
     setLoading(false);
 
     navigate(returnTo, { replace: true });
-  }, [username, currentRole, staffUsers, loginStaff, navigate, returnTo]);
+  }, [username, currentRole, staffUsers, loginStaff, navigate, returnTo, facilities]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8">

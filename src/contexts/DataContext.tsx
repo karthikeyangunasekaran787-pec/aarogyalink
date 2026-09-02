@@ -1,17 +1,19 @@
 // ============================================================================
 // AarogyaLink - Centralized Data Store
 // All dashboards read/write from this single source of truth.
+// Analytics are computed dynamically from actual data.
 // ============================================================================
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
   VillageAccessScore, Notification, ReferralEvent, Consultation,
-  ReferralPrediction, ReferralStatus, AppointmentStatus
+  ReferralPrediction, ReferralStatus, AppointmentStatus, FollowupStatus,
+  DistrictAnalytics, ReferralFunnelStage
 } from '@/types';
 
-// Initial data
+// Initial data from mock-data
 import {
   patients as initPatients,
   doctors as initDoctors,
@@ -29,12 +31,31 @@ import {
   referralEvents as initReferralEvents,
   consultations as initConsultations,
   referralPredictions as initPredictions,
-  districtAnalytics as initAnalytics,
-  referralFunnel as initFunnel,
   aiInsights as initInsights,
-  monthlyReferralTrends as initTrends,
-  facilityPerformance as initFacilityPerf,
 } from '@/lib/mock-data';
+
+// Valid referral status transitions
+const VALID_TRANSITIONS: Record<ReferralStatus, ReferralStatus> = {
+  created: 'accepted',
+  accepted: 'scheduled',
+  scheduled: 'patient_arrived',
+  patient_arrived: 'consultation',
+  consultation: 'treatment',
+  treatment: 'followup',
+  followup: 'closed',
+  closed: 'closed',
+};
+
+const REFERRAL_STEP_MAP: Record<ReferralStatus, number> = {
+  created: 1,
+  accepted: 2,
+  scheduled: 3,
+  patient_arrived: 4,
+  consultation: 5,
+  treatment: 6,
+  followup: 7,
+  closed: 8,
+};
 
 interface DataContextValue {
   // Data
@@ -54,11 +75,11 @@ interface DataContextValue {
   referralEvents: ReferralEvent[];
   consultations: Consultation[];
   referralPredictions: ReferralPrediction[];
-  districtAnalytics: typeof initAnalytics;
-  referralFunnel: typeof initFunnel;
   aiInsights: typeof initInsights;
-  monthlyReferralTrends: typeof initTrends;
-  facilityPerformance: typeof initFacilityPerf;
+
+  // Computed analytics (dynamically derived from actual data)
+  districtAnalytics: DistrictAnalytics;
+  referralFunnel: ReferralFunnelStage[];
 
   // Referral actions
   acceptReferral: (referralId: string) => void;
@@ -82,6 +103,10 @@ interface DataContextValue {
   addVitals: (data: Omit<Vitals, 'id'>) => void;
   addHealthRecord: (data: Omit<HealthRecord, 'id'>) => void;
   addConsultation: (data: Omit<Consultation, 'id'>) => void;
+
+  // Followup actions
+  completeFollowupById: (followupId: string) => void;
+  markFollowupMissed: (followupId: string) => void;
 
   // Notification actions
   addNotification: (data: Omit<Notification, 'id' | 'createdAt'>) => void;
@@ -119,7 +144,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>(initPatients);
   const [referrals, setReferrals] = useState<Referral[]>(initReferrals);
   const [appointments, setAppointments] = useState<Appointment[]>(initAppointments);
-  const [followups] = useState<Followup[]>(initFollowups);
+  const [followups, setFollowups] = useState<Followup[]>(initFollowups);
   const [notifications, setNotifications] = useState<Notification[]>(initNotifications);
   const [referralEvents, setReferralEvents] = useState<ReferralEvent[]>(initReferralEvents);
   const [consultations, setConsultations] = useState<Consultation[]>(initConsultations);
@@ -137,34 +162,140 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setReferralEvents(prev => [...prev, event]);
   }, []);
 
+  // ── Computed Analytics ─────────────────────────────────────────
+
+  const computedAnalytics = useMemo<DistrictAnalytics>(() => {
+    const totalReferrals = referrals.length;
+    const closedReferrals = referrals.filter(r => r.status === 'closed').length;
+    const activeReferrals = referrals.filter(r => r.status !== 'closed' && r.status !== 'created').length;
+    const pendingReferrals = referrals.filter(r => r.status === 'created').length;
+    const closureRate = totalReferrals > 0 ? Math.round((closedReferrals / totalReferrals) * 100) : 0;
+
+    const missedFollowups = followups.filter(f => f.status === 'missed').length;
+    const overdueFollowups = followups.filter(f => f.status === 'overdue').length;
+    const completedFollowups = followups.filter(f => f.status === 'completed').length;
+
+    const highRiskPending = referrals.filter(r =>
+      r.priority === 'emergency' && r.status !== 'closed'
+    ).length;
+
+    const lowStockMedicines = medicineStockList.filter(m => m.status === 'low_stock').length;
+    const outOfStockMedicines = medicineStockList.filter(m => m.status === 'out_of_stock').length;
+    const totalMedicines = medicineStockList.filter(m => m.status !== 'out_of_stock').length;
+    const unavailableDiagnostics = initDiagnostics.filter((d: Diagnostic) => !d.available).length;
+    const availableDiagnostics = initDiagnostics.filter((d: Diagnostic) => d.available).length;
+
+    const totalBeds = initFacilities.reduce((sum: number, f: Facility) => sum + f.totalBeds, 0);
+    const occupiedBeds = initFacilities.reduce((sum: number, f: Facility) => sum + f.occupiedBeds, 0);
+    const specialistsOnDuty = initFacilities.reduce((sum: number, f: Facility) => sum + f.specialistsAvailable, 0);
+
+    const avgWaitTime = initFacilities.length > 0
+      ? Math.round(initFacilities.reduce((sum: number, f: Facility) => sum + f.averageWaitTime, 0) / initFacilities.length)
+      : 0;
+
+    const avgVillageScore = initVillageScores.length > 0
+      ? Math.round(initVillageScores.reduce((sum: number, v: VillageAccessScore) => sum + v.overallScore, 0) / initVillageScores.length)
+      : 0;
+
+    return {
+      totalPatients: patients.length,
+      totalReferrals,
+      referralClosureRate: closureRate,
+      averageWaitingTime: avgWaitTime / 60, // convert minutes to hours for display
+      missedFollowups: missedFollowups + overdueFollowups,
+      highRiskPending,
+      facilitiesOperational: initFacilities.length,
+      totalBeds,
+      occupiedBeds,
+      specialistsOnDuty,
+      diagnosticsAvailable: availableDiagnostics,
+      medicinesInStock: totalMedicines,
+      lowStockMedicines: lowStockMedicines + outOfStockMedicines,
+      ruralAccessScore: avgVillageScore,
+    };
+  }, [referrals, followups, patients, medicineStockList]);
+
+  const computedReferralFunnel = useMemo<ReferralFunnelStage[]>(() => {
+    const total = referrals.length || 1;
+    const byStatus = (status: ReferralStatus) =>
+      referrals.filter(r => {
+        const rStep = REFERRAL_STEP_MAP[r.status];
+        const targetStep = REFERRAL_STEP_MAP[status];
+        return rStep >= targetStep;
+      }).length;
+
+    const stages = [
+      { stage: 'Created', status: 'created' as ReferralStatus },
+      { stage: 'Accepted', status: 'accepted' as ReferralStatus },
+      { stage: 'Scheduled', status: 'scheduled' as ReferralStatus },
+      { stage: 'Patient Arrived', status: 'patient_arrived' as ReferralStatus },
+      { stage: 'Consultation', status: 'consultation' as ReferralStatus },
+      { stage: 'Treatment', status: 'treatment' as ReferralStatus },
+      { stage: 'Follow-up', status: 'followup' as ReferralStatus },
+      { stage: 'Closed', status: 'closed' as ReferralStatus },
+    ];
+
+    return stages.map(s => {
+      const count = byStatus(s.status);
+      return {
+        stage: s.stage,
+        count,
+        percentage: Math.round((count / total) * 100),
+      };
+    });
+  }, [referrals]);
+
   // ── Referral actions ──────────────────────────────────────────
   const acceptReferral = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, status: 'accepted' as ReferralStatus, currentStep: 2, updatedAt: now() } : r));
+    setReferrals(prev => prev.map(r => {
+      if (r.id !== referralId) return r;
+      if (r.status !== 'created') return r; // prevent invalid transition
+      return { ...r, status: 'accepted' as ReferralStatus, currentStep: 2, updatedAt: now() };
+    }));
     const ref = referrals.find(r => r.id === referralId);
     if (ref) addReferralEvent(referralId, 'accepted', `Referral accepted by ${ref.destinationFacilityName}`, 'Hospital Admin');
   }, [referrals, addReferralEvent]);
 
   const rejectReferral = useCallback((referralId: string) => {
-    addReferralEvent(referralId, 'created', 'Referral rejected by hospital', 'Hospital Admin');
-  }, [addReferralEvent]);
+    const ref = referrals.find(r => r.id === referralId);
+    if (ref && ref.status === 'created') {
+      addReferralEvent(referralId, 'created', 'Referral rejected by hospital', 'Hospital Admin');
+    }
+  }, [referrals, addReferralEvent]);
 
   const scheduleReferral = useCallback((referralId: string, date: string, time: string) => {
-    setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, status: 'scheduled' as ReferralStatus, currentStep: 3, appointmentDate: date, appointmentTime: time, updatedAt: now() } : r));
+    setReferrals(prev => prev.map(r => {
+      if (r.id !== referralId) return r;
+      if (r.status !== 'accepted') return r;
+      return { ...r, status: 'scheduled' as ReferralStatus, currentStep: 3, appointmentDate: date, appointmentTime: time, updatedAt: now() };
+    }));
     addReferralEvent(referralId, 'scheduled', `Appointment scheduled for ${date} at ${time}`, 'Hospital Admin');
   }, [addReferralEvent]);
 
   const confirmArrival = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, status: 'patient_arrived' as ReferralStatus, currentStep: 4, updatedAt: now() } : r));
+    setReferrals(prev => prev.map(r => {
+      if (r.id !== referralId) return r;
+      if (r.status !== 'scheduled') return r;
+      return { ...r, status: 'patient_arrived' as ReferralStatus, currentStep: 4, updatedAt: now() };
+    }));
     addReferralEvent(referralId, 'patient_arrived', 'Patient arrived at hospital. QR code scanned at reception.', 'Reception Desk');
   }, [addReferralEvent]);
 
   const startConsultation = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, status: 'consultation' as ReferralStatus, currentStep: 5, updatedAt: now() } : r));
+    setReferrals(prev => prev.map(r => {
+      if (r.id !== referralId) return r;
+      if (r.status !== 'patient_arrived') return r;
+      return { ...r, status: 'consultation' as ReferralStatus, currentStep: 5, updatedAt: now() };
+    }));
     addReferralEvent(referralId, 'consultation', 'Consultation started', 'Doctor');
   }, [addReferralEvent]);
 
   const completeConsultation = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, status: 'treatment' as ReferralStatus, currentStep: 6, updatedAt: now() } : r));
+    setReferrals(prev => prev.map(r => {
+      if (r.id !== referralId) return r;
+      if (r.status !== 'consultation') return r;
+      return { ...r, status: 'treatment' as ReferralStatus, currentStep: 6, updatedAt: now() };
+    }));
     addReferralEvent(referralId, 'treatment', 'Consultation completed. Treatment initiated.', 'Doctor');
   }, [addReferralEvent]);
 
@@ -174,17 +305,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [addReferralEvent]);
 
   const scheduleFollowup = useCallback((referralId: string, date: string, time: string) => {
-    setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, status: 'followup' as ReferralStatus, currentStep: 7, updatedAt: now() } : r));
+    setReferrals(prev => prev.map(r => {
+      if (r.id !== referralId) return r;
+      if (r.status !== 'treatment') return r;
+      return { ...r, status: 'followup' as ReferralStatus, currentStep: 7, updatedAt: now() };
+    }));
     addReferralEvent(referralId, 'followup', `Follow-up scheduled for ${date}`, 'Doctor');
   }, [addReferralEvent]);
 
   const completeFollowup = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, status: 'closed' as ReferralStatus, currentStep: 8, closedAt: now(), updatedAt: now() } : r));
-    addReferralEvent(referralId, 'closed', 'Follow-up completed. Referral closed.', 'Doctor');
+    setReferrals(prev => prev.map(r => {
+      if (r.id !== referralId) return r;
+      if (r.status !== 'followup') return r;
+      return { ...r, status: 'closed' as ReferralStatus, currentStep: 8, closedAt: now(), updatedAt: now() };
+    }));
+    addReferralEvent(referralId, 'closed', 'Follow-up completed. Referral closed.', 'System');
   }, [addReferralEvent]);
 
   const closeReferral = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, status: 'closed' as ReferralStatus, currentStep: 8, closedAt: now(), updatedAt: now() } : r));
+    setReferrals(prev => prev.map(r => {
+      if (r.id !== referralId) return r;
+      return { ...r, status: 'closed' as ReferralStatus, currentStep: 8, closedAt: now(), updatedAt: now() };
+    }));
     addReferralEvent(referralId, 'closed', 'Referral closed.', 'System');
   }, [addReferralEvent]);
 
@@ -203,6 +345,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
     setReferrals(prev => [...prev, newRef]);
     addReferralEvent(newRef.id, 'created', `Referral created. Priority: ${data.priority}. Destination: ${data.destinationFacilityName}`, data.doctorName || 'System');
+    return newRef;
   }, [addReferralEvent]);
 
   // ── Appointment actions ───────────────────────────────────────
@@ -235,6 +378,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setConsultations(prev => [...prev, { ...data, id: `c${Date.now()}` }]);
   }, []);
 
+  // ── Followup actions ──────────────────────────────────────────
+  const completeFollowupById = useCallback((followupId: string) => {
+    setFollowups(prev => prev.map(f => f.id === followupId ? { ...f, status: 'completed' as FollowupStatus } : f));
+  }, []);
+
+  const markFollowupMissed = useCallback((followupId: string) => {
+    setFollowups(prev => prev.map(f => f.id === followupId ? { ...f, status: 'missed' as FollowupStatus } : f));
+  }, []);
+
   // ── Notification actions ──────────────────────────────────────
   const addNotification = useCallback((data: Omit<Notification, 'id' | 'createdAt'>) => {
     const n: Notification = { ...data, id: `n${nextNotifId++}`, createdAt: now() };
@@ -255,13 +407,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // ── Medicine stock ────────────────────────────────────────────
   const updateMedicineStock = useCallback((stockId: string, quantity: number) => {
-    setMedicineStockList(prev => prev.map(ms => ms.id === stockId ? { ...ms, quantity, status: quantity === 0 ? 'out_of_stock' as const : quantity < 50 ? 'low_stock' as const : 'in_stock' as const } : ms));
+    setMedicineStockList(prev => prev.map(ms => ms.id === stockId ? {
+      ...ms, quantity,
+      status: quantity === 0 ? 'out_of_stock' as const : quantity < 50 ? 'low_stock' as const : 'in_stock' as const
+    } : ms));
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────
   const getPatientById = useCallback((id: string) => patients.find(p => p.id === id), [patients]);
-  const getDoctorById = useCallback((id: string) => initDoctors.find(d => d.id === id), []);
-  const getFacilityById = useCallback((id: string) => initFacilities.find(f => f.id === id), []);
+  const getDoctorById = useCallback((id: string) => initDoctors.find((d: Doctor) => d.id === id), []);
+  const getFacilityById = useCallback((id: string) => initFacilities.find((f: Facility) => f.id === id), []);
   const getReferralsForPatient = useCallback((patientId: string) => referrals.filter(r => r.patientId === patientId), [referrals]);
   const getReferralsForFacility = useCallback((facilityId: string) => referrals.filter(r => r.destinationFacilityId === facilityId), [referrals]);
   const getAppointmentsForDoctor = useCallback((doctorId: string) => appointments.filter(a => a.doctorId === doctorId), [appointments]);
@@ -279,13 +434,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     healthWorkers: initHealthWorkers, vitals: vitalsList, healthRecords: healthRecordsList,
     medicineStock: medicineStockList, diagnostics: initDiagnostics,
     villageAccessScores: initVillageScores, notifications, referralEvents, consultations,
-    referralPredictions: initPredictions, districtAnalytics: initAnalytics,
-    referralFunnel: initFunnel, aiInsights: initInsights,
-    monthlyReferralTrends: initTrends, facilityPerformance: initFacilityPerf,
+    referralPredictions: initPredictions, aiInsights: initInsights,
+    districtAnalytics: computedAnalytics,
+    referralFunnel: computedReferralFunnel,
     acceptReferral, rejectReferral, scheduleReferral, confirmArrival, startConsultation,
     completeConsultation, addTreatment, scheduleFollowup, completeFollowup, closeReferral, createReferral,
     bookAppointment, cancelAppointment,
     addPatient, addVitals, addHealthRecord, addConsultation,
+    completeFollowupById, markFollowupMissed,
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,
     updateMedicineStock,
     getPatientById, getDoctorById, getFacilityById,

@@ -14,11 +14,13 @@ export interface AuthUser {
   role: Role;
   facilityId?: string;
   phone?: string;
+  // For patient role: link to their registered patient record
+  patientId?: string;
+  healthCardId?: string;
 }
 
-// Demo accounts for SIH prototype
-const DEMO_ACCOUNTS: Record<Role, AuthUser> = {
-  patient: { id: 'u1', name: 'Lakshmi Devi', email: 'lakshmi@demo.aarogyalink.in', role: 'patient', phone: '9876543210' },
+// Demo accounts for non-patient roles only (patients must be registered first)
+const DEMO_ACCOUNTS: Record<string, AuthUser> = {
   health_worker: { id: 'uhw1', name: 'Suganthi M', email: 'suganthi@demo.aarogyalink.in', role: 'health_worker', facilityId: 'f1', phone: '9850100001' },
   doctor: { id: 'ud1', name: 'Dr. Senthil Kumar', email: 'senthil@demo.aarogyalink.in', role: 'doctor', facilityId: 'f1', phone: '9840100001' },
   hospital_admin: { id: 'uha1', name: 'Admin Rajan', email: 'rajan@demo.aarogyalink.in', role: 'hospital_admin', facilityId: 'f3' },
@@ -29,7 +31,8 @@ interface AppState {
   // Auth
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
-  login: (email: string, password?: string) => boolean;
+  login: (email: string) => boolean;
+  loginPatient: (email: string, patientId: string, healthCardId: string, name: string) => void;
   logout: () => void;
 
   // App state
@@ -54,11 +57,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = currentUser !== null;
 
+  // Login for non-patient roles (health worker, doctor, admin)
   const login = useCallback((email: string) => {
-    // Demo login: any email logs in with the selected role
-    setCurrentUser(DEMO_ACCOUNTS[currentRole]);
+    const account = DEMO_ACCOUNTS[currentRole];
+    if (account) {
+      setCurrentUser(account);
+      return true;
+    }
+    // Fallback: create a generic user for the role
+    setCurrentUser({
+      id: `u-${currentRole}`,
+      name: currentRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      email,
+      role: currentRole,
+    });
     return true;
   }, [currentRole]);
+
+  // Login for patients: links to their registered patient record
+  const loginPatient = useCallback((email: string, patientId: string, healthCardId: string, name: string) => {
+    setCurrentUser({
+      id: `u-${patientId}`,
+      name,
+      email,
+      role: 'patient',
+      patientId,
+      healthCardId,
+    });
+  }, []);
 
   const logout = useCallback(() => {
     setCurrentUser(null);
@@ -70,7 +96,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value: AppState = {
-    currentUser, isAuthenticated, login, logout,
+    currentUser, isAuthenticated, login, loginPatient, logout,
     currentRole, setCurrentRole: handleSetRole,
     language, setLanguage,
     isOffline, setIsOffline,

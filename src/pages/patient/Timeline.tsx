@@ -19,8 +19,8 @@ const TYPE_CONFIG = {
 
 export default function Timeline() {
   const { healthRecords } = useData();
-  const { language } = useApp();
-  const records = healthRecords.filter(r => r.patientId === 'p1').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const { language, currentUser } = useApp();
+  const records = healthRecords.filter(r => r.patientId === currentUser?.patientId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

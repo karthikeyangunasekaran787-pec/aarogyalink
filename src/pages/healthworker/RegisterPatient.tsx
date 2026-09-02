@@ -22,6 +22,7 @@ interface PatientForm {
   village: string;
   district: string;
   bloodGroup: string;
+  email: string;
   aadhaarLast4: string;
   emergencyContact: string;
   allergies: string[];
@@ -30,7 +31,7 @@ interface PatientForm {
 
 const INITIAL: PatientForm = {
   name: '', age: '', gender: '', phone: '', address: '',
-  village: '', district: 'Madurai', bloodGroup: '', aadhaarLast4: '',
+  village: '', district: 'Madurai', bloodGroup: '', email: '', aadhaarLast4: '',
   emergencyContact: '', allergies: [], chronicConditions: [],
 };
 
@@ -47,6 +48,7 @@ export default function RegisterPatient() {
   const [conditionInput, setConditionInput] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [registeredPatientId, setRegisteredPatientId] = useState('');
+  const [registeredHealthCardId, setRegisteredHealthCardId] = useState('');
 
   const update = (field: keyof PatientForm, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
@@ -92,6 +94,7 @@ export default function RegisterPatient() {
       age: parseInt(form.age, 10),
       gender: genderMap[form.gender] || 'other',
       phone: form.phone,
+      registeredByEmail: form.email || `${form.name.toLowerCase().replace(/\s+/g, '')}@patient.aarogyalink.in`,
       address: form.address || `${form.village}, ${form.district}`,
       village: form.village,
       district: form.district,
@@ -104,6 +107,7 @@ export default function RegisterPatient() {
     });
 
     setRegisteredPatientId(newPatient.id);
+    setRegisteredHealthCardId(newPatient.healthCardId);
     setSubmitted(true);
   };
 
@@ -117,13 +121,15 @@ export default function RegisterPatient() {
             </div>
             <h2 className="text-xl font-bold text-foreground">Patient Successfully Registered</h2>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              <strong>{form.name}</strong> has been added to the system with ID <strong>{registeredPatientId.toUpperCase()}</strong>. The patient is now available for triage, referrals, and appointments.
+              <strong>{form.name}</strong> has been registered with Health Card ID <strong>{registeredHealthCardId}</strong>.
+              The patient can now log in with their registered email and access all health services.
             </p>
-            <div className="flex items-center justify-center gap-2 mt-4">
-              <Badge variant="outline" className="text-xs">Patient ID: {registeredPatientId.toUpperCase()}</Badge>
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+              <Badge variant="outline" className="text-xs">Health Card: {registeredHealthCardId}</Badge>
+              {form.email && <Badge variant="outline" className="text-xs">Email: {form.email}</Badge>}
             </div>
             <div className="flex gap-3 justify-center mt-6">
-              <Button variant="outline" onClick={() => { setSubmitted(false); setForm(INITIAL); setRegisteredPatientId(''); }}>
+              <Button variant="outline" onClick={() => { setSubmitted(false); setForm(INITIAL); setRegisteredPatientId(''); setRegisteredHealthCardId(''); }}>
                 Register Another
               </Button>
               <Button className="gap-1.5" onClick={() => navigate('/health-worker/dashboard')}>
@@ -207,6 +213,17 @@ export default function RegisterPatient() {
                   className="h-11"
                 />
               </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Email (for login)</label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={e => update('email', e.target.value)}
+                placeholder="patient@email.com (used to log in)"
+                className="h-11"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">The patient will use this email to log in and access their health records.</p>
             </div>
           </CardContent>
         </Card>

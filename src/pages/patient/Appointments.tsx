@@ -21,8 +21,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function Appointments() {
   const { appointments, facilities } = useData();
-  const { language } = useApp();
-  const patientAppointments = appointments.filter(a => a.patientId === 'p1');
+  const { language, currentUser } = useApp();
+  const patientAppointments = appointments.filter(a => a.patientId === currentUser?.patientId);
   const upcoming = patientAppointments.filter(a => a.status === 'scheduled');
   const past = patientAppointments.filter(a => a.status === 'completed');
 

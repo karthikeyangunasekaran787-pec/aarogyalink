@@ -22,6 +22,9 @@ export interface User {
 export interface Patient {
   id: string;
   userId: string;
+  healthCardId: string; // unique Health Card ID like "HC-2026-XXXX"
+  registeredByEmail: string; // email used during registration
+  registeredAt: string;
   name: string;
   age: number;
   gender: 'male' | 'female' | 'other';

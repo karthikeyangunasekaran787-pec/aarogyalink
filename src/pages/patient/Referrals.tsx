@@ -19,10 +19,10 @@ import {
 
 export default function Referrals() {
   const { referrals, referralEvents, getReferralEvents } = useData();
-  const { language } = useApp();
+  const { language, currentUser } = useApp();
   const [selectedReferral, setSelectedReferral] = useState<string | null>(null);
 
-  const patientReferrals = referrals.filter(r => r.patientId === 'p1');
+  const patientReferrals = referrals.filter(r => r.patientId === currentUser?.patientId);
   const activeReferrals = patientReferrals.filter(r => r.status !== 'closed');
   const completedReferrals = patientReferrals.filter(r => r.status === 'closed');
 

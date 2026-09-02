@@ -11,8 +11,8 @@ import { CreditCard, Download, Share2, Heart, Droplets, Phone, AlertTriangle, Sh
 
 export default function HealthCard() {
   const { patients } = useData();
-  const { language } = useApp();
-  const patient = patients[0]; // Lakshmi Devi
+  const { language, currentUser } = useApp();
+  const patient = patients.find(p => p.id === currentUser?.patientId) || patients[0];
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
@@ -42,7 +42,7 @@ export default function HealthCard() {
                 <p className="text-xs text-primary-foreground/80">Government of Tamil Nadu · Digital Health Card</p>
               </div>
             </div>
-            <QRCode data={`PATIENT:${patient.id}`} size={80} />
+            <QRCode data={`HC:${patient.healthCardId}:${patient.id}`} size={80} />
           </div>
         </div>
 
@@ -53,6 +53,7 @@ export default function HealthCard() {
             <p className="text-sm text-muted-foreground mt-1">
               {patient.gender === 'female' ? 'Female' : 'Male'} • {patient.age} years
             </p>
+            <p className="text-xs font-mono font-bold text-primary mt-2">Health Card: {patient.healthCardId}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

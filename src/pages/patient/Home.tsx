@@ -18,9 +18,9 @@ import {
 } from 'lucide-react';
 
 export default function PatientHome() {
-  const { language } = useApp();
+  const { language, currentUser } = useApp();
   const { patients, referrals, appointments, facilities, getReferralsForPatient } = useData();
-  const patient = patients[0]; // Demo: Lakshmi Devi
+  const patient = patients.find(p => p.id === currentUser?.patientId) || patients[0];
   const activeReferrals = getReferralsForPatient(patient.id).filter(r => r.status !== 'closed');
   const upcomingAppointments = appointments.filter(a => a.patientId === patient.id && a.status === 'scheduled');
   const recentNotifications: { id: string; userId: string; title: string; message: string; type: string; read: boolean; createdAt: string; }[] = [];

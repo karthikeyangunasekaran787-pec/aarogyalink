@@ -20,8 +20,8 @@ const STATUS_CONFIG = {
 
 export default function Followups() {
   const { followups } = useData();
-  const { language } = useApp();
-  const patientFollowups = followups.filter(f => f.patientId === 'p1');
+  const { language, currentUser } = useApp();
+  const patientFollowups = followups.filter(f => f.patientId === currentUser?.patientId);
   const upcoming = patientFollowups.filter(f => f.status === 'scheduled');
   const past = patientFollowups.filter(f => f.status !== 'scheduled');
 

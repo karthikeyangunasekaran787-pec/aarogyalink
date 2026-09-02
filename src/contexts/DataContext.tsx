@@ -99,7 +99,7 @@ interface DataContextValue {
   cancelAppointment: (appointmentId: string) => void;
 
   // Patient actions
-  addPatient: (data: Omit<Patient, 'id' | 'userId' | 'createdAt'>) => Patient;
+  addPatient: (data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => Patient;
   addVitals: (data: Omit<Vitals, 'id'>) => void;
   addHealthRecord: (data: Omit<HealthRecord, 'id'>) => void;
   addConsultation: (data: Omit<Consultation, 'id'>) => void;
@@ -119,6 +119,8 @@ interface DataContextValue {
 
   // Helpers
   getPatientById: (id: string) => Patient | undefined;
+  getPatientByEmail: (email: string) => Patient | undefined;
+  getPatientByHealthCardId: (healthCardId: string) => Patient | undefined;
   getDoctorById: (id: string) => Doctor | undefined;
   getFacilityById: (id: string) => Facility | undefined;
   getReferralsForPatient: (patientId: string) => Referral[];
@@ -359,9 +361,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ── Patient actions ───────────────────────────────────────────
-  const addPatient = useCallback((data: Omit<Patient, 'id' | 'userId' | 'createdAt'>) => {
+  const addPatient = useCallback((data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => {
     const id = `p${nextPatientId++}`;
-    const patient: Patient = { ...data, id, userId: `u${nextPatientId}`, createdAt: now().split('T')[0] };
+    const healthCardId = `HC-2026-${String(nextPatientId).padStart(4, '0')}`;
+    const patient: Patient = {
+      ...data, id, userId: `u${nextPatientId}`, healthCardId,
+      registeredAt: now().split('T')[0], createdAt: now().split('T')[0]
+    };
     setPatients(prev => [...prev, patient]);
     return patient;
   }, []);
@@ -415,6 +421,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // ── Helpers ───────────────────────────────────────────────────
   const getPatientById = useCallback((id: string) => patients.find(p => p.id === id), [patients]);
+  const getPatientByEmail = useCallback((email: string) => patients.find(p => p.registeredByEmail === email), [patients]);
+  const getPatientByHealthCardId = useCallback((healthCardId: string) => patients.find(p => p.healthCardId === healthCardId), [patients]);
   const getDoctorById = useCallback((id: string) => initDoctors.find((d: Doctor) => d.id === id), []);
   const getFacilityById = useCallback((id: string) => initFacilities.find((f: Facility) => f.id === id), []);
   const getReferralsForPatient = useCallback((patientId: string) => referrals.filter(r => r.patientId === patientId), [referrals]);
@@ -444,7 +452,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     completeFollowupById, markFollowupMissed,
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,
     updateMedicineStock,
-    getPatientById, getDoctorById, getFacilityById,
+    getPatientById, getPatientByEmail, getPatientByHealthCardId, getDoctorById, getFacilityById,
     getReferralsForPatient, getReferralsForFacility,
     getAppointmentsForDoctor, getAppointmentsForPatient,
     getFollowupsForPatient, getFollowupsForDoctor,

@@ -15,24 +15,35 @@ import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import {
   Calendar, Users, FileText, Clock, Stethoscope, Activity,
-  CheckCircle2, PlayCircle
+  CheckCircle2, PlayCircle, PenLine
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
   const { language } = useApp();
   const {
-    doctors, patients, referrals, followups,
+    doctors, patients, referrals, followups, facilities,
     getAppointmentsForDoctor, getReferralsForPatient, getVitalsForPatient,
     getConsultationsForPatient,
-    startConsultation, completeConsultation, scheduleFollowup,
-    addConsultation: addConsultationToData
+    startConsultation, completeConsultation, scheduleFollowup, closeReferral,
+    addConsultation: addConsultationToData, createReferral, addNotification
   } = useData();
 
   const doctor = doctors[0]; // Dr. Senthil Kumar
+  const doctorFacility = facilities.find(f => f.id === doctor.facilityId);
   const doctorAppointments = getAppointmentsForDoctor(doctor.id);
   const todayAppointments = doctorAppointments.filter(a => a.status === 'scheduled');
   const completedAppointments = doctorAppointments.filter(a => a.status === 'completed');
-  const activeReferrals = referrals.filter(r => r.doctorId === doctor.id && r.status !== 'closed');
+
+  // Show referrals relevant to this doctor:
+  // 1. Referrals where this doctor is the assigned specialist
+  // 2. Referrals at the doctor's facility that are in actionable states
+  // 3. Referrals assigned to this doctor's facility (any department)
+  const activeReferrals = referrals.filter(r =>
+    r.status !== 'closed' && r.status !== 'created' && (
+      r.doctorId === doctor.id ||
+      r.destinationFacilityId === doctor.facilityId
+    )
+  );
   const doctorFollowups = followups.filter(f => f.doctorId === doctor.id);
 
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
@@ -42,6 +53,14 @@ export default function DoctorDashboard() {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [consultingReferral, setConsultingReferral] = useState<string | null>(null);
 
+  // Referral creation state
+  const [showReferralForm, setShowReferralForm] = useState(false);
+  const [referralPatientId, setReferralPatientId] = useState('');
+  const [referralPriority, setReferralPriority] = useState<'routine' | 'urgent' | 'emergency'>('routine');
+  const [referralReason, setReferralReason] = useState('');
+  const [referralDestination, setReferralDestination] = useState('');
+  const [referralDepartment, setReferralDepartment] = useState('');
+
   const showFeedback = (msg: string) => {
     setActionFeedback(msg);
     setTimeout(() => setActionFeedback(null), 3000);
@@ -49,7 +68,7 @@ export default function DoctorDashboard() {
 
   const patient = selectedPatient ? patients.find(p => p.id === selectedPatient) : null;
   const patientVitals = patient ? getVitalsForPatient(patient.id) : [];
-  // patient referrals available via getReferralsForPatient
+  const patientReferrals = patient ? getReferralsForPatient(patient.id) : [];
   const patientConsultations = patient ? getConsultationsForPatient(patient.id) : [];
 
   const handleStartConsultation = (refId: string) => {
@@ -67,13 +86,25 @@ export default function DoctorDashboard() {
       const ref = referrals.find(r => r.id === refId);
       if (ref) {
         addConsultationToData({
-          appointmentId: 'a1', patientId: ref.patientId, doctorId: doctor.id,
-          symptoms: [], diagnosis: consultationNotes || 'Consultation completed',
+          appointmentId: ref.appointmentDate || 'a1',
+          patientId: ref.patientId,
+          doctorId: doctor.id,
+          symptoms: [],
+          diagnosis: consultationNotes || 'Consultation completed',
           prescription: prescription.split('\n').filter(Boolean),
           notes: consultationNotes,
           followupRequired: !!followupDate,
           followupDate: followupDate || undefined,
           createdAt: new Date().toISOString().split('T')[0],
+        });
+
+        // Notify patient
+        addNotification({
+          userId: patients.find(p => p.id === ref.patientId)?.userId || '',
+          title: 'Consultation Completed',
+          message: `Your consultation at ${doctorFacility?.name || 'the hospital'} has been completed. ${followupDate ? `Follow-up scheduled for ${followupDate}.` : ''}`,
+          type: 'success',
+          read: false,
         });
       }
       setConsultationNotes('');
@@ -90,6 +121,46 @@ export default function DoctorDashboard() {
     showFeedback('Follow-up scheduled');
   };
 
+  const handleCreateReferral = () => {
+    const patientData = patients.find(p => p.id === referralPatientId);
+    const destination = facilities.find(f => f.id === referralDestination);
+    if (!patientData || !referralReason || !destination || !referralDepartment) {
+      showFeedback('Please fill all required fields.');
+      return;
+    }
+
+    createReferral({
+      patientId: patientData.id,
+      patientName: patientData.name,
+      sourceFacilityId: doctor.facilityId,
+      sourceFacilityName: doctorFacility?.name || 'Hospital',
+      destinationFacilityId: destination.id,
+      destinationFacilityName: destination.name,
+      department: referralDepartment,
+      priority: referralPriority,
+      reason: referralReason,
+      doctorId: doctor.id,
+      doctorName: doctor.name,
+      notes: `Referral created by Dr. ${doctor.name}`,
+    });
+
+    addNotification({
+      userId: patientData.userId,
+      title: 'Specialist Referral Created',
+      message: `Dr. ${doctor.name} has referred you to ${destination.name} (${referralDepartment}). Priority: ${referralPriority}.`,
+      type: referralPriority === 'emergency' ? 'alert' : 'info',
+      read: false,
+    });
+
+    setShowReferralForm(false);
+    setReferralPatientId('');
+    setReferralPriority('routine');
+    setReferralReason('');
+    setReferralDestination('');
+    setReferralDepartment('');
+    showFeedback('Referral created successfully');
+  };
+
   return (
     <div className="space-y-6">
       {/* Feedback Toast */}
@@ -99,13 +170,19 @@ export default function DoctorDashboard() {
         </div>
       )}
 
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          {language === 'ta' ? 'வணக்கம்' : language === 'hi' ? 'नमस्ते' : 'Welcome'}, {doctor.name}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {doctor.specialization} • {doctor.qualification} • {doctor.experience}yr exp
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            {language === 'ta' ? 'வணக்கம்' : language === 'hi' ? 'नमस्ते' : 'Welcome'}, {doctor.name}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {doctor.specialization} • {doctor.qualification} • {doctor.experience}yr exp
+            {doctorFacility && <span className="ml-2">• {doctorFacility.name}</span>}
+          </p>
+        </div>
+        <Button size="sm" className="gap-1.5" onClick={() => setShowReferralForm(!showReferralForm)}>
+          <PenLine className="h-3.5 w-3.5" /> Create Referral
+        </Button>
       </div>
 
       {/* KPI Cards */}
@@ -164,6 +241,97 @@ export default function DoctorDashboard() {
         </Card>
       </div>
 
+      {/* Create Referral Form (inline) */}
+      {showReferralForm && (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <PenLine className="h-4 w-4 text-primary" />
+                Create Specialist Referral
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => setShowReferralForm(false)}>✕</Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Patient *</label>
+                <select
+                  value={referralPatientId}
+                  onChange={(e) => setReferralPatientId(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Select patient...</option>
+                  {patients.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.id.toUpperCase()}) — {p.village}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Priority *</label>
+                <div className="flex gap-2">
+                  {(['routine', 'urgent', 'emergency'] as const).map(p => (
+                    <Button
+                      key={p}
+                      type="button"
+                      variant={referralPriority === p ? 'default' : 'outline'}
+                      size="sm"
+                      className="flex-1 h-10 capitalize"
+                      onClick={() => setReferralPriority(p)}
+                    >
+                      {p}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Destination Facility *</label>
+                <select
+                  value={referralDestination}
+                  onChange={(e) => setReferralDestination(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Select facility...</option>
+                  {facilities.filter(f => f.id !== doctor.facilityId).map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Department *</label>
+                <Input
+                  value={referralDepartment}
+                  onChange={(e) => setReferralDepartment(e.target.value)}
+                  placeholder="e.g. Cardiology, Neurology..."
+                  className="h-10"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Reason for Referral *</label>
+              <textarea
+                value={referralReason}
+                onChange={(e) => setReferralReason(e.target.value)}
+                placeholder="Describe clinical findings, diagnosis, and reason for specialist referral..."
+                className="w-full h-24 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button
+                onClick={handleCreateReferral}
+                disabled={!referralPatientId || !referralReason || !referralDestination || !referralDepartment}
+                className="gap-1.5"
+              >
+                <FileText className="h-4 w-4" />
+                Create Referral
+              </Button>
+              <Button variant="outline" onClick={() => setShowReferralForm(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ── Left: Appointment Queue ────────────────────── */}
         <div className="space-y-4">
@@ -220,22 +388,38 @@ export default function DoctorDashboard() {
                     <div>
                       <p className="text-sm font-medium text-foreground">{ref.patientName}</p>
                       <p className="text-xs text-muted-foreground">{ref.referralId} • {ref.department}</p>
+                      <p className="text-xs text-muted-foreground">From: {ref.sourceFacilityName}</p>
                     </div>
-                    <PriorityBadge priority={ref.priority} />
+                    <div className="flex flex-col items-end gap-1">
+                      <PriorityBadge priority={ref.priority} />
+                      <Badge variant="outline" className="text-[10px] capitalize">{ref.status.replace(/_/g, ' ')}</Badge>
+                    </div>
                   </div>
                   <ReferralProgressMini currentStep={ref.currentStep} totalSteps={ref.totalSteps} isOverdue={ref.isOverdue} />
 
                   {/* Consultation Actions */}
                   <div className="flex flex-wrap gap-2 mt-3">
                     {ref.status === 'patient_arrived' && (
-                      <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handleStartConsultation(ref.id)}>
+                      <Button size="sm" className="h-7 text-xs gap-1" onClick={() => {
+                        handleStartConsultation(ref.id);
+                        setSelectedPatient(ref.patientId);
+                      }}>
                         <PlayCircle className="h-3 w-3" /> Start Consultation
                       </Button>
                     )}
                     {ref.status === 'consultation' && (
-                      <Button size="sm" className="h-7 text-xs gap-1" onClick={() => { setConsultingReferral(ref.id); }}>
+                      <Button size="sm" className="h-7 text-xs gap-1" onClick={() => {
+                        setConsultingReferral(ref.id);
+                        setSelectedPatient(ref.patientId);
+                      }}>
                         <Stethoscope className="h-3 w-3" /> Open Consultation
                       </Button>
+                    )}
+                    {ref.status === 'treatment' && (
+                      <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">Treatment in Progress</Badge>
+                    )}
+                    {ref.status === 'followup' && (
+                      <Badge className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">Follow-up Scheduled</Badge>
                     )}
                   </div>
                 </div>
@@ -273,8 +457,43 @@ export default function DoctorDashboard() {
                       </div>
                     </div>
                   )}
+                  {patient.allergies && patient.allergies.length > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Allergies</p>
+                      <div className="flex flex-wrap gap-1">
+                        {patient.allergies.map(a => (
+                          <Badge key={a} variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">{a}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+
+              {/* Patient Referrals */}
+              {patientReferrals.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="h-[1.125rem] w-[1.125rem] text-primary" />
+                      Patient Referrals
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {patientReferrals.map(r => (
+                      <div key={r.id} className="p-2 rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium">{r.referralId}</p>
+                            <p className="text-xs text-muted-foreground">{r.department} → {r.destinationFacilityName}</p>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] capitalize">{r.status.replace(/_/g, ' ')}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Latest Vitals */}
               {patientVitals.length > 0 && (

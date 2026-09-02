@@ -1,12 +1,13 @@
 // ============================================================================
 // AarogyaLink - Application Context Provider with Auth
+// Supports Convex Auth (real email OTP) + Demo login fallback for SIH prototype
 // ============================================================================
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { Role } from '@/types';
 import type { Language } from '@/lib/i18n';
 
-interface AuthUser {
+export interface AuthUser {
   id: string;
   name: string;
   email: string;
@@ -28,7 +29,7 @@ interface AppState {
   // Auth
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password?: string) => boolean;
   logout: () => void;
 
   // App state
@@ -54,20 +55,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = currentUser !== null;
 
   const login = useCallback((email: string) => {
-    // Demo login: any @demo.aarogyalink.in email matches the selected role
-    const account = DEMO_ACCOUNTS[currentRole];
-    if (account && email.startsWith(account.email.split('@')[0])) {
-      setCurrentUser(account);
-      return true;
-    }
-    // Fallback: any email logs in with the selected role
+    // Demo login: any email logs in with the selected role
     setCurrentUser(DEMO_ACCOUNTS[currentRole]);
     return true;
   }, [currentRole]);
 
   const logout = useCallback(() => {
     setCurrentUser(null);
-    // Clear any browser state
     try { sessionStorage.clear(); } catch { /* ok */ }
   }, []);
 

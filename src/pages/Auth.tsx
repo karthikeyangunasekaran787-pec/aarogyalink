@@ -1,5 +1,6 @@
 // ============================================================================
-// AarogyaLink - Authentication Page (Convex Auth Email OTP)
+// AarogyaLink - Authentication Page
+// Supports Convex Auth email OTP + demo login fallback
 // ============================================================================
 
 import { useState, useCallback, useEffect } from 'react';
@@ -10,7 +11,7 @@ import { useConvexAuth } from 'convex/react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Heart, Mail, KeyRound, ArrowLeft, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Heart, Mail, KeyRound, ArrowLeft, RefreshCw, AlertCircle, CheckCircle2, LogIn } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   patient: 'Patient',
@@ -31,7 +32,7 @@ const ROLE_ROUTES: Record<string, string> = {
 type AuthStep = 'email' | 'code';
 
 export default function AuthPage() {
-  const { currentRole } = useApp();
+  const { currentRole, login: appLogin, isAuthenticated: appAuth } = useApp();
   const { signIn } = useAuthActions();
   const { isAuthenticated } = useConvexAuth();
   const navigate = useNavigate();
@@ -42,16 +43,18 @@ export default function AuthPage() {
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [authMode, setAuthMode] = useState<'convex' | 'demo'>('demo');
 
   const returnTo = (location.state as { from?: { pathname: string } })?.from?.pathname || ROLE_ROUTES[currentRole] || '/patient/dashboard';
 
-  // Once authenticated, navigate to dashboard
+  // Once authenticated (either via Convex Auth or AppContext), navigate to dashboard
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated || appAuth) {
       navigate(returnTo, { replace: true });
     }
-  }, [isAuthenticated, navigate, returnTo]);
+  }, [isAuthenticated, appAuth, navigate, returnTo]);
 
+  // ── Convex Auth: Send OTP ──────────────────────────────────────
   const handleSendCode = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -70,12 +73,18 @@ export default function AuthPage() {
       setCode(['', '', '', '', '', '']);
     } catch (err) {
       console.error('Send code error:', err);
-      setError('Failed to send verification code. Please check your email and try again.');
+      setError('Failed to send verification code. Falling back to demo mode.');
+      // After 1.5s, switch to demo mode
+      setTimeout(() => {
+        setAuthMode('demo');
+        setError('');
+      }, 1500);
     } finally {
       setLoading(false);
     }
   }, [emailValue, signIn]);
 
+  // ── Convex Auth: Verify OTP ────────────────────────────────────
   const handleVerifyCode = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -100,6 +109,7 @@ export default function AuthPage() {
     }
   }, [code, emailValue, signIn]);
 
+  // ── Convex Auth: Resend OTP ────────────────────────────────────
   const handleResendCode = useCallback(async () => {
     setError('');
     setLoading(true);
@@ -116,6 +126,15 @@ export default function AuthPage() {
     }
   }, [emailValue, signIn]);
 
+  // ── Demo Login ─────────────────────────────────────────────────
+  const handleDemoLogin = useCallback(() => {
+    appLogin(emailValue || `demo-${currentRole}@aarogyalink.in`);
+    // After login, navigate happens via useEffect watching isAuthenticated
+    // But since AppContext.isAuthenticated is now true, we navigate directly
+    navigate(returnTo, { replace: true });
+  }, [appLogin, emailValue, currentRole, navigate, returnTo]);
+
+  // ── Code Input Handlers ────────────────────────────────────────
   const handleCodeInput = (index: number, value: string) => {
     if (value.length > 1) return;
     if (value && !/^\d$/.test(value)) return;
@@ -148,7 +167,7 @@ export default function AuthPage() {
     }
   };
 
-  // If already authenticated, show loading while redirecting
+  // If already authenticated (Convex Auth), show loading while redirecting
   if (isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -188,15 +207,64 @@ export default function AuthPage() {
           <div className="text-center">
             <h1 className="text-xl font-bold text-foreground">Login as {ROLE_LABELS[currentRole]}</h1>
             <p className="text-xs text-muted-foreground mt-1">
-              {step === 'email'
-                ? 'Enter your email to receive a verification code'
-                : `A 6-digit code has been sent to ${emailValue}`
+              {authMode === 'demo'
+                ? 'Sign in instantly with your demo account'
+                : step === 'email'
+                  ? 'Enter your email to receive a verification code'
+                  : `A 6-digit code has been sent to ${emailValue}`
               }
             </p>
           </div>
 
-          {/* ── Step 1: Email ────────────────────────────── */}
-          {step === 'email' && (
+          {/* ── Demo Mode ──────────────────────────────────── */}
+          {authMode === 'demo' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    value={emailValue}
+                    onChange={(e) => setEmailValue(e.target.value)}
+                    placeholder={`you@demo.aarogyalink.in`}
+                    className="pl-9 h-11"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                className="w-full h-11"
+                onClick={handleDemoLogin}
+              >
+                <span className="flex items-center gap-2">
+                  <LogIn className="h-4 w-4" />
+                  Sign in as {ROLE_LABELS[currentRole]}
+                </span>
+              </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('convex'); setError(''); }}
+                  className="text-xs text-primary hover:underline cursor-pointer"
+                >
+                  Use email verification instead
+                </button>
+              </div>
+
+              {/* Demo info */}
+              <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg p-3 space-y-1">
+                <p className="font-medium text-foreground">Demo Mode</p>
+                <p>This is a prototype with synthetic data. Click "Sign in" to access the {ROLE_LABELS[currentRole]} dashboard.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Convex Auth: Step 1: Email ────────────────── */}
+          {authMode === 'convex' && step === 'email' && (
             <form onSubmit={handleSendCode} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Email Address</label>
@@ -235,11 +303,21 @@ export default function AuthPage() {
                   </span>
                 )}
               </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('demo'); setError(''); }}
+                  className="text-xs text-primary hover:underline cursor-pointer"
+                >
+                  Sign in with demo account instead
+                </button>
+              </div>
             </form>
           )}
 
-          {/* ── Step 2: Verification Code ────────────────── */}
-          {step === 'code' && (
+          {/* ── Convex Auth: Step 2: Verification Code ────── */}
+          {authMode === 'convex' && step === 'code' && (
             <form onSubmit={handleVerifyCode} className="space-y-4">
               {/* Email shown for reference */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">

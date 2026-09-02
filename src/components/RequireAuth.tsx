@@ -4,8 +4,7 @@
 
 import { useLocation, Navigate } from 'react-router';
 import { useConvexAuth } from 'convex/react';
-import { Button } from '@/components/ui/button';
-import { Shield } from 'lucide-react';
+import { useApp } from '@/contexts/AppContext';
 
 interface RequireAuthProps {
   children: React.ReactNode;
@@ -13,11 +12,14 @@ interface RequireAuthProps {
 }
 
 export function RequireAuth({ children }: RequireAuthProps) {
-  const { isLoading, isAuthenticated } = useConvexAuth();
+  const { isLoading: convexLoading, isAuthenticated: convexAuth } = useConvexAuth();
+  const { isAuthenticated: appAuth } = useApp();
   const location = useLocation();
 
+  const isAuth = convexAuth || appAuth;
+
   // Show loading while auth state is resolving
-  if (isLoading) {
+  if (convexLoading && !appAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -28,7 +30,7 @@ export function RequireAuth({ children }: RequireAuthProps) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuth) {
     return <Navigate to="/role-select" state={{ from: location }} replace />;
   }
 

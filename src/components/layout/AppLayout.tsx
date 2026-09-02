@@ -6,6 +6,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/contexts/AppContext';
+import { useAuthActions } from '@convex-dev/auth/react';
 import { useData } from '@/contexts/DataContext';
 import { t, type TranslationKey } from '@/lib/i18n';
 import { OfflineIndicator } from '@/components/shared/OfflineIndicator';
@@ -123,6 +124,7 @@ function Dropdown({ open, onOpenChange, trigger, children }: {
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { currentRole, language, setLanguage, isOffline, sidebarOpen, currentUser, logout } = useApp();
+  const { signOut } = useAuthActions();
   const { getNotificationsForUser } = useData();
   const navigate = useNavigate();
   const location = useLocation();
@@ -136,8 +138,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = useCallback(() => {
     logout();
+    try { signOut(); } catch { /* ok — may not be signed in via Convex */ }
     navigate('/role-select', { replace: true });
-  }, [logout, navigate]);
+  }, [logout, navigate, signOut]);
 
   return (
     <div className={cn('min-h-screen bg-background', isOffline && 'pt-10')}>

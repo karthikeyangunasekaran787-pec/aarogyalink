@@ -6,7 +6,7 @@ import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
   VillageAccessScore, Notification, ReferralEvent, Consultation,
-  ReferralPrediction, DistrictAnalytics, ReferralFunnelStage, InsightCard
+  ReferralPrediction, DistrictAnalytics, ReferralFunnelStage, InsightCard, Hospital
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -587,3 +587,59 @@ export function getAppointmentsForDoctor(doctorId: string): Appointment[] {
 export function getFollowupsForPatient(patientId: string): Followup[] {
   return followups.filter(f => f.patientId === patientId);
 }
+
+// ---------------------------------------------------------------------------
+// Hospitals (managed by District Administrator)
+// ---------------------------------------------------------------------------
+export const hospitals: Hospital[] = [
+  {
+    id: 'f3', hospitalId: 'HOS-2026-001', name: 'District Government Hospital',
+    type: 'government', address: '42 Medical Center Road',
+    district: 'Madurai', state: 'Tamil Nadu',
+    phone: '0452-2345678', email: 'dgh@district.gov.in',
+    departments: ['General Medicine', 'Cardiology', 'Orthopaedics', 'Paediatrics', 'Obstetrics', 'ENT', 'Ophthalmology'],
+    services: ['OPD', 'IPD', 'Emergency', 'Surgery', 'ICU', 'Laboratory', 'Pharmacy'],
+    totalBeds: 200, occupiedBeds: 156, status: 'active',
+    adminUserId: 'uha1', createdByUserId: 'uga1', createdAt: '2024-03-15',
+  },
+  {
+    id: 'f1', hospitalId: 'HOS-2026-002', name: 'Maramadakki Primary Health Centre',
+    type: 'government', address: '8 Village Road',
+    district: 'Madurai', state: 'Tamil Nadu',
+    phone: '0452-3456789', email: 'mphc@district.gov.in',
+    departments: ['General Medicine'],
+    services: ['OPD', 'Emergency', 'Laboratory', 'Pharmacy'],
+    totalBeds: 30, occupiedBeds: 18, status: 'active',
+    adminUserId: 'uha2', createdByUserId: 'uga1', createdAt: '2024-06-20',
+  },
+  {
+    id: 'f2', hospitalId: 'HOS-2026-003', name: 'Aravind Eye Hospital',
+    type: 'trust', address: '15 Anna Salai',
+    district: 'Madurai', state: 'Tamil Nadu',
+    phone: '0452-4567890', email: 'info@aravind.org',
+    departments: ['Ophthalmology'],
+    services: ['OPD', 'Surgery', 'Laboratory'],
+    totalBeds: 120, occupiedBeds: 85, status: 'active',
+    adminUserId: 'uha3', createdByUserId: 'uga1', createdAt: '2023-11-10',
+  },
+  {
+    id: 'f4', hospitalId: 'HOS-2026-004', name: 'Meenakshi Mission Hospital',
+    type: 'private', address: '78 RES Colony',
+    district: 'Madurai', state: 'Tamil Nadu',
+    phone: '0452-5678901', email: 'admin@mmh.in',
+    departments: ['General Medicine', 'Cardiology', 'Nephrology', 'Neurology', 'Orthopaedics'],
+    services: ['OPD', 'IPD', 'Emergency', 'Surgery', 'ICU', 'Dialysis', 'Laboratory', 'Pharmacy'],
+    totalBeds: 300, occupiedBeds: 210, status: 'active',
+    adminUserId: 'uha4', createdByUserId: 'uga1', createdAt: '2023-05-01',
+  },
+  {
+    id: 'f5', hospitalId: 'HOS-2026-005', name: 'Village Health Centre — Thoor',
+    type: 'government', address: '2 Main Street, Thoor',
+    district: 'Madurai', state: 'Tamil Nadu',
+    phone: '0452-6789012', email: 'vhc-thoor@district.gov.in',
+    departments: ['General Medicine'],
+    services: ['OPD', 'Emergency', 'Pharmacy'],
+    totalBeds: 15, occupiedBeds: 8, status: 'active',
+    adminUserId: 'uha5', createdByUserId: 'uga1', createdAt: '2024-08-01',
+  },
+];

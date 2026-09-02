@@ -113,12 +113,15 @@ export default function AuthPage() {
     // In production, this would validate against password_hash
 
     // Login with the actual staff user data from the database
+    const staffFacility = staffUser.facilityId ? facilities.find(f => f.id === staffUser.facilityId) : undefined;
     loginStaff({
       id: staffUser.id,
       name: staffUser.name,
       email: staffUser.email,
       role: staffUser.role,
       facilityId: staffUser.facilityId,
+      facilityName: staffFacility?.name,
+      departmentName: staffUser.departmentId,
       departmentId: staffUser.departmentId,
     });
     setLoading(false);

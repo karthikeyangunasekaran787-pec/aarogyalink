@@ -10,7 +10,7 @@ import type {
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
   VillageAccessScore, Notification, ReferralEvent, Consultation,
   ReferralPrediction, ReferralStatus, AppointmentStatus, FollowupStatus,
-  DistrictAnalytics, ReferralFunnelStage, Role, User
+  DistrictAnalytics, ReferralFunnelStage, Role, User, Hospital
 } from '@/types';
 
 // Initial data from mock-data
@@ -33,6 +33,7 @@ import {
   referralPredictions as initPredictions,
   aiInsights as initInsights,
   staffUsers as initStaffUsers,
+  hospitals as initHospitals,
 } from '@/lib/mock-data';
 
 // Valid referral status transitions
@@ -74,6 +75,7 @@ interface DataContextValue {
   villageAccessScores: VillageAccessScore[];
   notifications: Notification[];
   staffUsers: User[];
+  hospitals: Hospital[];
   referralEvents: ReferralEvent[];
   consultations: Consultation[];
   referralPredictions: ReferralPrediction[];
@@ -126,6 +128,11 @@ interface DataContextValue {
   enableStaffUser: (userId: string) => void;
   getStaffByFacility: (facilityId: string) => User[];
   getStaffByRole: (role: Role) => User[];
+
+  // Hospital management (District Admin)
+  addHospital: (data: Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'>) => Hospital;
+  updateHospital: (hospitalId: string, data: Partial<Hospital>) => void;
+  toggleHospitalStatus: (hospitalId: string) => void;
 
   // Helpers
   getPatientById: (id: string) => Patient | undefined;
@@ -455,6 +462,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const getStaffByFacility = useCallback((facilityId: string) => staffUsersList.filter(u => u.facilityId === facilityId), [staffUsersList]);
   const getStaffByRole = useCallback((role: Role) => staffUsersList.filter(u => u.role === role), [staffUsersList]);
 
+  // ── Hospital management ────────────────────────────────────────
+  const [hospitalsList, setHospitalsList] = useState<Hospital[]>(initHospitals);
+  let nextHospitalNum = hospitalsList.length + 1;
+
+  const addHospital = useCallback((data: Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'>) => {
+    const num = nextHospitalNum++;
+    const hospital: Hospital = {
+      ...data,
+      id: `h${num}`,
+      hospitalId: `HOS-2026-${String(num).padStart(3, '0')}`,
+      createdAt: now().split('T')[0],
+    };
+    setHospitalsList(prev => [...prev, hospital]);
+    return hospital;
+  }, []);
+
+  const updateHospital = useCallback((hospitalId: string, data: Partial<Hospital>) => {
+    setHospitalsList(prev => prev.map(h => h.id === hospitalId ? { ...h, ...data } : h));
+  }, []);
+
+  const toggleHospitalStatus = useCallback((hospitalId: string) => {
+    setHospitalsList(prev => prev.map(h => h.id === hospitalId ? {
+      ...h,
+      status: h.status === 'active' ? 'inactive' as const : 'active' as const
+    } : h));
+  }, []);
+
   // ── Helpers ───────────────────────────────────────────────────
   const getPatientById = useCallback((id: string) => patients.find(p => p.id === id), [patients]);
   const getPatientByEmail = useCallback((email: string) => patients.find(p => p.registeredByEmail === email), [patients]);
@@ -489,6 +523,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,
     updateMedicineStock,
     staffUsers: staffUsersList, addStaffUser, updateStaffUser, disableStaffUser, enableStaffUser, getStaffByFacility, getStaffByRole,
+    hospitals: hospitalsList, addHospital, updateHospital, toggleHospitalStatus,
     getPatientById, getPatientByEmail, getPatientByHealthCardId, getDoctorById, getFacilityById,
     getReferralsForPatient, getReferralsForFacility,
     getAppointmentsForDoctor, getAppointmentsForPatient,

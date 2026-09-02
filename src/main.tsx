@@ -45,6 +45,7 @@ const StaffManagement = lazy(() => import("./pages/hospitaladmin/StaffManagement
 
 // Government Admin pages
 const GovDashboard = lazy(() => import("./pages/govadmin/Dashboard.tsx"));
+const HospitalManagement = lazy(() => import("./pages/govadmin/HospitalManagement.tsx"));
 
 // Loading fallback
 function RouteLoading() {
@@ -160,6 +161,7 @@ createRoot(document.getElementById("root")!).render(
                   {/* District Admin Routes */}
                   <Route path="/district-admin/dashboard" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
                   <Route path="/district-admin/analytics" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
+                  <Route path="/district-admin/hospitals" element={<RequireAuth allowedRoles={['gov_admin']}><App><HospitalManagement /></App></RequireAuth>} />
                   <Route path="/district-admin/facilities" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
                   <Route path="/district-admin/reports" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
 

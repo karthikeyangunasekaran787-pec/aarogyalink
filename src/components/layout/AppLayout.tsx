@@ -16,7 +16,7 @@ import {
   Home, Stethoscope, FileText,
   Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
   Pill, TestTube, BarChart3, UserPlus,
-  Package, TrendingUp, MessageSquare, Inbox, Clock, Users
+  Package, TrendingUp, MessageSquare, Inbox, Clock, Users, Building2
 } from 'lucide-react';
 
 interface NavItem {
@@ -63,6 +63,7 @@ const HOSP_ADMIN_NAV: NavItem[] = [
 
 const GOV_NAV: NavItem[] = [
   { label: 'dashboard', path: '/district-admin/dashboard', icon: Home },
+  { label: 'Hospital Management', path: '/district-admin/hospitals', icon: Building2 },
   { label: 'referralFunnel', path: '/district-admin/analytics', icon: TrendingUp },
   { label: 'villageMap', path: '/district-admin/facilities', icon: MapPin },
   { label: 'insights', path: '/district-admin/reports', icon: MessageSquare },
@@ -245,7 +246,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="hidden sm:flex items-center gap-2">
           <div className="text-right">
             <p className="text-xs font-medium text-foreground leading-tight">{currentUser?.name || 'User'}</p>
-            <p className="text-[10px] text-muted-foreground">{currentRole.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {currentUser?.departmentName && currentUser?.facilityName
+                ? `${currentUser.departmentName} • ${currentUser.facilityName}`
+                : currentUser?.facilityName
+                ? currentUser.facilityName
+                : currentRole.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
+              }
+            </p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />

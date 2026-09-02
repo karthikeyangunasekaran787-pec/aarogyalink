@@ -12,6 +12,8 @@ export interface AuthUser {
   email: string;
   role: Role;
   facilityId?: string;
+  facilityName?: string;
+  departmentName?: string;
   phone?: string;
   patientId?: string;
   healthCardId?: string;
@@ -30,7 +32,7 @@ interface AppState {
   isAuthenticated: boolean;
   login: (email: string) => boolean;
   loginPatient: (email: string, patientId: string, healthCardId: string, name: string) => void;
-  loginStaff: (staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; departmentId?: string }) => void;
+  loginStaff: (staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; facilityName?: string; departmentName?: string; departmentId?: string }) => void;
   logout: () => void;
   currentRole: Role;
   setCurrentRole: (role: Role) => void;
@@ -91,13 +93,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const loginStaff = useCallback((staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; departmentId?: string }) => {
+  const loginStaff = useCallback((staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; facilityName?: string; departmentName?: string; departmentId?: string }) => {
     setCurrentUser({
       id: staffUser.id,
       name: staffUser.name,
       email: staffUser.email,
       role: staffUser.role,
       facilityId: staffUser.facilityId,
+      facilityName: staffUser.facilityName,
+      departmentName: staffUser.departmentName,
     });
   }, []);
 

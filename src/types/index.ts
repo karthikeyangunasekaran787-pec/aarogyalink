@@ -98,6 +98,26 @@ export interface Facility {
   careMatchScore?: number;
 }
 
+export interface Hospital {
+  id: string;
+  name: string;
+  hospitalId: string; // unique human-readable ID like "HOS-2026-001"
+  type: 'government' | 'private' | 'trust' | 'charitable';
+  address: string;
+  district: string;
+  state: string;
+  phone: string;
+  email: string;
+  departments: string[];
+  services: string[];
+  totalBeds: number;
+  occupiedBeds: number;
+  status: 'active' | 'inactive' | 'suspended';
+  adminUserId: string; // the hospital_admin user who manages this hospital
+  createdByUserId: string; // district admin who created it
+  createdAt: string;
+}
+
 export interface Department {
   id: string;
   facilityId: string;

@@ -42,7 +42,7 @@ export default function HealthCard() {
                 <p className="text-xs text-primary-foreground/80">Government of Tamil Nadu · Digital Health Card</p>
               </div>
             </div>
-            <QRCode data={`HC:${patient.healthCardId}:${patient.id}`} size={80} />
+            <QRCode data={`AAROGYALINK|${patient.healthCardId}|${patient.id}`} size={80} />
           </div>
         </div>
 

@@ -14,7 +14,7 @@ import type {
 // ---------------------------------------------------------------------------
 export const patients: Patient[] = [
   {
-    id: 'p1', userId: 'u1', healthCardId: 'HC-2026-1001', registeredByEmail: 'lakshmi@demo.aarogyalink.in',
+    id: 'p1', userId: 'u1', healthCardId: 'AL-PT-2026-001', registeredByEmail: 'patient@demo.com',
     registeredAt: '2025-11-15', name: 'Lakshmi Devi', age: 62, gender: 'female',
     phone: '9876543210', address: '12 Amman Kovil Street', village: 'Kallikudi',
     district: 'Madurai', state: 'Tamil Nadu', bloodGroup: 'B+',
@@ -23,62 +23,62 @@ export const patients: Patient[] = [
     createdAt: '2025-11-15',
   },
   {
-    id: 'p2', userId: 'u2', healthCardId: 'HC-2026-1002', registeredByEmail: 'raman@demo.aarogyalink.in',
+    id: 'p2', userId: 'u2', healthCardId: 'AL-PT-2026-002', registeredByEmail: 'raman@demo.com',
     registeredAt: '2025-12-01', name: 'Raman Sharma', age: 45, gender: 'male',
     phone: '9876543220', address: '45 Gandhi Road', village: 'Thoor',
     district: 'Madurai', state: 'Tamil Nadu', bloodGroup: 'O+',
     aadhaarLast4: '7832', createdAt: '2025-12-01',
   },
   {
-    id: 'p3', userId: 'u3', healthCardId: 'HC-2026-1003', registeredByEmail: 'meena@demo.aarogyalink.in',
+    id: 'p3', userId: 'u3', healthCardId: 'AL-PT-2026-003', registeredByEmail: 'meena@demo.com',
     registeredAt: '2026-01-10', name: 'Meena Kumari', age: 28, gender: 'female',
     phone: '9876543230', address: '7 Temple Street', village: 'Melur',
     district: 'Madurai', state: 'Tamil Nadu', bloodGroup: 'A+',
     createdAt: '2026-01-10',
   },
   {
-    id: 'p4', userId: 'u4', healthCardId: 'HC-2026-1004', registeredByEmail: 'murugan@demo.aarogyalink.in',
+    id: 'p4', userId: 'u4', healthCardId: 'AL-PT-2026-004', registeredByEmail: 'murugan@demo.com',
     registeredAt: '2026-02-05', name: 'Murugan P', age: 55, gender: 'male',
     phone: '9876543240', address: '89 Main Road', village: 'Vadipatti',
     district: 'Madurai', state: 'Tamil Nadu', bloodGroup: 'AB+',
     chronicConditions: ['Asthma'], createdAt: '2026-02-05',
   },
   {
-    id: 'p5', userId: 'u5', healthCardId: 'HC-2026-1005', registeredByEmail: 'priya@demo.aarogyalink.in',
+    id: 'p5', userId: 'u5', healthCardId: 'AL-PT-2026-005', registeredByEmail: 'priya@demo.com',
     registeredAt: '2026-02-20', name: 'Priya R', age: 35, gender: 'female',
     phone: '9876543250', address: '23 North Street', village: 'Usilampatti',
     district: 'Madurai', state: 'Tamil Nadu', bloodGroup: 'B-',
     createdAt: '2026-02-20',
   },
   {
-    id: 'p6', userId: 'u6', healthCardId: 'HC-2026-1006', registeredByEmail: 'kumar@demo.aarogyalink.in',
+    id: 'p6', userId: 'u6', healthCardId: 'AL-PT-2026-006', registeredByEmail: 'kumar@demo.com',
     registeredAt: '2026-03-01', name: 'Kumar S', age: 70, gender: 'male',
     phone: '9876543260', address: '56 South Road', village: 'Kallikudi',
     district: 'Madurai', state: 'Tamil Nadu', bloodGroup: 'O-',
     chronicConditions: ['COPD', 'Hypertension'], createdAt: '2026-03-01',
   },
   {
-    id: 'p7', userId: 'u7', healthCardId: 'HC-2026-1007', registeredByEmail: 'anitha@demo.aarogyalink.in',
+    id: 'p7', userId: 'u7', healthCardId: 'AL-PT-2026-007', registeredByEmail: 'anitha@demo.com',
     registeredAt: '2026-03-10', name: 'Anitha V', age: 42, gender: 'female',
     phone: '9876543270', address: '34 East Street', village: 'Thoor',
     district: 'Madurai', state: 'Tamil Nadu', createdAt: '2026-03-10',
   },
   {
-    id: 'p8', userId: 'u8', healthCardId: 'HC-2026-1008', registeredByEmail: 'rajan@demo.aarogyalink.in',
+    id: 'p8', userId: 'u8', healthCardId: 'AL-PT-2026-008', registeredByEmail: 'rajan@demo.com',
     registeredAt: '2026-04-01', name: 'Rajan M', age: 58, gender: 'male',
     phone: '9876543280', address: '67 West Road', village: 'Melur',
     district: 'Madurai', state: 'Tamil Nadu', bloodGroup: 'A-',
     chronicConditions: ['Diabetes Type 2'], createdAt: '2026-04-01',
   },
   {
-    id: 'p9', userId: 'u9', healthCardId: 'HC-2026-1009', registeredByEmail: 'sangeetha@demo.aarogyalink.in',
+    id: 'p9', userId: 'u9', healthCardId: 'AL-PT-2026-009', registeredByEmail: 'sangeetha@demo.com',
     registeredAt: '2026-04-15', name: 'Sangeetha K', age: 31, gender: 'female',
     phone: '9876543290', address: '11 Park Street', village: 'Vadipatti',
     district: 'Madurai', state: 'Tamil Nadu', bloodGroup: 'O+',
     createdAt: '2026-04-15',
   },
   {
-    id: 'p10', userId: 'u10', healthCardId: 'HC-2026-1010', registeredByEmail: 'vetri@demo.aarogyalink.in',
+    id: 'p10', userId: 'u10', healthCardId: 'AL-PT-2026-010', registeredByEmail: 'vetri@demo.com',
     registeredAt: '2026-05-01', name: 'Vetri V', age: 22, gender: 'male',
     phone: '9876543300', address: '90 Lake Road', village: 'Usilampatti',
     district: 'Madurai', state: 'Tamil Nadu', bloodGroup: 'B+',
@@ -355,11 +355,23 @@ export const consultations: Consultation[] = [
 // Vitals
 // ---------------------------------------------------------------------------
 export const vitals: Vitals[] = [
-  { id: 'v1', patientId: 'p1', recordedBy: 'Dr. Senthil Kumar', date: '2026-07-28', bloodPressureSystolic: 152, bloodPressureDiastolic: 95, heartRate: 88, temperature: 98.4, spO2: 96, weight: 68, bloodSugar: 145 },
-  { id: 'v2', patientId: 'p2', recordedBy: 'Nurse', date: '2026-07-20', bloodPressureSystolic: 128, bloodPressureDiastolic: 82, heartRate: 76, temperature: 98.6, weight: 72 },
-  { id: 'v3', patientId: 'p3', recordedBy: 'Dr. Kamala Devi', date: '2026-07-25', bloodPressureSystolic: 118, bloodPressureDiastolic: 75, heartRate: 82, temperature: 98.2, weight: 62 },
-  { id: 'v4', patientId: 'p4', recordedBy: 'Dr. Senthil Kumar', date: '2026-07-28', bloodPressureSystolic: 168, bloodPressureDiastolic: 102, heartRate: 105, temperature: 99.1, spO2: 92, bloodSugar: 180 },
-  { id: 'v5', patientId: 'p8', recordedBy: 'Dr. Mohan Prasad', date: '2026-07-22', bloodPressureSystolic: 138, bloodPressureDiastolic: 88, heartRate: 80, temperature: 98.6, bloodSugar: 245 },
+  // Patient p1 (Lakshmi Devi) - vital history showing progression
+  { id: 'v1', patientId: 'p1', recordedBy: 'Health Worker Suganthi', date: '2026-08-01', bloodPressureSystolic: 148, bloodPressureDiastolic: 92, heartRate: 85, temperature: 98.4, spO2: 96, weight: 68, bloodSugar: 142 },
+  { id: 'v1b', patientId: 'p1', recordedBy: 'Health Worker Suganthi', date: '2026-08-15', bloodPressureSystolic: 150, bloodPressureDiastolic: 93, heartRate: 86, temperature: 98.4, spO2: 95, weight: 68, bloodSugar: 148 },
+  { id: 'v1c', patientId: 'p1', recordedBy: 'Dr. Senthil Kumar', date: '2026-09-01', bloodPressureSystolic: 152, bloodPressureDiastolic: 95, heartRate: 88, temperature: 98.4, spO2: 96, weight: 68, bloodSugar: 145 },
+  // Patient p2 (Raman Sharma)
+  { id: 'v2', patientId: 'p2', recordedBy: 'Health Worker Suganthi', date: '2026-08-10', bloodPressureSystolic: 130, bloodPressureDiastolic: 84, heartRate: 78, temperature: 98.6, weight: 72 },
+  { id: 'v2b', patientId: 'p2', recordedBy: 'Nurse', date: '2026-09-01', bloodPressureSystolic: 128, bloodPressureDiastolic: 82, heartRate: 76, temperature: 98.6, weight: 72 },
+  // Patient p3 (Meena Kumari)
+  { id: 'v3', patientId: 'p3', recordedBy: 'Dr. Kamala Devi', date: '2026-08-25', bloodPressureSystolic: 118, bloodPressureDiastolic: 75, heartRate: 82, temperature: 98.2, weight: 63 },
+  // Patient p4 (Murugan P) - emergency case
+  { id: 'v4', patientId: 'p4', recordedBy: 'Health Worker Suganthi', date: '2026-08-20', bloodPressureSystolic: 165, bloodPressureDiastolic: 100, heartRate: 102, temperature: 99.0, spO2: 93, bloodSugar: 175 },
+  { id: 'v4b', patientId: 'p4', recordedBy: 'Dr. Senthil Kumar', date: '2026-09-01', bloodPressureSystolic: 168, bloodPressureDiastolic: 102, heartRate: 105, temperature: 99.1, spO2: 92, bloodSugar: 180 },
+  // Patient p6 (Kumar S)
+  { id: 'v6', patientId: 'p6', recordedBy: 'Health Worker Suganthi', date: '2026-08-15', bloodPressureSystolic: 142, bloodPressureDiastolic: 90, heartRate: 82, temperature: 98.6, spO2: 94 },
+  // Patient p8 (Rajan M)
+  { id: 'v5', patientId: 'p8', recordedBy: 'Dr. Mohan Prasad', date: '2026-08-22', bloodPressureSystolic: 135, bloodPressureDiastolic: 86, heartRate: 78, temperature: 98.6, bloodSugar: 240 },
+  { id: 'v5b', patientId: 'p8', recordedBy: 'Dr. Mohan Prasad', date: '2026-09-01', bloodPressureSystolic: 138, bloodPressureDiastolic: 88, heartRate: 80, temperature: 98.6, bloodSugar: 245 },
 ];
 
 // ---------------------------------------------------------------------------

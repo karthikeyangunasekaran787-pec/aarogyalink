@@ -1,9 +1,8 @@
 // ============================================================================
 // AarogyaLink - Application Context Provider with Auth
-// Supports Convex Auth (real email OTP) + Demo login fallback for SIH prototype
 // ============================================================================
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { Role } from '@/types';
 import type { Language } from '@/lib/i18n';
 
@@ -14,28 +13,24 @@ export interface AuthUser {
   role: Role;
   facilityId?: string;
   phone?: string;
-  // For patient role: link to their registered patient record
   patientId?: string;
   healthCardId?: string;
 }
 
-// Demo accounts for non-patient roles only (patients must be registered first)
+// Demo accounts for non-patient roles
 const DEMO_ACCOUNTS: Record<string, AuthUser> = {
-  health_worker: { id: 'uhw1', name: 'Suganthi M', email: 'suganthi@demo.aarogyalink.in', role: 'health_worker', facilityId: 'f1', phone: '9850100001' },
-  doctor: { id: 'ud1', name: 'Dr. Senthil Kumar', email: 'senthil@demo.aarogyalink.in', role: 'doctor', facilityId: 'f1', phone: '9840100001' },
-  hospital_admin: { id: 'uha1', name: 'Admin Rajan', email: 'rajan@demo.aarogyalink.in', role: 'hospital_admin', facilityId: 'f3' },
-  gov_admin: { id: 'uga1', name: 'District Collector', email: 'collector@demo.aarogyalink.in', role: 'gov_admin' },
+  health_worker: { id: 'uhw1', name: 'Suganthi M', email: 'healthworker@demo.com', role: 'health_worker', facilityId: 'f1', phone: '9850100001' },
+  doctor: { id: 'ud1', name: 'Dr. Senthil Kumar', email: 'doctor@demo.com', role: 'doctor', facilityId: 'f1', phone: '9840100001' },
+  hospital_admin: { id: 'uha1', name: 'Admin Rajan', email: 'hospital@demo.com', role: 'hospital_admin', facilityId: 'f3' },
+  gov_admin: { id: 'uga1', name: 'District Collector', email: 'district@demo.com', role: 'gov_admin' },
 };
 
 interface AppState {
-  // Auth
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
   login: (email: string) => boolean;
   loginPatient: (email: string, patientId: string, healthCardId: string, name: string) => void;
   logout: () => void;
-
-  // App state
   currentRole: Role;
   setCurrentRole: (role: Role) => void;
   language: Language;
@@ -51,20 +46,30 @@ const AppContext = createContext<AppState | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentRole, setCurrentRole] = useState<Role>('patient');
   const [language, setLanguage] = useState<Language>('en');
-  const [isOffline, setIsOffline] = useState(false);
+  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
+
+  // Auto-detect online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
   const isAuthenticated = currentUser !== null;
 
-  // Login for non-patient roles (health worker, doctor, admin)
   const login = useCallback((email: string) => {
     const account = DEMO_ACCOUNTS[currentRole];
     if (account) {
       setCurrentUser(account);
       return true;
     }
-    // Fallback: create a generic user for the role
     setCurrentUser({
       id: `u-${currentRole}`,
       name: currentRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
@@ -74,7 +79,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return true;
   }, [currentRole]);
 
-  // Login for patients: links to their registered patient record
   const loginPatient = useCallback((email: string, patientId: string, healthCardId: string, name: string) => {
     setCurrentUser({
       id: `u-${patientId}`,

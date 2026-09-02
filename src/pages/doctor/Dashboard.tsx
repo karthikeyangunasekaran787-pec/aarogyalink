@@ -15,7 +15,7 @@ import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import {
   Calendar, Users, FileText, Clock, Stethoscope, Activity,
-  CheckCircle2, PlayCircle, PenLine
+  CheckCircle2, PlayCircle, PenLine, ChevronRight
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
@@ -52,6 +52,17 @@ export default function DoctorDashboard() {
   const [followupDate, setFollowupDate] = useState('');
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [consultingReferral, setConsultingReferral] = useState<string | null>(null);
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
+
+  // Patient search by Health Card ID or name
+  const searchResults = patientSearchQuery.trim()
+    ? patients.filter(p => {
+        const q = patientSearchQuery.toLowerCase();
+        return p.healthCardId.toLowerCase().includes(q) ||
+               p.name.toLowerCase().includes(q) ||
+               p.id.toLowerCase().includes(q);
+      })
+    : [];
 
   // Referral creation state
   const [showReferralForm, setShowReferralForm] = useState(false);
@@ -240,6 +251,45 @@ export default function DoctorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Patient Search by Health Card ID */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Stethoscope className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={patientSearchQuery}
+                onChange={(e) => setPatientSearchQuery(e.target.value)}
+                placeholder="Search patient by Health Card ID (e.g. AL-PT-2026-001) or name..."
+                className="pl-9"
+              />
+            </div>
+          </div>
+          {searchResults.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {searchResults.map(p => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-all"
+                  onClick={() => { setSelectedPatient(p.id); setPatientSearchQuery(''); }}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">{p.healthCardId} • {p.village}, {p.district}</p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                    Open Record <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          {patientSearchQuery && searchResults.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-2 text-center">No patient found matching "{patientSearchQuery}"</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Create Referral Form (inline) */}
       {showReferralForm && (

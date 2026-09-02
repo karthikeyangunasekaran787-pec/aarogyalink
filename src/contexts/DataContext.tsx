@@ -363,7 +363,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // ── Patient actions ───────────────────────────────────────────
   const addPatient = useCallback((data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => {
     const id = `p${nextPatientId++}`;
-    const healthCardId = `HC-2026-${String(nextPatientId).padStart(4, '0')}`;
+    const healthCardId = `AL-PT-2026-${String(nextPatientId).padStart(3, '0')}`;
     const patient: Patient = {
       ...data, id, userId: `u${nextPatientId}`, healthCardId,
       registeredAt: now().split('T')[0], createdAt: now().split('T')[0]

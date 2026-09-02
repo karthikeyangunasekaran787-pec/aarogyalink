@@ -1,15 +1,17 @@
 // ============================================================================
-// Health Worker — Patient Registration
+// Health Worker — Patient Registration (functional)
 // ============================================================================
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
+import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, CheckCircle2, ArrowRight } from 'lucide-react';
+import { UserPlus, CheckCircle2, ArrowRight, Activity } from 'lucide-react';
 
 interface PatientForm {
   name: string;
@@ -38,11 +40,13 @@ const COMMON_CONDITIONS = ['Diabetes', 'Hypertension', 'Asthma', 'Heart Disease'
 
 export default function RegisterPatient() {
   const { language } = useApp();
+  const { addPatient } = useData();
+  const navigate = useNavigate();
   const [form, setForm] = useState<PatientForm>(INITIAL);
   const [allergyInput, setAllergyInput] = useState('');
   const [conditionInput, setConditionInput] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [generatedId] = useState(() => `PAT-${Date.now().toString().slice(-6)}`);
+  const [registeredPatientId, setRegisteredPatientId] = useState('');
 
   const update = (field: keyof PatientForm, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
@@ -72,6 +76,34 @@ export default function RegisterPatient() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (!form.name || !form.age || !form.gender || !form.phone || !form.village) {
+      return;
+    }
+
+    // Map form data to Patient type and save to DataContext
+    const genderMap: Record<string, 'male' | 'female' | 'other'> = {
+      'Male': 'male', 'Female': 'female', 'Other': 'other'
+    };
+
+    const newPatient = addPatient({
+      name: form.name,
+      age: parseInt(form.age, 10),
+      gender: genderMap[form.gender] || 'other',
+      phone: form.phone,
+      address: form.address || `${form.village}, ${form.district}`,
+      village: form.village,
+      district: form.district,
+      state: 'Tamil Nadu',
+      bloodGroup: form.bloodGroup || undefined,
+      aadhaarLast4: form.aadhaarLast4 || undefined,
+      emergencyContact: form.emergencyContact || undefined,
+      allergies: form.allergies.filter(a => a !== 'None').length > 0 ? form.allergies.filter(a => a !== 'None') : undefined,
+      chronicConditions: form.chronicConditions.filter(c => c !== 'None').length > 0 ? form.chronicConditions.filter(c => c !== 'None') : undefined,
+    });
+
+    setRegisteredPatientId(newPatient.id);
     setSubmitted(true);
   };
 
@@ -83,19 +115,19 @@ export default function RegisterPatient() {
             <div className="h-16 w-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto">
               <CheckCircle2 className="h-8 w-8 text-emerald-600" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Patient Registered</h2>
+            <h2 className="text-xl font-bold text-foreground">Patient Successfully Registered</h2>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              {form.name} has been added to the system. You can now create a referral or run an AI triage assessment.
+              <strong>{form.name}</strong> has been added to the system with ID <strong>{registeredPatientId.toUpperCase()}</strong>. The patient is now available for triage, referrals, and appointments.
             </p>
             <div className="flex items-center justify-center gap-2 mt-4">
-              <Badge variant="outline" className="text-xs">ID: {generatedId}</Badge>
+              <Badge variant="outline" className="text-xs">Patient ID: {registeredPatientId.toUpperCase()}</Badge>
             </div>
             <div className="flex gap-3 justify-center mt-6">
-              <Button variant="outline" onClick={() => { setSubmitted(false); setForm(INITIAL); }}>
+              <Button variant="outline" onClick={() => { setSubmitted(false); setForm(INITIAL); setRegisteredPatientId(''); }}>
                 Register Another
               </Button>
-              <Button className="gap-1.5" onClick={() => window.location.href = '/hw/ai-triage'}>
-                Run AI Triage <ArrowRight className="h-3.5 w-3.5" />
+              <Button className="gap-1.5" onClick={() => navigate('/health-worker/dashboard')}>
+                Go to Dashboard <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </div>
           </CardContent>

@@ -10,7 +10,7 @@ import type {
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
   VillageAccessScore, Notification, ReferralEvent, Consultation,
   ReferralPrediction, ReferralStatus, AppointmentStatus, FollowupStatus,
-  DistrictAnalytics, ReferralFunnelStage
+  DistrictAnalytics, ReferralFunnelStage, Role, User
 } from '@/types';
 
 // Initial data from mock-data
@@ -32,6 +32,7 @@ import {
   consultations as initConsultations,
   referralPredictions as initPredictions,
   aiInsights as initInsights,
+  staffUsers as initStaffUsers,
 } from '@/lib/mock-data';
 
 // Valid referral status transitions
@@ -72,6 +73,7 @@ interface DataContextValue {
   diagnostics: Diagnostic[];
   villageAccessScores: VillageAccessScore[];
   notifications: Notification[];
+  staffUsers: User[];
   referralEvents: ReferralEvent[];
   consultations: Consultation[];
   referralPredictions: ReferralPrediction[];
@@ -116,6 +118,14 @@ interface DataContextValue {
 
   // Medicine stock
   updateMedicineStock: (stockId: string, quantity: number) => void;
+
+  // Staff management
+  addStaffUser: (data: Omit<User, 'id' | 'createdAt'>) => User;
+  updateStaffUser: (userId: string, data: Partial<User>) => void;
+  disableStaffUser: (userId: string) => void;
+  enableStaffUser: (userId: string) => void;
+  getStaffByFacility: (facilityId: string) => User[];
+  getStaffByRole: (role: Role) => User[];
 
   // Helpers
   getPatientById: (id: string) => Patient | undefined;
@@ -419,6 +429,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } : ms));
   }, []);
 
+  // ── Staff management ─────────────────────────────────────────
+  const [staffUsersList, setStaffUsersList] = useState<User[]>(initStaffUsers);
+  let nextStaffId = staffUsersList.length + 1;
+
+  const addStaffUser = useCallback((data: Omit<User, 'id' | 'createdAt'>) => {
+    const id = `ustaff-${Date.now()}-${nextStaffId++}`;
+    const user: User = { ...data, id, createdAt: now().split('T')[0] };
+    setStaffUsersList(prev => [...prev, user]);
+    return user;
+  }, []);
+
+  const updateStaffUser = useCallback((userId: string, data: Partial<User>) => {
+    setStaffUsersList(prev => prev.map(u => u.id === userId ? { ...u, ...data } : u));
+  }, []);
+
+  const disableStaffUser = useCallback((userId: string) => {
+    setStaffUsersList(prev => prev.map(u => u.id === userId ? { ...u, status: 'disabled' as const } : u));
+  }, []);
+
+  const enableStaffUser = useCallback((userId: string) => {
+    setStaffUsersList(prev => prev.map(u => u.id === userId ? { ...u, status: 'active' as const } : u));
+  }, []);
+
+  const getStaffByFacility = useCallback((facilityId: string) => staffUsersList.filter(u => u.facilityId === facilityId), [staffUsersList]);
+  const getStaffByRole = useCallback((role: Role) => staffUsersList.filter(u => u.role === role), [staffUsersList]);
+
   // ── Helpers ───────────────────────────────────────────────────
   const getPatientById = useCallback((id: string) => patients.find(p => p.id === id), [patients]);
   const getPatientByEmail = useCallback((email: string) => patients.find(p => p.registeredByEmail === email), [patients]);
@@ -452,6 +488,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     completeFollowupById, markFollowupMissed,
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,
     updateMedicineStock,
+    staffUsers: staffUsersList, addStaffUser, updateStaffUser, disableStaffUser, enableStaffUser, getStaffByFacility, getStaffByRole,
     getPatientById, getPatientByEmail, getPatientByHealthCardId, getDoctorById, getFacilityById,
     getReferralsForPatient, getReferralsForFacility,
     getAppointmentsForDoctor, getAppointmentsForPatient,

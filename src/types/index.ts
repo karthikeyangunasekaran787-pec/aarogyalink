@@ -9,14 +9,24 @@ export type ReferralStatus = 'created' | 'accepted' | 'scheduled' | 'patient_arr
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'missed';
 export type FollowupStatus = 'scheduled' | 'completed' | 'missed' | 'overdue' | 'rescheduled';
 
+export type StaffStatus = 'active' | 'disabled' | 'pending_password_change';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   role: Role;
+  username?: string;
   phone?: string;
   avatar?: string;
   language?: Language;
+  facilityId?: string;
+  departmentId?: string;
+  status: StaffStatus;
+  createdBy?: string; // user_id of who created this account
+  createdAt: string;
+  lastLogin?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface Patient {
@@ -176,6 +186,14 @@ export interface Referral {
   closedAt?: string;
   isOverdue: boolean;
   notes?: string;
+  // Attribution fields — who performed each action
+  createdByUserId?: string;
+  createdByName?: string;
+  createdByRole?: string;
+  acceptedByUserId?: string;
+  acceptedByName?: string;
+  assignedDoctorId?: string;
+  assignedDoctorName?: string;
 }
 
 export interface ReferralEvent {

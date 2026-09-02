@@ -30,6 +30,7 @@ interface AppState {
   isAuthenticated: boolean;
   login: (email: string) => boolean;
   loginPatient: (email: string, patientId: string, healthCardId: string, name: string) => void;
+  loginStaff: (staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; departmentId?: string }) => void;
   logout: () => void;
   currentRole: Role;
   setCurrentRole: (role: Role) => void;
@@ -90,6 +91,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const loginStaff = useCallback((staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; departmentId?: string }) => {
+    setCurrentUser({
+      id: staffUser.id,
+      name: staffUser.name,
+      email: staffUser.email,
+      role: staffUser.role,
+      facilityId: staffUser.facilityId,
+    });
+  }, []);
+
   const logout = useCallback(() => {
     setCurrentUser(null);
     try { sessionStorage.clear(); } catch { /* ok */ }
@@ -100,7 +111,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value: AppState = {
-    currentUser, isAuthenticated, login, loginPatient, logout,
+    currentUser, isAuthenticated, login, loginPatient, loginStaff, logout,
     currentRole, setCurrentRole: handleSetRole,
     language, setLanguage,
     isOffline, setIsOffline,

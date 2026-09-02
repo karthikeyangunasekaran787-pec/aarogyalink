@@ -1,7 +1,7 @@
 // ============================================================================
 // AarogyaLink - Authentication Page
-// Patients: must be registered by Health Worker first, login via email lookup
-// Other roles: demo login with role-specific accounts
+// Patients: login via registered email lookup
+// Staff: login via username/password against staffUsers records
 // ============================================================================
 
 import { useState, useCallback, useEffect } from 'react';
@@ -11,7 +11,7 @@ import { useData } from '@/contexts/DataContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Heart, Mail, LogIn, AlertCircle, CheckCircle2, UserCheck } from 'lucide-react';
+import { Heart, Mail, LogIn, AlertCircle, CheckCircle2, User, Lock } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   patient: 'Patient',
@@ -30,18 +30,19 @@ const ROLE_ROUTES: Record<string, string> = {
 };
 
 export default function AuthPage() {
-  const { currentRole, login, loginPatient } = useApp();
-  const { getPatientByEmail, patients } = useData();
+  const { currentRole, loginPatient, loginStaff } = useApp();
+  const { getPatientByEmail, staffUsers, facilities } = useData();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [emailValue, setEmailValue] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [foundPatient, setFoundPatient] = useState<{ name: string; healthCardId: string } | null>(null);
 
   const returnTo = (location.state as { from?: { pathname: string } })?.from?.pathname || ROLE_ROUTES[currentRole] || '/patient/dashboard';
-
   const isPatient = currentRole === 'patient';
 
   // ── Patient Login: look up by email ───────────────────────────
@@ -56,42 +57,81 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    // Simulate a brief lookup delay
     await new Promise(resolve => setTimeout(resolve, 300));
 
     const patient = getPatientByEmail(emailValue);
     setLoading(false);
 
     if (!patient) {
-      setError('No patient found with this email. Please ask a Health Worker to register you first.');
+      setError('Patient not registered. Please contact your Health Worker to register your account first.');
       return;
     }
 
     setFoundPatient({ name: patient.name, healthCardId: patient.healthCardId });
-
-    // Login with patient's record
     loginPatient(emailValue, patient.id, patient.healthCardId, patient.name);
 
-    // Navigate after a brief moment to show the success state
     setTimeout(() => {
       navigate(returnTo, { replace: true });
     }, 800);
   }, [emailValue, getPatientByEmail, loginPatient, navigate, returnTo]);
 
-  // ── Non-patient Login (Health Worker, Doctor, Admin) ──────────
-  const handleNonPatientLogin = useCallback(() => {
-    login(emailValue || `demo-${currentRole}@aarogyalink.in`);
+  // ── Staff Login: validate username against staffUsers ─────────
+  const handleStaffLogin = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!username.trim()) {
+      setError('Please enter your username.');
+      return;
+    }
+
+    setLoading(true);
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Find staff user by username
+    const staffUser = staffUsers.find(u => u.username === username.trim());
+
+    if (!staffUser) {
+      setLoading(false);
+      setError('Invalid username. Please check your credentials or contact your Hospital Administrator.');
+      return;
+    }
+
+    if (staffUser.status === 'disabled') {
+      setLoading(false);
+      setError('Your account has been disabled. Please contact your Hospital Administrator.');
+      return;
+    }
+
+    if (staffUser.role !== currentRole) {
+      setLoading(false);
+      setError(`This account is registered as ${ROLE_LABELS[staffUser.role]}, not ${ROLE_LABELS[currentRole]}.`);
+      return;
+    }
+
+    // For demo: password is not validated (any password works)
+    // In production, this would validate against password_hash
+
+    // Login with the actual staff user data from the database
+    loginStaff({
+      id: staffUser.id,
+      name: staffUser.name,
+      email: staffUser.email,
+      role: staffUser.role,
+      facilityId: staffUser.facilityId,
+      departmentId: staffUser.departmentId,
+    });
+    setLoading(false);
+
     navigate(returnTo, { replace: true });
-  }, [login, emailValue, currentRole, navigate, returnTo]);
+  }, [username, currentRole, staffUsers, loginStaff, navigate, returnTo]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8">
-      {/* Back to role selection */}
       <Link to="/role-select" className="text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
         ← Change Role
       </Link>
 
-      {/* Logo */}
       <div className="flex items-center gap-2.5 mb-2">
         <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
           <Heart className="h-5 w-5 text-primary-foreground" fill="currentColor" />
@@ -106,7 +146,6 @@ export default function AuthPage() {
         Connecting Rural Patients to the Right Care — Until Recovery.
       </p>
 
-      {/* Login Card */}
       <Card className="w-full max-w-md">
         <CardContent className="p-6 space-y-5">
           <div className="text-center">
@@ -114,7 +153,7 @@ export default function AuthPage() {
             <p className="text-xs text-muted-foreground mt-1">
               {isPatient
                 ? 'Enter the email registered by your Health Worker'
-                : 'Sign in to access your dashboard'
+                : 'Enter your assigned username and password'
               }
             </p>
           </div>
@@ -159,7 +198,7 @@ export default function AuthPage() {
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                    Looking up your record...
+                    Verifying...
                   </span>
                 ) : foundPatient ? (
                   <span className="flex items-center gap-2">
@@ -181,40 +220,64 @@ export default function AuthPage() {
             </form>
           )}
 
-          {/* ── Non-patient Login ──────────────────────────── */}
+          {/* ── Staff Login (Doctor, Health Worker, Admin) ── */}
           {!isPatient && (
-            <div className="space-y-4">
+            <form onSubmit={handleStaffLogin} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Email Address</label>
+                <label className="text-sm font-medium text-foreground">Username</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    type="email"
-                    value={emailValue}
-                    onChange={(e) => setEmailValue(e.target.value)}
-                    placeholder={`you@demo.aarogyalink.in`}
+                    value={username}
+                    onChange={(e) => { setUsername(e.target.value); setError(''); }}
+                    placeholder={currentRole === 'doctor' ? 'e.g. senthil.gm' : currentRole === 'health_worker' ? 'e.g. suganthi.hw' : 'e.g. rajan.admin'}
                     className="pl-9 h-11"
                     autoFocus
+                    required
                   />
                 </div>
               </div>
 
-              <Button
-                type="button"
-                className="w-full h-11"
-                onClick={handleNonPatientLogin}
-              >
-                <span className="flex items-center gap-2">
-                  <LogIn className="h-4 w-4" />
-                  Sign in as {ROLE_LABELS[currentRole]}
-                </span>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="pl-9 h-11"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-11" disabled={loading}>
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                    Signing in...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <LogIn className="h-4 w-4" />
+                    Sign In
+                  </span>
+                )}
               </Button>
 
               <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg p-3">
-                <p className="font-medium text-foreground">Demo Account</p>
-                <p>Click "Sign in" to access the {ROLE_LABELS[currentRole]} dashboard with demo data.</p>
+                <p className="font-medium text-foreground">Staff Account</p>
+                <p>Your account was created by your Hospital Administrator. Contact them if you need access.</p>
               </div>
-            </div>
+            </form>
           )}
         </CardContent>
       </Card>

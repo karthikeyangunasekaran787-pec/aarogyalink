@@ -191,6 +191,27 @@ export const healthWorkers: HealthWorker[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Staff Users (created by Hospital Administrators)
+// ---------------------------------------------------------------------------
+import type { User } from '@/types';
+export const staffUsers: User[] = [
+  // Hospital Administrators
+  { id: 'uha1', name: 'Admin Rajan', email: 'hospital@demo.com', role: 'hospital_admin', username: 'rajan.admin', phone: '9840100010', facilityId: 'f3', status: 'active', createdAt: '2026-01-01', lastLogin: '2026-09-01' },
+  // Doctors (created by Hospital Admin)
+  { id: 'ud1', name: 'Dr. Senthil Kumar', email: 'doctor@demo.com', role: 'doctor', username: 'senthil.gm', phone: '9840100001', facilityId: 'f1', departmentId: 'dept-gm', status: 'active', createdBy: 'uha1', createdAt: '2026-01-15', lastLogin: '2026-09-01' },
+  { id: 'ud2', name: 'Dr. Priya Shankar', email: 'priya.shankar@hospital.in', role: 'doctor', username: 'priya.peds', phone: '9840100002', facilityId: 'f2', departmentId: 'dept-peds', status: 'active', createdBy: 'uha1', createdAt: '2026-02-01', lastLogin: '2026-08-28' },
+  { id: 'ud3', name: 'Dr. Rajesh Verma', email: 'rajesh.verma@hospital.in', role: 'doctor', username: 'rajesh.cardio', phone: '9840100003', facilityId: 'f3', departmentId: 'dept-cardio', status: 'active', createdBy: 'uha1', createdAt: '2026-01-20', lastLogin: '2026-09-01' },
+  { id: 'ud4', name: 'Dr. Kamala Devi', email: 'kamala.devi@hospital.in', role: 'doctor', username: 'kamala.obg', phone: '9840100004', facilityId: 'f4', departmentId: 'dept-obg', status: 'active', createdBy: 'uha1', createdAt: '2026-02-10', lastLogin: '2026-08-30' },
+  { id: 'ud5', name: 'Dr. Mohan Prasad', email: 'mohan.prasad@hospital.in', role: 'doctor', username: 'mohan.ortho', phone: '9840100005', facilityId: 'f5', departmentId: 'dept-ortho', status: 'active', createdBy: 'uha1', createdAt: '2026-03-01', lastLogin: '2026-09-01' },
+  // Health Workers (created by Hospital Admin)
+  { id: 'uhw1', name: 'Suganthi M', email: 'healthworker@demo.com', role: 'health_worker', username: 'suganthi.hw', phone: '9850100001', facilityId: 'f1', status: 'active', createdBy: 'uha1', createdAt: '2026-01-10', lastLogin: '2026-09-01' },
+  { id: 'uhw2', name: 'Ravi K', email: 'ravi@hospital.in', role: 'health_worker', username: 'ravi.hw', phone: '9850100002', facilityId: 'f2', status: 'active', createdBy: 'uha1', createdAt: '2026-02-15', lastLogin: '2026-08-29' },
+  { id: 'uhw3', name: 'Priya S', email: 'priya.hw@hospital.in', role: 'health_worker', username: 'priya.hw01', phone: '9850100003', facilityId: 'f1', status: 'active', createdBy: 'uha1', createdAt: '2026-03-20', lastLogin: '2026-08-31' },
+  // District Administrator
+  { id: 'uga1', name: 'District Collector', email: 'district@demo.com', role: 'gov_admin', username: 'collector.dist', phone: '9860100001', status: 'active', createdAt: '2026-01-01', lastLogin: '2026-09-01' },
+];
+
+// ---------------------------------------------------------------------------
 // Referrals (with varied statuses to show the full lifecycle)
 // ---------------------------------------------------------------------------
 export const referrals: Referral[] = [

@@ -16,7 +16,7 @@ import {
   Home, Stethoscope, FileText,
   Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
   Pill, TestTube, BarChart3, UserPlus,
-  Package, TrendingUp, MessageSquare, Inbox, Clock
+  Package, TrendingUp, MessageSquare, Inbox, Clock, Users
 } from 'lucide-react';
 
 interface NavItem {
@@ -58,6 +58,7 @@ const HOSP_ADMIN_NAV: NavItem[] = [
   { label: 'referralInbox', path: '/hospital-admin/referrals', icon: Inbox },
   { label: 'medicineStock', path: '/hospital-admin/medicines', icon: Package },
   { label: 'completionAnalytics', path: '/hospital-admin/analytics', icon: BarChart3 },
+  { label: 'Staff Management', path: '/hospital-admin/staff', icon: Users },
 ];
 
 const GOV_NAV: NavItem[] = [

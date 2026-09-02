@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, CheckCircle2, ArrowRight, Activity } from 'lucide-react';
+import { UserPlus, CheckCircle2, ArrowRight, Activity, AlertCircle } from 'lucide-react';
 
 interface PatientForm {
   name: string;
@@ -49,9 +49,12 @@ export default function RegisterPatient() {
   const [submitted, setSubmitted] = useState(false);
   const [registeredPatientId, setRegisteredPatientId] = useState('');
   const [registeredHealthCardId, setRegisteredHealthCardId] = useState('');
+  const [validationError, setValidationError] = useState('');
 
-  const update = (field: keyof PatientForm, value: string) =>
+  const update = (field: keyof PatientForm, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
+    if (validationError) setValidationError('');
+  };
 
   const toggleArrayItem = (field: 'allergies' | 'chronicConditions', item: string) => {
     if (item === 'None') {
@@ -80,9 +83,17 @@ export default function RegisterPatient() {
     e.preventDefault();
 
     // Validate required fields
-    if (!form.name || !form.age || !form.gender || !form.phone || !form.village) {
+    const missing: string[] = [];
+    if (!form.name) missing.push('Full Name');
+    if (!form.age) missing.push('Age');
+    if (!form.gender) missing.push('Gender');
+    if (!form.phone) missing.push('Phone');
+    if (!form.village) missing.push('Village');
+    if (missing.length > 0) {
+      setValidationError(`Please fill in: ${missing.join(', ')}`);
       return;
     }
+    setValidationError('');
 
     // Map form data to Patient type and save to DataContext
     const genderMap: Record<string, 'male' | 'female' | 'other'> = {
@@ -400,6 +411,12 @@ export default function RegisterPatient() {
           </CardContent>
         </Card>
 
+        {validationError && (
+          <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            {validationError}
+          </div>
+        )}
         <Button type="submit" className="w-full h-12 text-base font-semibold gap-2">
           <UserPlus className="h-4 w-4" />
           Register Patient

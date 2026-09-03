@@ -71,7 +71,7 @@ export default function StaffManagement() {
 
   const handleCreate = () => {
     if (!form.name || !form.username || !form.password || !form.email) {
-      showFeedback('Please fill in name, username, password, and email.');
+      showFeedback('Please fill in name, username, temporary password, and email.');
       return;
     }
 
@@ -102,7 +102,7 @@ export default function StaffManagement() {
 
     setForm(INITIAL_FORM);
     setShowForm(false);
-    showFeedback(`✅ ${role === 'doctor' ? 'Doctor' : 'Health Worker'} account created: ${newStaff.name} (${newStaff.username})`);
+    showFeedback(`✅ ${role === 'doctor' ? 'Doctor' : 'Health Worker'} account created: ${newStaff.name} — Username: ${newStaff.username}, Password: ${form.password}`);
   };
 
   const handleToggleStatus = (userId: string, currentStatus: string) => {
@@ -249,8 +249,9 @@ export default function StaffManagement() {
                 <Input value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} placeholder={activeTab === 'doctors' ? 'arun.cardiology' : 'priya.hw01'} className="h-10" />
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Password *</label>
-                <Input type="text" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Login password" className="h-10" />
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Temporary Password *</label>
+                <Input type="text" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Set a temporary login password" className="h-10" />
+                <p className="text-[10px] text-muted-foreground mt-1">Staff will use this to log in for the first time.</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">Email *</label>

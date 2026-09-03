@@ -40,7 +40,7 @@ const DEPARTMENTS = ['General Medicine', 'Cardiology', 'Orthopedics', 'Pediatric
 
 export default function StaffManagement() {
   const { language, currentUser } = useApp();
-  const { staffUsers, facilities, hospitals, addStaffUser, disableStaffUser, enableStaffUser, removeStaffUser, getStaffByFacility } = useData();
+  const { staffUsers, facilities, hospitals, addStaffUser, addDoctor, disableStaffUser, enableStaffUser, removeStaffUser, getStaffByFacility } = useData();
 
   const hospitalFacilityId = currentUser?.facilityId || 'f3';
   // Look up hospital from both facilities and newly registered hospitals
@@ -95,9 +95,20 @@ export default function StaffManagement() {
       createdBy: currentUser?.id,
     });
 
-    // Also add to doctors or healthWorkers list for dashboard compatibility
+    // Also create a doctor record so the doctor dashboard shows their data
     if (role === 'doctor') {
-      // Doctor is created in staffUsers, accessible via DataContext
+      addDoctor({
+        userId: newStaff.id,
+        name: newStaff.name,
+        specialization: form.department || 'General Medicine',
+        facilityId: hospitalFacilityId,
+        qualification: form.specialization || 'MBBS',
+        experience: 0,
+        phone: newStaff.phone || '',
+        availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+        consultationFee: 100,
+        rating: 0,
+      });
     }
 
     setForm(INITIAL_FORM);

@@ -94,6 +94,7 @@ interface DataContextValue {
 
   // Patient actions
   addPatient: (data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => Patient;
+  addDoctor: (data: Omit<Doctor, 'id'>) => void;
   addVitals: (data: Omit<Vitals, 'id'>) => void;
   addHealthRecord: (data: Omit<HealthRecord, 'id'>) => void;
   addConsultation: (data: Omit<Consultation, 'id'>) => void;
@@ -171,6 +172,7 @@ function saveToStorage<T>(key: string, data: T) {
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>(() => loadFromStorage('patients', initPatients));
+  const [doctorsList, setDoctorsList] = useState<Doctor[]>(initDoctors);
   const [referrals, setReferrals] = useState<Referral[]>(initReferrals);
   const [appointments, setAppointments] = useState<Appointment[]>(initAppointments);
   const [followups, setFollowups] = useState<Followup[]>(initFollowups);
@@ -399,6 +401,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return patient;
   }, []);
 
+  const addDoctor = useCallback((data: Omit<Doctor, 'id'>) => {
+    const id = `d${doctorsList.length + 1}`;
+    const doctor: Doctor = { ...data, id };
+    setDoctorsList(prev => [...prev, doctor]);
+  }, [doctorsList.length]);
+
   const addVitals = useCallback((data: Omit<Vitals, 'id'>) => {
     setVitalsList(prev => [...prev, { ...data, id: `v${Date.now()}` }]);
   }, []);
@@ -546,7 +554,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const getPredictionForReferral = useCallback((referralId: string) => initPredictions.find(p => p.referralId === referralId), []);
 
   const value: DataContextValue = {
-    patients, doctors: initDoctors, facilities: initFacilities, referrals, appointments, followups,
+    patients, doctors: doctorsList, facilities: initFacilities, referrals, appointments, followups,
     healthWorkers: initHealthWorkers, vitals: vitalsList, healthRecords: healthRecordsList,
     medicineStock: medicineStockList, diagnostics: initDiagnostics,
     villageAccessScores: initVillageScores, notifications, referralEvents, consultations,
@@ -556,7 +564,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     acceptReferral, rejectReferral, scheduleReferral, confirmArrival, startConsultation,
     completeConsultation, addTreatment, scheduleFollowup, completeFollowup, closeReferral, createReferral,
     bookAppointment, cancelAppointment, completeAppointment,
-    addPatient, addVitals, addHealthRecord, addConsultation,
+    addPatient, addDoctor, addVitals, addHealthRecord, addConsultation,
     completeFollowupById, markFollowupMissed,
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,
     updateMedicineStock, addMedicineStock, removeMedicineStock,

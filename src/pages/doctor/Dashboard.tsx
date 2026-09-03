@@ -25,7 +25,8 @@ export default function DoctorDashboard() {
     getAppointmentsForDoctor, getReferralsForPatient, getVitalsForPatient,
     getConsultationsForPatient,
     startConsultation, completeConsultation, scheduleFollowup, closeReferral,
-    addConsultation: addConsultationToData, createReferral, addNotification
+    addConsultation: addConsultationToData, createReferral, addNotification,
+    completeAppointment, cancelAppointment
   } = useData();
 
   const doctor = doctors[0]; // Dr. Senthil Kumar
@@ -414,6 +415,34 @@ export default function DoctorDashboard() {
                         <p className="text-xs font-medium text-primary">{apt.time}</p>
                         <Badge variant="outline" className="text-[10px] mt-1">{apt.status}</Badge>
                       </div>
+                    </div>
+                    {/* Action buttons */}
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-7 text-xs gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          completeAppointment(apt.id);
+                          showFeedback(`Appointment with ${aptPatient?.name || 'patient'} completed`);
+                        }}
+                      >
+                        <CheckCircle2 className="h-3 w-3" /> Complete
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPatient(apt.patientId);
+                          setReferralPatientId(apt.patientId);
+                          setShowReferralForm(true);
+                        }}
+                      >
+                        <PenLine className="h-3 w-3" /> Refer
+                      </Button>
                     </div>
                   </div>
                 );

@@ -90,6 +90,7 @@ interface DataContextValue {
   // Appointment actions
   bookAppointment: (data: Omit<Appointment, 'id' | 'createdAt'>) => void;
   cancelAppointment: (appointmentId: string) => void;
+  completeAppointment: (appointmentId: string) => void;
 
   // Patient actions
   addPatient: (data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => Patient;
@@ -382,6 +383,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setAppointments(prev => prev.map(a => a.id === appointmentId ? { ...a, status: 'cancelled' as AppointmentStatus } : a));
   }, []);
 
+  const completeAppointment = useCallback((appointmentId: string) => {
+    setAppointments(prev => prev.map(a => a.id === appointmentId ? { ...a, status: 'completed' as AppointmentStatus } : a));
+  }, []);
+
   // ── Patient actions ───────────────────────────────────────────
   const addPatient = useCallback((data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => {
     const id = `p${nextPatientId++}`;
@@ -550,7 +555,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     referralFunnel: computedReferralFunnel,
     acceptReferral, rejectReferral, scheduleReferral, confirmArrival, startConsultation,
     completeConsultation, addTreatment, scheduleFollowup, completeFollowup, closeReferral, createReferral,
-    bookAppointment, cancelAppointment,
+    bookAppointment, cancelAppointment, completeAppointment,
     addPatient, addVitals, addHealthRecord, addConsultation,
     completeFollowupById, markFollowupMissed,
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,

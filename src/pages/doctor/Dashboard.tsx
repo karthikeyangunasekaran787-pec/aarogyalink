@@ -32,11 +32,6 @@ export default function DoctorDashboard() {
   // Doctor record is created by Hospital Admin when adding a doctor staff account
   const doctor = doctors.find(d => d.userId === currentUser?.id);
 
-  // Debug: log data for troubleshooting
-  console.log('[DoctorDashboard] currentUser:', currentUser?.id, currentUser?.name);
-  console.log('[DoctorDashboard] doctors count:', doctors.length, 'list:', doctors.map(d => ({ id: d.id, userId: d.userId, name: d.name })));
-  console.log('[DoctorDashboard] found doctor:', doctor?.name || 'NONE');
-
   // Show a message if no doctor record found
   if (!doctor) {
     return (

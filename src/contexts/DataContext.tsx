@@ -173,8 +173,8 @@ function saveToStorage<T>(key: string, data: T) {
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>(() => loadFromStorage('patients', initPatients));
-  const [doctorsList, setDoctorsList] = useState<Doctor[]>(initDoctors);
-  const [healthWorkersList, setHealthWorkersList] = useState<HealthWorker[]>(initHealthWorkers);
+  const [doctorsList, setDoctorsList] = useState<Doctor[]>(() => loadFromStorage('doctors', initDoctors));
+  const [healthWorkersList, setHealthWorkersList] = useState<HealthWorker[]>(() => loadFromStorage('healthWorkers', initHealthWorkers));
   const [referrals, setReferrals] = useState<Referral[]>(initReferrals);
   const [appointments, setAppointments] = useState<Appointment[]>(initAppointments);
   const [followups, setFollowups] = useState<Followup[]>(initFollowups);
@@ -408,16 +408,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addDoctor = useCallback((data: Omit<Doctor, 'id'>) => {
-    const id = `d${doctorsList.length + 1}`;
+    const id = `d${Date.now()}`;
     const doctor: Doctor = { ...data, id };
-    setDoctorsList(prev => [...prev, doctor]);
-  }, [doctorsList.length]);
+    setDoctorsList(prev => {
+      const updated = [...prev, doctor];
+      saveToStorage('doctors', updated);
+      return updated;
+    });
+  }, []);
 
   const addHealthWorker = useCallback((data: Omit<HealthWorker, 'id'>) => {
-    const id = `hw${healthWorkersList.length + 1}`;
+    const id = `hw${Date.now()}`;
     const hw: HealthWorker = { ...data, id };
-    setHealthWorkersList(prev => [...prev, hw]);
-  }, [healthWorkersList.length]);
+    setHealthWorkersList(prev => {
+      const updated = [...prev, hw];
+      saveToStorage('healthWorkers', updated);
+      return updated;
+    });
+  }, []);
 
   const addVitals = useCallback((data: Omit<Vitals, 'id'>) => {
     setVitalsList(prev => [...prev, { ...data, id: `v${Date.now()}` }]);

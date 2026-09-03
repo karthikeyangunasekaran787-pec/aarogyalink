@@ -26,11 +26,6 @@ export default function HWDashboard() {
   // Health Worker record is created by Hospital Admin when adding a HW staff account
   const hw = healthWorkers.find(h => h.userId === currentUser?.id);
 
-  // Debug: log data for troubleshooting
-  console.log('[HWDashboard] currentUser:', currentUser?.id, currentUser?.name);
-  console.log('[HWDashboard] healthWorkers count:', healthWorkers.length, 'list:', healthWorkers.map(h => ({ id: h.id, userId: h.userId, name: h.name })));
-  console.log('[HWDashboard] found hw:', hw?.name || 'NONE');
-
   // If no health worker record found, show a message
   if (!hw) {
     return (

@@ -96,6 +96,7 @@ export default function HospitalManagement() {
       email: form.adminEmail,
       role: 'hospital_admin',
       username: form.adminUsername,
+      password: form.adminPassword,
       phone: form.adminPhone,
       facilityId: hospital.id,
       status: 'active',

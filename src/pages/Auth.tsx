@@ -103,6 +103,11 @@ export default function AuthPage() {
       return;
     }
 
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 300));
 
@@ -111,7 +116,14 @@ export default function AuthPage() {
 
     if (!staffUser) {
       setLoading(false);
-      setError('Invalid username. Please check your credentials or contact your Hospital Administrator.');
+      setError('Invalid username or password. Please check your credentials or contact your Hospital Administrator.');
+      return;
+    }
+
+    // Validate password (demo mode — in production this would check password_hash)
+    if (staffUser.password && staffUser.password !== password) {
+      setLoading(false);
+      setError('Invalid username or password. Please try again.');
       return;
     }
 

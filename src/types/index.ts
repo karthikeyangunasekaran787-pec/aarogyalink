@@ -17,6 +17,7 @@ export interface User {
   email: string;
   role: Role;
   username?: string;
+  password?: string; // stored for prototype demo login validation
   phone?: string;
   avatar?: string;
   language?: Language;

@@ -19,6 +19,7 @@ import type { User, Role } from '@/types';
 type StaffForm = {
   name: string;
   username: string;
+  password: string;
   email: string;
   phone: string;
   department: string;
@@ -30,7 +31,7 @@ type StaffForm = {
 };
 
 const INITIAL_FORM: StaffForm = {
-  name: '', username: '', email: '', phone: '',
+  name: '', username: '', password: '', email: '', phone: '',
   department: '', specialization: '', facilityId: '',
   area: '', designation: '', role: 'doctor',
 };
@@ -69,8 +70,8 @@ export default function StaffManagement() {
   });
 
   const handleCreate = () => {
-    if (!form.name || !form.username || !form.email) {
-      showFeedback('Please fill in name, username, and email.');
+    if (!form.name || !form.username || !form.password || !form.email) {
+      showFeedback('Please fill in name, username, password, and email.');
       return;
     }
 
@@ -84,6 +85,7 @@ export default function StaffManagement() {
     const newStaff = addStaffUser({
       name: form.name,
       username: form.username,
+      password: form.password,
       email: form.email,
       phone: form.phone,
       role,
@@ -193,7 +195,7 @@ export default function StaffManagement() {
             Manage doctors and health workers at {facility?.name || 'your facility'}
           </p>
         </div>
-        <Button className="gap-1.5" onClick={() => setShowForm(true)}>
+        <Button className="gap-1.5" onClick={() => { setForm(p => ({ ...p, role: activeTab === 'doctors' ? 'doctor' : 'health_worker' })); setShowForm(true); }}>
           <Plus className="h-4 w-4" /> Add {activeTab === 'doctors' ? 'Doctor' : 'Health Worker'}
         </Button>
       </div>
@@ -247,6 +249,10 @@ export default function StaffManagement() {
                 <Input value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} placeholder={activeTab === 'doctors' ? 'arun.cardiology' : 'priya.hw01'} className="h-10" />
               </div>
               <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Password *</label>
+                <Input type="text" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Login password" className="h-10" />
+              </div>
+              <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">Email *</label>
                 <Input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="doctor@hospital.in" className="h-10" />
               </div>
@@ -277,7 +283,7 @@ export default function StaffManagement() {
               )}
             </div>
             <div className="flex gap-3">
-              <Button onClick={handleCreate} disabled={!form.name || !form.username || !form.email} className="gap-1.5">
+              <Button onClick={handleCreate} disabled={!form.name || !form.username || !form.password || !form.email} className="gap-1.5">
                 <CheckCircle2 className="h-4 w-4" /> Create Account
               </Button>
               <Button variant="outline" onClick={() => { setShowForm(false); setForm(INITIAL_FORM); }}>Cancel</Button>

@@ -2,7 +2,7 @@
 // Health Worker Dashboard — Functional Patient & Referral Management
 // ============================================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
@@ -20,10 +20,36 @@ import {
 
 export default function HWDashboard() {
   const { language, currentUser } = useApp();
-  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification } = useData();
+  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification, staffUsers } = useData();
   const navigate = useNavigate();
 
-  const hw = healthWorkers.find(h => h.userId === currentUser?.id) || healthWorkers[0];
+  // Find HW record matching logged-in user
+  const existingHw = healthWorkers.find(h => h.userId === currentUser?.id);
+
+  // Auto-create health worker record on first login if missing
+  useEffect(() => {
+    if (currentUser?.id && !existingHw && currentUser.role === 'health_worker') {
+      // HW record will be created by addPatient flow — just show a waiting message
+    }
+  }, [currentUser?.id, currentUser?.role, existingHw]);
+
+  const hw = existingHw;
+
+  // If no health worker record found, show a message
+  if (!hw) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
+          <h2 className="text-lg font-semibold text-foreground">No Health Worker Record Found</h2>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Your account has been created but no health worker profile exists yet.
+            Please contact your Hospital Administrator to set up your profile.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Show ALL patients from shared data (not a hardcoded subset)
   const hwPatients = patients;

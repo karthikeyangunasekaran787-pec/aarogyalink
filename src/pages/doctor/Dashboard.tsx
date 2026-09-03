@@ -2,7 +2,7 @@
 // Doctor Dashboard — Functional Consultation & Referral Management
 // ============================================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
@@ -26,11 +26,50 @@ export default function DoctorDashboard() {
     getConsultationsForPatient,
     startConsultation, completeConsultation, scheduleFollowup, closeReferral,
     addConsultation: addConsultationToData, createReferral, addNotification,
-    completeAppointment, cancelAppointment
+    completeAppointment, cancelAppointment, addDoctor, staffUsers
   } = useData();
 
-  // Find the doctor record matching the logged-in user's ID
-  const doctor = doctors.find(d => d.userId === currentUser?.id) || doctors[0];
+  // Auto-create doctor record on first login if it doesn't exist yet
+  const existingDoctor = doctors.find(d => d.userId === currentUser?.id);
+  useEffect(() => {
+    if (currentUser?.id && !existingDoctor && currentUser.role === 'doctor') {
+      const staffUser = staffUsers.find(u => u.id === currentUser.id);
+      if (staffUser) {
+        addDoctor({
+          userId: staffUser.id,
+          name: staffUser.name,
+          specialization: staffUser.departmentId || 'General Medicine',
+          facilityId: staffUser.facilityId || '',
+          qualification: 'MBBS',
+          experience: 0,
+          phone: staffUser.phone || '',
+          availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+          consultationFee: 100,
+          rating: 0,
+        });
+      }
+    }
+  }, [currentUser?.id, currentUser?.role, existingDoctor, addDoctor, staffUsers]);
+
+  // Find the doctor record (may have just been created above)
+  const doctor = doctors.find(d => d.userId === currentUser?.id);
+
+  // Show a message if no doctor record found
+  if (!doctor) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
+          <h2 className="text-lg font-semibold text-foreground">No Doctor Record Found</h2>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Your account has been created but no doctor profile exists yet.
+            Please contact your Hospital Administrator to set up your profile.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const doctorFacility = facilities.find(f => f.id === doctor.facilityId);
   const doctorAppointments = getAppointmentsForDoctor(doctor.id);
   const todayAppointments = doctorAppointments.filter(a => a.status === 'scheduled');

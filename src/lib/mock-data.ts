@@ -156,14 +156,7 @@ export const doctors: Doctor[] = [
 // Health Workers
 // ---------------------------------------------------------------------------
 export const healthWorkers: HealthWorker[] = [
-  {
-    id: 'hw1', userId: 'uhw1', name: 'Suganthi M', phone: '9850100001',
-    facilityId: 'f1', area: 'Kallikudi', patientsAssigned: 45,
-  },
-  {
-    id: 'hw2', userId: 'uhw2', name: 'Ravi K', phone: '9850100002',
-    facilityId: 'f2', area: 'Thoor', patientsAssigned: 38,
-  },
+  // No hardcoded demo health workers — all created by Hospital Administrators
 ];
 
 // ---------------------------------------------------------------------------

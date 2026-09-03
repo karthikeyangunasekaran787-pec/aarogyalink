@@ -40,7 +40,7 @@ const DEPARTMENTS = ['General Medicine', 'Cardiology', 'Orthopedics', 'Pediatric
 
 export default function StaffManagement() {
   const { language, currentUser } = useApp();
-  const { staffUsers, facilities, hospitals, addStaffUser, addDoctor, disableStaffUser, enableStaffUser, removeStaffUser, getStaffByFacility } = useData();
+  const { staffUsers, facilities, hospitals, addStaffUser, addDoctor, addHealthWorker, disableStaffUser, enableStaffUser, removeStaffUser, getStaffByFacility } = useData();
 
   const hospitalFacilityId = currentUser?.facilityId || 'f3';
   // Look up hospital from both facilities and newly registered hospitals
@@ -108,6 +108,18 @@ export default function StaffManagement() {
         availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
         consultationFee: 100,
         rating: 0,
+      });
+    }
+
+    // Also create a health worker record so the HW dashboard shows their data
+    if (role === 'health_worker') {
+      addHealthWorker({
+        userId: newStaff.id,
+        name: newStaff.name,
+        phone: newStaff.phone || '',
+        facilityId: hospitalFacilityId,
+        area: form.area || '',
+        patientsAssigned: 0,
       });
     }
 

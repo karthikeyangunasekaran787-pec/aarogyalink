@@ -2,7 +2,7 @@
 // Health Worker Dashboard — Functional Patient & Referral Management
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
@@ -20,20 +20,11 @@ import {
 
 export default function HWDashboard() {
   const { language, currentUser } = useApp();
-  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification, staffUsers } = useData();
+  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification } = useData();
   const navigate = useNavigate();
 
-  // Find HW record matching logged-in user
-  const existingHw = healthWorkers.find(h => h.userId === currentUser?.id);
-
-  // Auto-create health worker record on first login if missing
-  useEffect(() => {
-    if (currentUser?.id && !existingHw && currentUser.role === 'health_worker') {
-      // HW record will be created by addPatient flow — just show a waiting message
-    }
-  }, [currentUser?.id, currentUser?.role, existingHw]);
-
-  const hw = existingHw;
+  // Health Worker record is created by Hospital Admin when adding a HW staff account
+  const hw = healthWorkers.find(h => h.userId === currentUser?.id);
 
   // If no health worker record found, show a message
   if (!hw) {

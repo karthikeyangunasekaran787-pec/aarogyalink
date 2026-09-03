@@ -2,7 +2,7 @@
 // Doctor Dashboard — Functional Consultation & Referral Management
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
@@ -26,32 +26,10 @@ export default function DoctorDashboard() {
     getConsultationsForPatient,
     startConsultation, completeConsultation, scheduleFollowup, closeReferral,
     addConsultation: addConsultationToData, createReferral, addNotification,
-    completeAppointment, cancelAppointment, addDoctor, staffUsers
+    completeAppointment, cancelAppointment
   } = useData();
 
-  // Auto-create doctor record on first login if it doesn't exist yet
-  const existingDoctor = doctors.find(d => d.userId === currentUser?.id);
-  useEffect(() => {
-    if (currentUser?.id && !existingDoctor && currentUser.role === 'doctor') {
-      const staffUser = staffUsers.find(u => u.id === currentUser.id);
-      if (staffUser) {
-        addDoctor({
-          userId: staffUser.id,
-          name: staffUser.name,
-          specialization: staffUser.departmentId || 'General Medicine',
-          facilityId: staffUser.facilityId || '',
-          qualification: 'MBBS',
-          experience: 0,
-          phone: staffUser.phone || '',
-          availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-          consultationFee: 100,
-          rating: 0,
-        });
-      }
-    }
-  }, [currentUser?.id, currentUser?.role, existingDoctor, addDoctor, staffUsers]);
-
-  // Find the doctor record (may have just been created above)
+  // Doctor record is created by Hospital Admin when adding a doctor staff account
   const doctor = doctors.find(d => d.userId === currentUser?.id);
 
   // Show a message if no doctor record found

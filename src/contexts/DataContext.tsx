@@ -4,7 +4,7 @@
 // Analytics are computed dynamically from actual data.
 // ============================================================================
 
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react';
 import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
@@ -149,8 +149,24 @@ let nextReferralNum = 11;
 let nextPatientId = 11;
 let nextNotifId = 7;
 
+// ── localStorage persistence helpers ──────────────────────────────
+function loadFromStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(`aal_${key}`);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveToStorage<T>(key: string, data: T) {
+  try {
+    localStorage.setItem(`aal_${key}`, JSON.stringify(data));
+  } catch { /* quota exceeded or private mode — silently ignore */ }
+}
+
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [patients, setPatients] = useState<Patient[]>(initPatients);
+  const [patients, setPatients] = useState<Patient[]>(() => loadFromStorage('patients', initPatients));
   const [referrals, setReferrals] = useState<Referral[]>(initReferrals);
   const [appointments, setAppointments] = useState<Appointment[]>(initAppointments);
   const [followups, setFollowups] = useState<Followup[]>(initFollowups);
@@ -423,7 +439,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ── Staff management ─────────────────────────────────────────
-  const [staffUsersList, setStaffUsersList] = useState<User[]>(initStaffUsers);
+  const [staffUsersList, setStaffUsersList] = useState<User[]>(() => loadFromStorage('staffUsers', initStaffUsers));
 
   const addStaffUser = useCallback((data: Omit<User, 'id' | 'createdAt'>) => {
     const id = `ustaff-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -448,7 +464,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const getStaffByRole = useCallback((role: Role) => staffUsersList.filter(u => u.role === role), [staffUsersList]);
 
   // ── Hospital management ────────────────────────────────────────
-  const [hospitalsList, setHospitalsList] = useState<Hospital[]>(initHospitals);
+  const [hospitalsList, setHospitalsList] = useState<Hospital[]>(() => loadFromStorage('hospitals', initHospitals));
 
   const addHospital = useCallback((data: Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'>) => {
     const num = hospitalsList.length + 1;
@@ -484,6 +500,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Remove the hospital
     setHospitalsList(prev => prev.filter(h => h.id !== hospitalId));
   }, [hospitalsList]);
+
+  // ── Persist changes to localStorage ────────────────────────────
+  useEffect(() => { saveToStorage('patients', patients); }, [patients]);
+  useEffect(() => { saveToStorage('staffUsers', staffUsersList); }, [staffUsersList]);
+  useEffect(() => { saveToStorage('hospitals', hospitalsList); }, [hospitalsList]);
 
   // ── Helpers ───────────────────────────────────────────────────
   const getPatientById = useCallback((id: string) => patients.find(p => p.id === id), [patients]);

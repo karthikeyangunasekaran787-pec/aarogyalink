@@ -40,7 +40,7 @@ const DISTRICT_ADMIN_DEMO = {
 
 export default function AuthPage() {
   const { currentRole, login, loginPatient, loginStaff } = useApp();
-  const { getPatientByEmail, staffUsers, facilities } = useData();
+  const { getPatientByEmail, staffUsers, facilities, hospitals } = useData();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -131,21 +131,24 @@ export default function AuthPage() {
     // In production, this would validate against password_hash
 
     // Login with the actual staff user data from the database
-    const staffFacility = staffUser.facilityId ? facilities.find(f => f.id === staffUser.facilityId) : undefined;
+    // Look up facility name — check both facilities and hospitals (District Admin may have registered new hospitals)
+    const staffFacility = staffUser.facilityId
+      ? (facilities.find(f => f.id === staffUser.facilityId) || hospitals.find(h => h.id === staffUser.facilityId))
+      : undefined;
     loginStaff({
       id: staffUser.id,
       name: staffUser.name,
       email: staffUser.email,
       role: staffUser.role,
       facilityId: staffUser.facilityId,
-      facilityName: staffFacility?.name,
+      facilityName: staffFacility?.name || 'Unknown Facility',
       departmentName: staffUser.departmentId,
       departmentId: staffUser.departmentId,
     });
     setLoading(false);
 
     navigate(returnTo, { replace: true });
-  }, [username, currentRole, staffUsers, loginStaff, navigate, returnTo, facilities]);
+  }, [username, currentRole, staffUsers, loginStaff, navigate, returnTo, facilities, hospitals]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8">

@@ -96,6 +96,7 @@ export default function StaffManagement() {
     });
 
     // Also create a doctor record so the doctor dashboard shows their data
+    console.log('[StaffMgmt] Creating staff with role:', role, 'userId:', newStaff.id);
     if (role === 'doctor') {
       addDoctor({
         userId: newStaff.id,
@@ -109,6 +110,7 @@ export default function StaffManagement() {
         consultationFee: 100,
         rating: 0,
       });
+      console.log('[StaffMgmt] Doctor record created for userId:', newStaff.id);
     }
 
     // Also create a health worker record so the HW dashboard shows their data
@@ -121,6 +123,7 @@ export default function StaffManagement() {
         area: form.area || '',
         patientsAssigned: 0,
       });
+      console.log('[StaffMgmt] Health worker record created for userId:', newStaff.id);
     }
 
     setForm(INITIAL_FORM);

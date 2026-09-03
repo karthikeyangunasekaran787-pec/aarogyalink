@@ -32,6 +32,11 @@ export default function DoctorDashboard() {
   // Doctor record is created by Hospital Admin when adding a doctor staff account
   const doctor = doctors.find(d => d.userId === currentUser?.id);
 
+  // Debug: log data for troubleshooting
+  console.log('[DoctorDashboard] currentUser:', currentUser?.id, currentUser?.name);
+  console.log('[DoctorDashboard] doctors count:', doctors.length, 'list:', doctors.map(d => ({ id: d.id, userId: d.userId, name: d.name })));
+  console.log('[DoctorDashboard] found doctor:', doctor?.name || 'NONE');
+
   // Show a message if no doctor record found
   if (!doctor) {
     return (
@@ -40,8 +45,8 @@ export default function DoctorDashboard() {
           <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
           <h2 className="text-lg font-semibold text-foreground">No Doctor Record Found</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Your account has been created but no doctor profile exists yet.
-            Please contact your Hospital Administrator to set up your profile.
+            Your account ({currentUser?.id}) has no matching doctor profile.
+            Doctor records: {doctors.length}. Please contact your Hospital Administrator.
           </p>
         </div>
       </div>

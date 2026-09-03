@@ -26,6 +26,11 @@ export default function HWDashboard() {
   // Health Worker record is created by Hospital Admin when adding a HW staff account
   const hw = healthWorkers.find(h => h.userId === currentUser?.id);
 
+  // Debug: log data for troubleshooting
+  console.log('[HWDashboard] currentUser:', currentUser?.id, currentUser?.name);
+  console.log('[HWDashboard] healthWorkers count:', healthWorkers.length, 'list:', healthWorkers.map(h => ({ id: h.id, userId: h.userId, name: h.name })));
+  console.log('[HWDashboard] found hw:', hw?.name || 'NONE');
+
   // If no health worker record found, show a message
   if (!hw) {
     return (
@@ -34,8 +39,8 @@ export default function HWDashboard() {
           <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
           <h2 className="text-lg font-semibold text-foreground">No Health Worker Record Found</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Your account has been created but no health worker profile exists yet.
-            Please contact your Hospital Administrator to set up your profile.
+            Your account ({currentUser?.id}) has no matching health worker profile.
+            Health worker records: {healthWorkers.length}. Please contact your Hospital Administrator.
           </p>
         </div>
       </div>

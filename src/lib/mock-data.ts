@@ -149,31 +149,7 @@ export const facilities: Facility[] = [
 // Doctors
 // ---------------------------------------------------------------------------
 export const doctors: Doctor[] = [
-  {
-    id: 'd1', userId: 'ud1', name: 'Dr. Senthil Kumar', specialization: 'General Medicine',
-    facilityId: 'f1', qualification: 'MBBS, MD', experience: 12, phone: '9840100001',
-    availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 100, rating: 4.2,
-  },
-  {
-    id: 'd2', userId: 'ud2', name: 'Dr. Priya Shankar', specialization: 'Pediatrics',
-    facilityId: 'f2', qualification: 'MBBS, DNB Pediatrics', experience: 8, phone: '9840100002',
-    availableDays: ['Mon', 'Wed', 'Fri'], consultationFee: 200, rating: 4.5,
-  },
-  {
-    id: 'd3', userId: 'ud3', name: 'Dr. Rajesh Verma', specialization: 'Cardiology',
-    facilityId: 'f3', qualification: 'MBBS, DM Cardiology', experience: 15, phone: '9840100003',
-    availableDays: ['Mon', 'Tue', 'Thu'], consultationFee: 500, rating: 4.7,
-  },
-  {
-    id: 'd4', userId: 'ud4', name: 'Dr. Kamala Devi', specialization: 'OBG',
-    facilityId: 'f4', qualification: 'MBBS, MS OBG', experience: 18, phone: '9840100004',
-    availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 300, rating: 4.4,
-  },
-  {
-    id: 'd5', userId: 'ud5', name: 'Dr. Mohan Prasad', specialization: 'Orthopedics',
-    facilityId: 'f5', qualification: 'MBBS, MS Ortho', experience: 20, phone: '9840100005',
-    availableDays: ['Tue', 'Thu', 'Sat'], consultationFee: 400, rating: 4.6,
-  },
+  // No hardcoded demo doctors — all doctors are created by Hospital Administrators
 ];
 
 // ---------------------------------------------------------------------------
@@ -195,18 +171,9 @@ export const healthWorkers: HealthWorker[] = [
 // ---------------------------------------------------------------------------
 import type { User } from '@/types';
 export const staffUsers: User[] = [
-  // Hospital Administrators
+  // Hospital Administrators (created by District Admin)
   { id: 'uha1', name: 'Admin Rajan', email: 'hospital@demo.com', role: 'hospital_admin', username: 'rajan.admin', password: 'admin123', phone: '9840100010', facilityId: 'f3', status: 'active', createdAt: '2026-01-01', lastLogin: '2026-09-01' },
-  // Doctors (created by Hospital Admin)
-  { id: 'ud1', name: 'Dr. Senthil Kumar', email: 'doctor@demo.com', role: 'doctor', username: 'senthil.gm', password: 'doctor123', phone: '9840100001', facilityId: 'f1', departmentId: 'dept-gm', status: 'active', createdBy: 'uha1', createdAt: '2026-01-15', lastLogin: '2026-09-01' },
-  { id: 'ud2', name: 'Dr. Priya Shankar', email: 'priya.shankar@hospital.in', role: 'doctor', username: 'priya.peds', password: 'doctor123', phone: '9840100002', facilityId: 'f2', departmentId: 'dept-peds', status: 'active', createdBy: 'uha1', createdAt: '2026-02-01', lastLogin: '2026-08-28' },
-  { id: 'ud3', name: 'Dr. Rajesh Verma', email: 'rajesh.verma@hospital.in', role: 'doctor', username: 'rajesh.cardio', password: 'doctor123', phone: '9840100003', facilityId: 'f3', departmentId: 'dept-cardio', status: 'active', createdBy: 'uha1', createdAt: '2026-01-20', lastLogin: '2026-09-01' },
-  { id: 'ud4', name: 'Dr. Kamala Devi', email: 'kamala.devi@hospital.in', role: 'doctor', username: 'kamala.obg', password: 'doctor123', phone: '9840100004', facilityId: 'f4', departmentId: 'dept-obg', status: 'active', createdBy: 'uha1', createdAt: '2026-02-10', lastLogin: '2026-08-30' },
-  { id: 'ud5', name: 'Dr. Mohan Prasad', email: 'mohan.prasad@hospital.in', role: 'doctor', username: 'mohan.ortho', password: 'doctor123', phone: '9840100005', facilityId: 'f5', departmentId: 'dept-ortho', status: 'active', createdBy: 'uha1', createdAt: '2026-03-01', lastLogin: '2026-09-01' },
-  // Health Workers (created by Hospital Admin)
-  { id: 'uhw1', name: 'Suganthi M', email: 'healthworker@demo.com', role: 'health_worker', username: 'suganthi.hw', password: 'hw123', phone: '9850100001', facilityId: 'f1', status: 'active', createdBy: 'uha1', createdAt: '2026-01-10', lastLogin: '2026-09-01' },
-  { id: 'uhw2', name: 'Ravi K', email: 'ravi@hospital.in', role: 'health_worker', username: 'ravi.hw', password: 'hw123', phone: '9850100002', facilityId: 'f2', status: 'active', createdBy: 'uha1', createdAt: '2026-02-15', lastLogin: '2026-08-29' },
-  { id: 'uhw3', name: 'Priya S', email: 'priya.hw@hospital.in', role: 'health_worker', username: 'priya.hw01', password: 'hw123', phone: '9850100003', facilityId: 'f1', status: 'active', createdBy: 'uha1', createdAt: '2026-03-20', lastLogin: '2026-08-31' },
+  // No hardcoded demo doctors or health workers — all created by Hospital Administrators
   // District Administrator
   { id: 'uga1', name: 'District Collector', email: 'district@demo.com', role: 'gov_admin', username: 'collector.dist', phone: '9860100001', status: 'active', createdAt: '2026-01-01', lastLogin: '2026-09-01' },
 ];

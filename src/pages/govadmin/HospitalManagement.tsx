@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import {
   Building2, Plus, Search, MapPin, Phone, Mail,
   Bed, Edit2, Power, PowerOff, ChevronDown, ChevronUp,
-  AlertCircle, CheckCircle2, X
+  AlertCircle, CheckCircle2, X, Trash2, Lock
 } from 'lucide-react';
 import type { Hospital } from '@/types';
 
@@ -44,7 +44,7 @@ const EMPTY_FORM: FormState = {
 
 export default function HospitalManagement() {
   const { currentUser } = useApp();
-  const { hospitals, addHospital, updateHospital, toggleHospitalStatus, addStaffUser, staffUsers } = useData();
+  const { hospitals, addHospital, updateHospital, toggleHospitalStatus, removeHospital, addStaffUser, staffUsers } = useData();
   const [showForm, setShowForm] = useState(false);
   const [editingHospital, setEditingHospital] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,6 +52,7 @@ export default function HospitalManagement() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [validationError, setValidationError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
@@ -65,8 +66,8 @@ export default function HospitalManagement() {
   });
 
   const handleCreate = () => {
-    if (!form.name || !form.address || !form.phone || !form.adminName || !form.adminUsername) {
-      setValidationError('Please fill in: Name, Address, Phone, Admin Name, and Admin Username.');
+    if (!form.name || !form.address || !form.phone || !form.adminName || !form.adminUsername || !form.adminPassword) {
+      setValidationError('Please fill in: Name, Address, Phone, Admin Name, Admin Username, and Login Password.');
       return;
     }
     setValidationError('');
@@ -89,7 +90,7 @@ export default function HospitalManagement() {
       createdByUserId: currentUser?.id || '',
     });
 
-    // Create Hospital Administrator account
+    // Create Hospital Administrator account with provided login credentials
     const adminUser = addStaffUser({
       name: form.adminName,
       email: form.adminEmail,
@@ -99,7 +100,7 @@ export default function HospitalManagement() {
       facilityId: hospital.id,
       status: 'active',
       createdBy: currentUser?.id,
-      mustChangePassword: true,
+      mustChangePassword: false,
     });
 
     // Update hospital with admin user ID
@@ -284,6 +285,20 @@ export default function HospitalManagement() {
                       <label className="text-sm font-medium">Admin Phone</label>
                       <Input value={form.adminPhone} onChange={e => setForm(f => ({ ...f, adminPhone: e.target.value }))} />
                     </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Login Password *</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          value={form.adminPassword}
+                          onChange={e => { setForm(f => ({ ...f, adminPassword: e.target.value })); setValidationError(''); }}
+                          placeholder="Temporary login password"
+                          className="pl-9"
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Login ID: {form.adminUsername || '(set above)'} — Password: {form.adminPassword || '(set above)'}</p>
+                    </div>
                   </div>
                 </div>
               </>
@@ -368,6 +383,9 @@ export default function HospitalManagement() {
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleToggleStatus(hospital.id)}>
                         {hospital.status === 'active' ? <PowerOff className="h-4 w-4 text-amber-600" /> : <Power className="h-4 w-4 text-emerald-600" />}
                       </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setConfirmDelete(hospital.id)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
                     </div>
                   </div>
 
@@ -416,6 +434,37 @@ export default function HospitalManagement() {
           })
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDelete(null)} />
+          <div className="relative bg-background rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-red-50 flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Remove Hospital</h3>
+                <p className="text-xs text-muted-foreground">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to remove <strong>{hospitals.find(h => h.id === confirmDelete)?.name}</strong>?{' '}
+              The associated Hospital Administrator account will also be disabled.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+              <Button variant="destructive" className="flex-1" onClick={() => {
+                const name = hospitals.find(h => h.id === confirmDelete)?.name;
+                removeHospital(confirmDelete);
+                setConfirmDelete(null);
+                showFeedback('success', `Hospital "${name}" removed and administrator account disabled.`);
+              }}>Remove</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

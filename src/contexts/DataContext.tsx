@@ -122,6 +122,7 @@ interface DataContextValue {
   addHospital: (data: Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'>) => Hospital;
   updateHospital: (hospitalId: string, data: Partial<Hospital>) => void;
   toggleHospitalStatus: (hospitalId: string) => void;
+  removeHospital: (hospitalId: string) => void;
 
   // Helpers
   getPatientById: (id: string) => Patient | undefined;
@@ -472,6 +473,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } : h));
   }, []);
 
+  const removeHospital = useCallback((hospitalId: string) => {
+    // Disable the associated admin user account
+    const hospital = hospitalsList.find(h => h.id === hospitalId);
+    if (hospital?.adminUserId) {
+      setStaffUsersList(prev => prev.map(u =>
+        u.id === hospital.adminUserId ? { ...u, status: 'disabled' as const } : u
+      ));
+    }
+    // Remove the hospital
+    setHospitalsList(prev => prev.filter(h => h.id !== hospitalId));
+  }, [hospitalsList]);
+
   // ── Helpers ───────────────────────────────────────────────────
   const getPatientById = useCallback((id: string) => patients.find(p => p.id === id), [patients]);
   const getPatientByEmail = useCallback((email: string) => patients.find(p => p.registeredByEmail === email), [patients]);
@@ -506,7 +519,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,
     updateMedicineStock,
     staffUsers: staffUsersList, addStaffUser, updateStaffUser, disableStaffUser, enableStaffUser, getStaffByFacility, getStaffByRole,
-    hospitals: hospitalsList, addHospital, updateHospital, toggleHospitalStatus,
+    hospitals: hospitalsList, addHospital, updateHospital, toggleHospitalStatus, removeHospital,
     getPatientById, getPatientByEmail, getPatientByHealthCardId, getDoctorById, getFacilityById,
     getReferralsForPatient, getReferralsForFacility,
     getAppointmentsForDoctor, getAppointmentsForPatient,

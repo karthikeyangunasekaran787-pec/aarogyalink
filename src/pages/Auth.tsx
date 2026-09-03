@@ -160,7 +160,7 @@ export default function AuthPage() {
     setLoading(false);
 
     navigate(returnTo, { replace: true });
-  }, [username, currentRole, staffUsers, loginStaff, navigate, returnTo, facilities, hospitals]);
+  }, [username, password, currentRole, staffUsers, loginStaff, navigate, returnTo, facilities, hospitals]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8">

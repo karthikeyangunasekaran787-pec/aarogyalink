@@ -94,8 +94,8 @@ interface DataContextValue {
 
   // Patient actions
   addPatient: (data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => Patient;
-  addDoctor: (data: Omit<Doctor, 'id'>) => void;
-  addHealthWorker: (data: Omit<HealthWorker, 'id'>) => void;
+  addDoctor: (data: Omit<Doctor, 'id'>) => Doctor;
+  addHealthWorker: (data: Omit<HealthWorker, 'id'>) => HealthWorker;
   addVitals: (data: Omit<Vitals, 'id'>) => void;
   addHealthRecord: (data: Omit<HealthRecord, 'id'>) => void;
   addConsultation: (data: Omit<Consultation, 'id'>) => void;
@@ -154,6 +154,7 @@ const DataContext = createContext<DataContextValue | null>(null);
 let nextReferralNum = 11;
 let nextPatientId = 11;
 let nextNotifId = 7;
+let nextHospitalNum = 0; // initialized after hospitals loaded
 
 // ── localStorage persistence helpers ──────────────────────────────
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -399,32 +400,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ...data, id, userId: `u${nextPatientId}`, healthCardId,
       registeredAt: now().split('T')[0], createdAt: now().split('T')[0]
     };
-    setPatients(prev => {
-      const updated = [...prev, patient];
-      saveToStorage('patients', updated);
-      return updated;
-    });
+    setPatients(prev => [...prev, patient]);
     return patient;
   }, []);
 
   const addDoctor = useCallback((data: Omit<Doctor, 'id'>) => {
     const id = `d${Date.now()}`;
     const doctor: Doctor = { ...data, id };
-    setDoctorsList(prev => {
-      const updated = [...prev, doctor];
-      saveToStorage('doctors', updated);
-      return updated;
-    });
+    setDoctorsList(prev => [...prev, doctor]);
+    return doctor;
   }, []);
 
   const addHealthWorker = useCallback((data: Omit<HealthWorker, 'id'>) => {
     const id = `hw${Date.now()}`;
     const hw: HealthWorker = { ...data, id };
-    setHealthWorkersList(prev => {
-      const updated = [...prev, hw];
-      saveToStorage('healthWorkers', updated);
-      return updated;
-    });
+    setHealthWorkersList(prev => [...prev, hw]);
+    return hw;
   }, []);
 
   const addVitals = useCallback((data: Omit<Vitals, 'id'>) => {
@@ -489,11 +480,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addStaffUser = useCallback((data: Omit<User, 'id' | 'createdAt'>) => {
     const id = `ustaff-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const user: User = { ...data, id, createdAt: now().split('T')[0] };
-    setStaffUsersList(prev => {
-      const updated = [...prev, user];
-      saveToStorage('staffUsers', updated);
-      return updated;
-    });
+    setStaffUsersList(prev => [...prev, user]);
     return user;
   }, []);
 
@@ -510,34 +497,36 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeStaffUser = useCallback((userId: string) => {
-    setStaffUsersList(prev => {
-      const updated = prev.filter(u => u.id !== userId);
-      saveToStorage('staffUsers', updated);
-      return updated;
-    });
+    setStaffUsersList(prev => prev.filter(u => u.id !== userId));
   }, []);
 
   const getStaffByFacility = useCallback((facilityId: string) => staffUsersList.filter(u => u.facilityId === facilityId), [staffUsersList]);
   const getStaffByRole = useCallback((role: Role) => staffUsersList.filter(u => u.role === role), [staffUsersList]);
 
   // ── Hospital management ────────────────────────────────────────
-  const [hospitalsList, setHospitalsList] = useState<Hospital[]>(() => loadFromStorage('hospitals', initHospitals));
+  const [hospitalsList, setHospitalsList] = useState<Hospital[]>(() => {
+    const loaded = loadFromStorage('hospitals', initHospitals);
+    // Initialize counter from existing data to avoid ID collisions
+    nextHospitalNum = loaded.length > 0
+      ? Math.max(...loaded.map(h => {
+          const match = h.id.match(/^h(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        })) + 1
+      : 1;
+    return loaded;
+  });
 
   const addHospital = useCallback((data: Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'>) => {
-    const num = hospitalsList.length + 1;
+    const num = nextHospitalNum++;
     const hospital: Hospital = {
       ...data,
       id: `h${num}`,
       hospitalId: `HOS-2026-${String(num).padStart(3, '0')}`,
       createdAt: now().split('T')[0],
     };
-    setHospitalsList(prev => {
-      const updated = [...prev, hospital];
-      saveToStorage('hospitals', updated);
-      return updated;
-    });
+    setHospitalsList(prev => [...prev, hospital]);
     return hospital;
-  }, [hospitalsList.length]);
+  }, []);
 
   const updateHospital = useCallback((hospitalId: string, data: Partial<Hospital>) => {
     setHospitalsList(prev => prev.map(h => h.id === hospitalId ? { ...h, ...data } : h));
@@ -554,18 +543,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Disable the associated admin user account
     const hospital = hospitalsList.find(h => h.id === hospitalId);
     if (hospital?.adminUserId) {
-      setStaffUsersList(prev => {
-        const updated = prev.map(u => u.id === hospital.adminUserId ? { ...u, status: 'disabled' as const } : u);
-        saveToStorage('staffUsers', updated);
-        return updated;
-      });
+      setStaffUsersList(prev => prev.map(u => u.id === hospital.adminUserId ? { ...u, status: 'disabled' as const } : u));
     }
     // Remove the hospital
-    setHospitalsList(prev => {
-      const updated = prev.filter(h => h.id !== hospitalId);
-      saveToStorage('hospitals', updated);
-      return updated;
-    });
+    setHospitalsList(prev => prev.filter(h => h.id !== hospitalId));
   }, [hospitalsList]);
 
   // ── Persist changes to localStorage ────────────────────────────

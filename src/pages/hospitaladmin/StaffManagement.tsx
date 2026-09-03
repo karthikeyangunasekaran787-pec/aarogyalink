@@ -97,7 +97,7 @@ export default function StaffManagement() {
 
     // Also create a doctor record so the doctor dashboard shows their data
     if (role === 'doctor') {
-      const doctorRecord = {
+      addDoctor({
         userId: newStaff.id,
         name: newStaff.name,
         specialization: form.department || 'General Medicine',
@@ -108,33 +108,19 @@ export default function StaffManagement() {
         availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
         consultationFee: 100,
         rating: 0,
-      };
-      addDoctor(doctorRecord);
-      // Also save directly to localStorage as backup
-      try {
-        const existing = JSON.parse(localStorage.getItem('aal_doctors') || '[]');
-        existing.push({ ...doctorRecord, id: `d${Date.now()}` });
-        localStorage.setItem('aal_doctors', JSON.stringify(existing));
-      } catch { /* ignore */ }
+      });
     }
 
     // Also create a health worker record so the HW dashboard shows their data
     if (role === 'health_worker') {
-      const hwRecord = {
+      addHealthWorker({
         userId: newStaff.id,
         name: newStaff.name,
         phone: newStaff.phone || '',
         facilityId: hospitalFacilityId,
         area: form.area || '',
         patientsAssigned: 0,
-      };
-      addHealthWorker(hwRecord);
-      // Also save directly to localStorage as backup
-      try {
-        const existing = JSON.parse(localStorage.getItem('aal_healthWorkers') || '[]');
-        existing.push({ ...hwRecord, id: `hw${Date.now()}` });
-        localStorage.setItem('aal_healthWorkers', JSON.stringify(existing));
-      } catch { /* ignore */ }
+      });
     }
 
     setForm(INITIAL_FORM);

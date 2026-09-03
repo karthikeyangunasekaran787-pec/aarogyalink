@@ -24,16 +24,27 @@ export default function HWDashboard() {
   const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification } = useData();
   const navigate = useNavigate();
 
-  // Load health workers from localStorage as fallback if context state is empty
-  const allHealthWorkers = healthWorkers.length > 0 ? healthWorkers : (() => {
+  // Load health workers from context or localStorage as fallback
+  const allHealthWorkers = (() => {
+    if (healthWorkers.length > 0) return healthWorkers;
     try {
       const stored = localStorage.getItem('aal_healthWorkers');
-      return stored ? (JSON.parse(stored) as HealthWorker[]) : [];
-    } catch { return []; }
+      if (stored) {
+        const parsed = JSON.parse(stored) as HealthWorker[];
+        if (parsed.length > 0) return parsed;
+      }
+    } catch { /* ignore */ }
+    return [];
   })();
 
-  // Health Worker record is created by Hospital Admin when adding a HW staff account
-  const hw = allHealthWorkers.find(h => h.userId === currentUser?.id);
+  // Find HW record — primary: match by userId; fallback: match by name
+  let hw = allHealthWorkers.find(h => h.userId === currentUser?.id);
+
+  if (!hw && currentUser?.name) {
+    hw = allHealthWorkers.find(h =>
+      h.name.toLowerCase() === currentUser.name.toLowerCase()
+    );
+  }
 
   // If no health worker record found, show a message
   if (!hw) {
@@ -43,7 +54,9 @@ export default function HWDashboard() {
           <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
           <h2 className="text-lg font-semibold text-foreground">No Health Worker Record Found</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Your account has no matching health worker profile. Please contact your Hospital Administrator.
+            Your account ({currentUser?.id || 'unknown'}) has no matching health worker profile.
+            HW records found: {allHealthWorkers.length}.
+            Please contact your Hospital Administrator to create your health worker record via Staff Management.
           </p>
         </div>
       </div>

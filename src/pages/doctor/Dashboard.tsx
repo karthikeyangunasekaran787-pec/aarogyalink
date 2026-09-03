@@ -30,16 +30,34 @@ export default function DoctorDashboard() {
     completeAppointment, cancelAppointment, staffUsers
   } = useData();
 
-  // Load doctors from localStorage as fallback if context state is empty
-  const allDoctors = doctors.length > 0 ? doctors : (() => {
+  // Load doctors from context or localStorage as fallback
+  const allDoctors = (() => {
+    // First try context state
+    if (doctors.length > 0) return doctors;
+    // Then try localStorage
     try {
       const stored = localStorage.getItem('aal_doctors');
-      return stored ? (JSON.parse(stored) as Doctor[]) : [];
-    } catch { return []; }
+      if (stored) {
+        const parsed = JSON.parse(stored) as Doctor[];
+        if (parsed.length > 0) return parsed;
+      }
+    } catch { /* ignore */ }
+    return [];
   })();
 
-  // Doctor record is created by Hospital Admin when adding a doctor staff account
-  const doctor = allDoctors.find(d => d.userId === currentUser?.id);
+  // Find doctor record — primary: match by userId; fallback: match by name from staffUsers
+  let doctor = allDoctors.find(d => d.userId === currentUser?.id);
+
+  // Fallback: if no match by userId, try to find by matching the logged-in user's name
+  if (!doctor && currentUser?.name) {
+    const staffRecord = staffUsers.find(u => u.id === currentUser?.id);
+    if (staffRecord) {
+      doctor = allDoctors.find(d =>
+        d.userId === staffRecord.id ||
+        (d.name.toLowerCase() === staffRecord.name.toLowerCase() && d.facilityId === staffRecord.facilityId)
+      );
+    }
+  }
 
   // Show a message if no doctor record found
   if (!doctor) {
@@ -49,7 +67,9 @@ export default function DoctorDashboard() {
           <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
           <h2 className="text-lg font-semibold text-foreground">No Doctor Profile Found</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Your account has no matching doctor profile. Please contact your Hospital Administrator to create your doctor record via Staff Management.
+            Your account ({currentUser?.id || 'unknown'}) has no matching doctor profile.
+            Doctor records found: {allDoctors.length}.
+            Please contact your Hospital Administrator to create your doctor record via Staff Management.
           </p>
         </div>
       </div>

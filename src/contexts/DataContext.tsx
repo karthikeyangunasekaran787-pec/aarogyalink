@@ -399,7 +399,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ...data, id, userId: `u${nextPatientId}`, healthCardId,
       registeredAt: now().split('T')[0], createdAt: now().split('T')[0]
     };
-    setPatients(prev => [...prev, patient]);
+    setPatients(prev => {
+      const updated = [...prev, patient];
+      saveToStorage('patients', updated);
+      return updated;
+    });
     return patient;
   }, []);
 
@@ -477,7 +481,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addStaffUser = useCallback((data: Omit<User, 'id' | 'createdAt'>) => {
     const id = `ustaff-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const user: User = { ...data, id, createdAt: now().split('T')[0] };
-    setStaffUsersList(prev => [...prev, user]);
+    setStaffUsersList(prev => {
+      const updated = [...prev, user];
+      saveToStorage('staffUsers', updated);
+      return updated;
+    });
     return user;
   }, []);
 
@@ -494,7 +502,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeStaffUser = useCallback((userId: string) => {
-    setStaffUsersList(prev => prev.filter(u => u.id !== userId));
+    setStaffUsersList(prev => {
+      const updated = prev.filter(u => u.id !== userId);
+      saveToStorage('staffUsers', updated);
+      return updated;
+    });
   }, []);
 
   const getStaffByFacility = useCallback((facilityId: string) => staffUsersList.filter(u => u.facilityId === facilityId), [staffUsersList]);
@@ -511,7 +523,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       hospitalId: `HOS-2026-${String(num).padStart(3, '0')}`,
       createdAt: now().split('T')[0],
     };
-    setHospitalsList(prev => [...prev, hospital]);
+    setHospitalsList(prev => {
+      const updated = [...prev, hospital];
+      saveToStorage('hospitals', updated);
+      return updated;
+    });
     return hospital;
   }, [hospitalsList.length]);
 
@@ -530,12 +546,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Disable the associated admin user account
     const hospital = hospitalsList.find(h => h.id === hospitalId);
     if (hospital?.adminUserId) {
-      setStaffUsersList(prev => prev.map(u =>
-        u.id === hospital.adminUserId ? { ...u, status: 'disabled' as const } : u
-      ));
+      setStaffUsersList(prev => {
+        const updated = prev.map(u => u.id === hospital.adminUserId ? { ...u, status: 'disabled' as const } : u);
+        saveToStorage('staffUsers', updated);
+        return updated;
+      });
     }
     // Remove the hospital
-    setHospitalsList(prev => prev.filter(h => h.id !== hospitalId));
+    setHospitalsList(prev => {
+      const updated = prev.filter(h => h.id !== hospitalId);
+      saveToStorage('hospitals', updated);
+      return updated;
+    });
   }, [hospitalsList]);
 
   // ── Persist changes to localStorage ────────────────────────────

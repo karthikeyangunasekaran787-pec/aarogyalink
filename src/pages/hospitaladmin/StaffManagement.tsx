@@ -31,7 +31,7 @@ type StaffForm = {
 
 const INITIAL_FORM: StaffForm = {
   name: '', username: '', email: '', phone: '',
-  department: '', specialization: '', facilityId: 'f3',
+  department: '', specialization: '', facilityId: '',
   area: '', designation: '', role: 'doctor',
 };
 
@@ -87,7 +87,7 @@ export default function StaffManagement() {
       email: form.email,
       phone: form.phone,
       role,
-      facilityId: form.facilityId || hospitalFacilityId,
+      facilityId: hospitalFacilityId, // Always assign to this hospital
       departmentId: form.department || undefined,
       status: 'active',
       createdBy: currentUser?.id,

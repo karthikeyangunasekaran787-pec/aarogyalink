@@ -109,6 +109,8 @@ interface DataContextValue {
 
   // Medicine stock
   updateMedicineStock: (stockId: string, quantity: number) => void;
+  addMedicineStock: (data: Omit<MedicineStock, 'id'>) => void;
+  removeMedicineStock: (stockId: string) => void;
 
   // Staff management
   addStaffUser: (data: Omit<User, 'id' | 'createdAt'>) => User;
@@ -439,6 +441,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } : ms));
   }, []);
 
+  const addMedicineStock = useCallback((data: Omit<MedicineStock, 'id'>) => {
+    const med: MedicineStock = { ...data, id: `ms${Date.now()}-${Math.random().toString(36).slice(2, 5)}` };
+    setMedicineStockList(prev => [...prev, med]);
+  }, []);
+
+  const removeMedicineStock = useCallback((stockId: string) => {
+    setMedicineStockList(prev => prev.filter(ms => ms.id !== stockId));
+  }, []);
+
   // ── Staff management ─────────────────────────────────────────
   const [staffUsersList, setStaffUsersList] = useState<User[]>(() => loadFromStorage('staffUsers', initStaffUsers));
 
@@ -543,7 +554,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addPatient, addVitals, addHealthRecord, addConsultation,
     completeFollowupById, markFollowupMissed,
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,
-    updateMedicineStock,
+    updateMedicineStock, addMedicineStock, removeMedicineStock,
     staffUsers: staffUsersList, addStaffUser, updateStaffUser, disableStaffUser, enableStaffUser, removeStaffUser, getStaffByFacility, getStaffByRole,
     hospitals: hospitalsList, addHospital, updateHospital, toggleHospitalStatus, removeHospital,
     getPatientById, getPatientByEmail, getPatientByHealthCardId, getDoctorById, getFacilityById,

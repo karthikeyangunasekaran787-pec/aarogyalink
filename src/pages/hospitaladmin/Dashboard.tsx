@@ -14,15 +14,16 @@ import { Input } from '@/components/ui/input';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import {
-  Inbox, CheckCircle2, ScanLine, Package, XCircle,
-  Users, Building2, Clock, Calendar, Search, ChevronDown
+  Inbox, CheckCircle2, ScanLine, Package, XCircle, Trash2, Plus,
+  Users, Building2, Clock, Calendar, Search, ChevronDown, Pill
 } from 'lucide-react';
 
 export default function HospitalAdminDashboard() {
   const { language, currentUser } = useApp();
   const {
     referrals, facilities, hospitals, medicineStock, diagnostics,
-    acceptReferral, rejectReferral, scheduleReferral, confirmArrival
+    acceptReferral, rejectReferral, scheduleReferral, confirmArrival,
+    addMedicineStock, removeMedicineStock
   } = useData();
 
   // Resolve the hospital from the logged-in user's facilityId — check both facilities and hospitals
@@ -43,6 +44,9 @@ export default function HospitalAdminDashboard() {
   const [scheduleTime, setScheduleTime] = useState('');
   const [scannedRef, setScannedRef] = useState('');
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [showMedForm, setShowMedForm] = useState(false);
+  const [medForm, setMedForm] = useState({ medicineName: '', quantity: 0, unit: 'tablets', expiryDate: '' });
+  const [confirmDeleteMed, setConfirmDeleteMed] = useState<string | null>(null);
 
   const showFeedback = (msg: string) => {
     setActionFeedback(msg);
@@ -273,6 +277,65 @@ export default function HospitalAdminDashboard() {
 
         {/* ── Medicine Stock Tab ─────────────────────────── */}
         <TabsContent value="meds" className="mt-4 space-y-3">
+          <div className="flex justify-end">
+            <Button size="sm" className="gap-1.5" onClick={() => setShowMedForm(true)}>
+              <Plus className="h-3.5 w-3.5" /> Add Medicine
+            </Button>
+          </div>
+
+          {/* Add Medicine Form */}
+          {showMedForm && (
+            <Card className="border-primary/20">
+              <CardContent className="p-4 space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Medicine Name *</label>
+                    <Input value={medForm.medicineName} onChange={e => setMedForm(f => ({ ...f, medicineName: e.target.value }))} placeholder="e.g. Paracetamol" className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Quantity *</label>
+                    <Input type="number" value={medForm.quantity} onChange={e => setMedForm(f => ({ ...f, quantity: parseInt(e.target.value) || 0 }))} className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Unit</label>
+                    <select value={medForm.unit} onChange={e => setMedForm(f => ({ ...f, unit: e.target.value }))}
+                      className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm">
+                      <option value="tablets">Tablets</option>
+                      <option value="capsules">Capsules</option>
+                      <option value="ml">ml</option>
+                      <option value="bottles">Bottles</option>
+                      <option value="strips">Strips</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Expiry Date</label>
+                    <Input type="date" value={medForm.expiryDate} onChange={e => setMedForm(f => ({ ...f, expiryDate: e.target.value }))} className="h-9 text-sm" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowMedForm(false)}>Cancel</Button>
+                  <Button size="sm" disabled={!medForm.medicineName || medForm.quantity <= 0} onClick={() => {
+                    const status = medForm.quantity === 0 ? 'out_of_stock' : medForm.quantity < 50 ? 'low_stock' : 'in_stock';
+                    addMedicineStock({
+                      medicineId: `med-${Date.now()}`,
+                      medicineName: medForm.medicineName,
+                      facilityId: facility.id,
+                      facilityName: facility.name,
+                      quantity: medForm.quantity,
+                      unit: medForm.unit,
+                      expiryDate: medForm.expiryDate || '2027-12-31',
+                      status,
+                    });
+                    setMedForm({ medicineName: '', quantity: 0, unit: 'tablets', expiryDate: '' });
+                    setShowMedForm(false);
+                    setActionFeedback('Medicine added successfully');
+                    setTimeout(() => setActionFeedback(null), 3000);
+                  }}>Add</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {facilityMeds.map(ms => (
             <Card key={ms.id}>
               <CardContent className="p-4 flex items-center justify-between">
@@ -280,15 +343,20 @@ export default function HospitalAdminDashboard() {
                   <p className="text-sm font-medium text-foreground">{ms.medicineName}</p>
                   <p className="text-xs text-muted-foreground">Expires: {ms.expiryDate}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-foreground">{ms.quantity} {ms.unit}</p>
-                  <Badge className={`text-[10px] ${
-                    ms.status === 'in_stock' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    ms.status === 'low_stock' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                    'bg-red-50 text-red-700 border-red-200'
-                  }`}>
-                    {ms.status === 'in_stock' ? 'In Stock' : ms.status === 'low_stock' ? 'Low Stock' : 'Out of Stock'}
-                  </Badge>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-foreground">{ms.quantity} {ms.unit}</p>
+                    <Badge className={`text-[10px] ${
+                      ms.status === 'in_stock' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      ms.status === 'low_stock' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                      'bg-red-50 text-red-700 border-red-200'
+                    }`}>
+                      {ms.status === 'in_stock' ? 'In Stock' : ms.status === 'low_stock' ? 'Low Stock' : 'Out of Stock'}
+                    </Badge>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setConfirmDeleteMed(ms.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -317,6 +385,37 @@ export default function HospitalAdminDashboard() {
           ))}
         </TabsContent>
       </Tabs>
+
+      {/* Delete Medicine Confirmation */}
+      {confirmDeleteMed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDeleteMed(null)} />
+          <div className="relative bg-background rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-red-50 flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Remove Medicine</h3>
+                <p className="text-xs text-muted-foreground">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to remove <strong>{facilityMeds.find(m => m.id === confirmDeleteMed)?.medicineName}</strong> from inventory?
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmDeleteMed(null)}>Cancel</Button>
+              <Button variant="destructive" className="flex-1" onClick={() => {
+                const name = facilityMeds.find(m => m.id === confirmDeleteMed)?.medicineName;
+                removeMedicineStock(confirmDeleteMed);
+                setConfirmDeleteMed(null);
+                setActionFeedback(`Medicine removed: ${name}`);
+                setTimeout(() => setActionFeedback(null), 3000);
+              }}>Remove</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

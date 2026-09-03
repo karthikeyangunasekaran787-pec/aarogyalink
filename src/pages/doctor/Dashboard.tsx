@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { useState } from 'react';
+import type { Doctor } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
@@ -29,8 +30,16 @@ export default function DoctorDashboard() {
     completeAppointment, cancelAppointment, staffUsers
   } = useData();
 
+  // Load doctors from localStorage as fallback if context state is empty
+  const allDoctors = doctors.length > 0 ? doctors : (() => {
+    try {
+      const stored = localStorage.getItem('aal_doctors');
+      return stored ? (JSON.parse(stored) as Doctor[]) : [];
+    } catch { return []; }
+  })();
+
   // Doctor record is created by Hospital Admin when adding a doctor staff account
-  const doctor = doctors.find(d => d.userId === currentUser?.id);
+  const doctor = allDoctors.find(d => d.userId === currentUser?.id);
 
   // Show a message if no doctor record found
   if (!doctor) {

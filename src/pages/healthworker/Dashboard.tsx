@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router';
+import type { HealthWorker } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
@@ -23,8 +24,16 @@ export default function HWDashboard() {
   const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification } = useData();
   const navigate = useNavigate();
 
+  // Load health workers from localStorage as fallback if context state is empty
+  const allHealthWorkers = healthWorkers.length > 0 ? healthWorkers : (() => {
+    try {
+      const stored = localStorage.getItem('aal_healthWorkers');
+      return stored ? (JSON.parse(stored) as HealthWorker[]) : [];
+    } catch { return []; }
+  })();
+
   // Health Worker record is created by Hospital Admin when adding a HW staff account
-  const hw = healthWorkers.find(h => h.userId === currentUser?.id);
+  const hw = allHealthWorkers.find(h => h.userId === currentUser?.id);
 
   // If no health worker record found, show a message
   if (!hw) {
@@ -34,8 +43,7 @@ export default function HWDashboard() {
           <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
           <h2 className="text-lg font-semibold text-foreground">No Health Worker Record Found</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Your account ({currentUser?.id}) has no matching health worker profile.
-            Health worker records: {healthWorkers.length}. Please contact your Hospital Administrator.
+            Your account has no matching health worker profile. Please contact your Hospital Administrator.
           </p>
         </div>
       </div>

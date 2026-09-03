@@ -570,6 +570,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // ── Persist changes to localStorage ────────────────────────────
   useEffect(() => { saveToStorage('patients', patients); }, [patients]);
+  useEffect(() => { saveToStorage('doctors', doctorsList); }, [doctorsList]);
+  useEffect(() => { saveToStorage('healthWorkers', healthWorkersList); }, [healthWorkersList]);
   useEffect(() => { saveToStorage('staffUsers', staffUsersList); }, [staffUsersList]);
   useEffect(() => { saveToStorage('hospitals', hospitalsList); }, [hospitalsList]);
 
@@ -577,7 +579,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const getPatientById = useCallback((id: string) => patients.find(p => p.id === id), [patients]);
   const getPatientByEmail = useCallback((email: string) => patients.find(p => p.registeredByEmail === email), [patients]);
   const getPatientByHealthCardId = useCallback((healthCardId: string) => patients.find(p => p.healthCardId === healthCardId), [patients]);
-  const getDoctorById = useCallback((id: string) => initDoctors.find((d: Doctor) => d.id === id), []);
+  const getDoctorById = useCallback((id: string) => doctorsList.find((d: Doctor) => d.id === id), [doctorsList]);
   const getFacilityById = useCallback((id: string) => initFacilities.find((f: Facility) => f.id === id), []);
   const getReferralsForPatient = useCallback((patientId: string) => referrals.filter(r => r.patientId === patientId), [referrals]);
   const getReferralsForFacility = useCallback((facilityId: string) => referrals.filter(r => r.destinationFacilityId === facilityId), [referrals]);

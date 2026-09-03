@@ -26,7 +26,7 @@ export default function DoctorDashboard() {
     getConsultationsForPatient,
     startConsultation, completeConsultation, scheduleFollowup, closeReferral,
     addConsultation: addConsultationToData, createReferral, addNotification,
-    completeAppointment, cancelAppointment
+    completeAppointment, cancelAppointment, staffUsers
   } = useData();
 
   // Doctor record is created by Hospital Admin when adding a doctor staff account
@@ -38,10 +38,9 @@ export default function DoctorDashboard() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center space-y-3">
           <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
-          <h2 className="text-lg font-semibold text-foreground">No Doctor Record Found</h2>
+          <h2 className="text-lg font-semibold text-foreground">No Doctor Profile Found</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Your account ({currentUser?.id}) has no matching doctor profile.
-            Doctor records: {doctors.length}. Please contact your Hospital Administrator.
+            Your account has no matching doctor profile. Please contact your Hospital Administrator to create your doctor record via Staff Management.
           </p>
         </div>
       </div>

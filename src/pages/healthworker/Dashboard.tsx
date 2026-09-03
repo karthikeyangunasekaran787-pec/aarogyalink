@@ -19,11 +19,11 @@ import {
 } from 'lucide-react';
 
 export default function HWDashboard() {
-  const { language } = useApp();
+  const { language, currentUser } = useApp();
   const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification } = useData();
   const navigate = useNavigate();
 
-  const hw = healthWorkers[0]; // Suganthi M
+  const hw = healthWorkers.find(h => h.userId === currentUser?.id) || healthWorkers[0];
 
   // Show ALL patients from shared data (not a hardcoded subset)
   const hwPatients = patients;

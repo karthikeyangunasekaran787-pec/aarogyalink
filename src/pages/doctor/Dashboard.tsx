@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
-  const { language } = useApp();
+  const { language, currentUser } = useApp();
   const {
     doctors, patients, referrals, followups, facilities,
     getAppointmentsForDoctor, getReferralsForPatient, getVitalsForPatient,
@@ -29,7 +29,8 @@ export default function DoctorDashboard() {
     completeAppointment, cancelAppointment
   } = useData();
 
-  const doctor = doctors[0]; // Dr. Senthil Kumar
+  // Find the doctor record matching the logged-in user's ID
+  const doctor = doctors.find(d => d.userId === currentUser?.id) || doctors[0];
   const doctorFacility = facilities.find(f => f.id === doctor.facilityId);
   const doctorAppointments = getAppointmentsForDoctor(doctor.id);
   const todayAppointments = doctorAppointments.filter(a => a.status === 'scheduled');

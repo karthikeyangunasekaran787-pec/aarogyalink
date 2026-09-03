@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
-  Users, Stethoscope, Heart, Plus, Search, Edit2, UserX, UserCheck,
+  Users, Stethoscope, Heart, Plus, Search, Edit2, UserX, UserCheck, Trash2,
   CheckCircle2, AlertCircle, X
 } from 'lucide-react';
 import type { User, Role } from '@/types';
@@ -39,10 +39,12 @@ const DEPARTMENTS = ['General Medicine', 'Cardiology', 'Orthopedics', 'Pediatric
 
 export default function StaffManagement() {
   const { language, currentUser } = useApp();
-  const { staffUsers, facilities, addStaffUser, disableStaffUser, enableStaffUser, getStaffByFacility } = useData();
+  const { staffUsers, facilities, hospitals, addStaffUser, disableStaffUser, enableStaffUser, removeStaffUser, getStaffByFacility } = useData();
 
   const hospitalFacilityId = currentUser?.facilityId || 'f3';
-  const facility = facilities.find(f => f.id === hospitalFacilityId);
+  // Look up hospital from both facilities and newly registered hospitals
+  const facility = facilities.find(f => f.id === hospitalFacilityId)
+    || hospitals.find(h => h.id === hospitalFacilityId);
   const facilityStaff = staffUsers.filter(u => u.facilityId === hospitalFacilityId && u.role !== 'hospital_admin' && u.role !== 'gov_admin' && u.role !== 'patient');
   const facilityDoctors = facilityStaff.filter(u => u.role === 'doctor');
   const facilityHWs = facilityStaff.filter(u => u.role === 'health_worker');
@@ -53,6 +55,7 @@ export default function StaffManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const showFeedback = (msg: string) => {
     setFeedback(msg);
@@ -158,6 +161,14 @@ export default function StaffManagement() {
                 ) : (
                   <><UserCheck className="h-3 w-3 mr-1" /> Enable</>
                 )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => setConfirmDelete(user.id)}
+              >
+                <Trash2 className="h-3 w-3 mr-1" /> Remove
               </Button>
             </div>
           </div>
@@ -297,6 +308,37 @@ export default function StaffManagement() {
           <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No {activeTab === 'doctors' ? 'doctors' : 'health workers'} found</CardContent></Card>
         ) : filteredStaff.map(user => <StaffCard key={user.id} user={user} />)}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDelete(null)} />
+          <div className="relative bg-background rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-red-50 flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Remove Staff Account</h3>
+                <p className="text-xs text-muted-foreground">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to remove <strong>{staffUsers.find(u => u.id === confirmDelete)?.name}</strong>?{' '}
+              They will no longer be able to log in.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+              <Button variant="destructive" className="flex-1" onClick={() => {
+                const name = staffUsers.find(u => u.id === confirmDelete)?.name;
+                removeStaffUser(confirmDelete);
+                setConfirmDelete(null);
+                showFeedback(`Staff account removed: ${name}`);
+              }}>Remove</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

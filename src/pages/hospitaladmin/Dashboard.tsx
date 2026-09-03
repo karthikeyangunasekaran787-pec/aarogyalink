@@ -19,13 +19,16 @@ import {
 } from 'lucide-react';
 
 export default function HospitalAdminDashboard() {
-  const { language } = useApp();
+  const { language, currentUser } = useApp();
   const {
-    referrals, facilities, medicineStock, diagnostics,
+    referrals, facilities, hospitals, medicineStock, diagnostics,
     acceptReferral, rejectReferral, scheduleReferral, confirmArrival
   } = useData();
 
-  const facility = facilities[2]; // Madurai District Hospital
+  // Resolve the hospital from the logged-in user's facilityId — check both facilities and hospitals
+  const facility = facilities.find(f => f.id === currentUser?.facilityId)
+    || hospitals.find(h => h.id === currentUser?.facilityId)
+    || facilities[0];
   const facilityReferrals = referrals.filter(r => r.destinationFacilityId === facility.id);
   const pendingReferrals = facilityReferrals.filter(r => r.status === 'created');
   const acceptedReferrals = facilityReferrals.filter(r => r.status === 'accepted');
@@ -149,7 +152,7 @@ export default function HospitalAdminDashboard() {
                 <Users className="h-5 w-5 text-violet-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{facility.specialistsAvailable}</p>
+                <p className="text-2xl font-bold text-foreground">{'specialistsAvailable' in facility ? facility.specialistsAvailable : 0}</p>
                 <p className="text-xs text-muted-foreground">{t('specialists', language)} On Duty</p>
               </div>
             </div>

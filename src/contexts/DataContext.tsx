@@ -115,6 +115,7 @@ interface DataContextValue {
   updateStaffUser: (userId: string, data: Partial<User>) => void;
   disableStaffUser: (userId: string) => void;
   enableStaffUser: (userId: string) => void;
+  removeStaffUser: (userId: string) => void;
   getStaffByFacility: (facilityId: string) => User[];
   getStaffByRole: (role: Role) => User[];
 
@@ -460,6 +461,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setStaffUsersList(prev => prev.map(u => u.id === userId ? { ...u, status: 'active' as const } : u));
   }, []);
 
+  const removeStaffUser = useCallback((userId: string) => {
+    setStaffUsersList(prev => prev.filter(u => u.id !== userId));
+  }, []);
+
   const getStaffByFacility = useCallback((facilityId: string) => staffUsersList.filter(u => u.facilityId === facilityId), [staffUsersList]);
   const getStaffByRole = useCallback((role: Role) => staffUsersList.filter(u => u.role === role), [staffUsersList]);
 
@@ -539,7 +544,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     completeFollowupById, markFollowupMissed,
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,
     updateMedicineStock,
-    staffUsers: staffUsersList, addStaffUser, updateStaffUser, disableStaffUser, enableStaffUser, getStaffByFacility, getStaffByRole,
+    staffUsers: staffUsersList, addStaffUser, updateStaffUser, disableStaffUser, enableStaffUser, removeStaffUser, getStaffByFacility, getStaffByRole,
     hospitals: hospitalsList, addHospital, updateHospital, toggleHospitalStatus, removeHospital,
     getPatientById, getPatientByEmail, getPatientByHealthCardId, getDoctorById, getFacilityById,
     getReferralsForPatient, getReferralsForFacility,

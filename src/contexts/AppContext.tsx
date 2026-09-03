@@ -19,11 +19,8 @@ export interface AuthUser {
   healthCardId?: string;
 }
 
-// Demo accounts for non-patient roles
+// District Admin auto-login account (no credentials needed for prototype)
 const DEMO_ACCOUNTS: Record<string, AuthUser> = {
-  health_worker: { id: 'uhw1', name: 'Suganthi M', email: 'healthworker@demo.com', role: 'health_worker', facilityId: 'f1', phone: '9850100001' },
-  doctor: { id: 'ud1', name: 'Dr. Senthil Kumar', email: 'doctor@demo.com', role: 'doctor', facilityId: 'f1', phone: '9840100001' },
-  hospital_admin: { id: 'uha1', name: 'Admin Rajan', email: 'hospital@demo.com', role: 'hospital_admin', facilityId: 'f3' },
   gov_admin: { id: 'uga1', name: 'District Collector', email: 'district@demo.com', role: 'gov_admin' },
 };
 

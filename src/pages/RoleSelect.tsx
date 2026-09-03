@@ -76,7 +76,7 @@ export default function RoleSelect() {
         onClick={() => navigate('/auth')}
         disabled={!currentRole}
       >
-        Continue to Login
+        {currentRole === 'gov_admin' ? 'Continue to Dashboard' : 'Continue to Login'}
       </Button>
 
       {/* Footer */}

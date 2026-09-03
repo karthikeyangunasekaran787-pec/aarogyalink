@@ -1,10 +1,11 @@
 // ============================================================================
 // AarogyaLink - Authentication Page
+// District Admin: auto-login (no credentials needed for prototype)
 // Patients: login via registered email lookup
-// Staff: login via username/password against staffUsers records
+// Staff (Doctor, HW, Hospital Admin): login via username/password
 // ============================================================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
@@ -29,8 +30,16 @@ const ROLE_ROUTES: Record<string, string> = {
   gov_admin: '/district-admin/dashboard',
 };
 
+// Demo account for District Admin (auto-login, no credentials required)
+const DISTRICT_ADMIN_DEMO = {
+  id: 'uga1',
+  name: 'District Collector',
+  email: 'district@demo.com',
+  role: 'gov_admin' as const,
+};
+
 export default function AuthPage() {
-  const { currentRole, loginPatient, loginStaff } = useApp();
+  const { currentRole, login, loginPatient, loginStaff } = useApp();
   const { getPatientByEmail, staffUsers, facilities } = useData();
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,6 +53,15 @@ export default function AuthPage() {
 
   const returnTo = (location.state as { from?: { pathname: string } })?.from?.pathname || ROLE_ROUTES[currentRole] || '/patient/dashboard';
   const isPatient = currentRole === 'patient';
+  const isDistrictAdmin = currentRole === 'gov_admin';
+
+  // ── District Admin: auto-login — no credentials needed ──────────
+  useEffect(() => {
+    if (isDistrictAdmin) {
+      login(DISTRICT_ADMIN_DEMO.email);
+      navigate(ROLE_ROUTES.gov_admin, { replace: true });
+    }
+  }, [isDistrictAdmin, login, navigate]);
 
   // ── Patient Login: look up by email ───────────────────────────
   const handlePatientLogin = useCallback(async (e: React.FormEvent) => {
@@ -88,7 +106,7 @@ export default function AuthPage() {
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    // Find staff user by username
+    // Find staff user by username (includes accounts created by District Admin / Hospital Admin)
     const staffUser = staffUsers.find(u => u.username === username.trim());
 
     if (!staffUser) {

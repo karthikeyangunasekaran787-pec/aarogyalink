@@ -149,14 +149,32 @@ export const facilities: Facility[] = [
 // Doctors
 // ---------------------------------------------------------------------------
 export const doctors: Doctor[] = [
-  // No hardcoded demo doctors — all doctors are created by Hospital Administrators
+  // ── Hospital 1: Pudukkottai Government Hospital (h1) ────────
+  { id: 'd1', userId: 'ustaff-doc1', name: 'Dr. Arun Kumar', specialization: 'Cardiology', facilityId: 'h1', qualification: 'MD Cardiology', experience: 12, phone: '9840100101', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 200, rating: 4.6 },
+  { id: 'd2', userId: 'ustaff-doc2', name: 'Dr. Priya Sharma', specialization: 'General Medicine', facilityId: 'h1', qualification: 'MBBS, MD', experience: 8, phone: '9840100102', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 100, rating: 4.4 },
+  // ── Hospital 2: Alangudi PHC (h2) ──────────────────────────
+  { id: 'd3', userId: 'ustaff-doc3', name: 'Dr. Ravi Shankar', specialization: 'General Medicine', facilityId: 'h2', qualification: 'MBBS', experience: 5, phone: '9840100103', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 100, rating: 4.2 },
+  { id: 'd4', userId: 'ustaff-doc4', name: 'Dr. Kavitha N', specialization: 'Maternity', facilityId: 'h2', qualification: 'MBBS, DGO', experience: 10, phone: '9840100104', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 150, rating: 4.5 },
+  // ── Hospital 3: Aranthangi CHC (h3) ────────────────────────
+  { id: 'd5', userId: 'ustaff-doc5', name: 'Dr. Mohan Prasad', specialization: 'Surgery', facilityId: 'h3', qualification: 'MS Surgery', experience: 15, phone: '9840100105', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 200, rating: 4.7 },
+  { id: 'd6', userId: 'ustaff-doc6', name: 'Dr. Kamala Devi', specialization: 'Paediatrics', facilityId: 'h3', qualification: 'MBBS, MD Paediatrics', experience: 9, phone: '9840100106', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 150, rating: 4.3 },
+  // ── Hospital 4: Illupur GH (h4) ────────────────────────────
+  { id: 'd7', userId: 'ustaff-doc7', name: 'Dr. Rajesh Verma', specialization: 'General Medicine', facilityId: 'h4', qualification: 'MBBS, MD', experience: 7, phone: '9840100107', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 100, rating: 4.1 },
+  { id: 'd8', userId: 'ustaff-doc8', name: 'Dr. Anitha R', specialization: 'Orthopaedics', facilityId: 'h4', qualification: 'MBBS, MS Ortho', experience: 11, phone: '9840100108', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 200, rating: 4.4 },
+  // ── Hospital 5: Gandaravakottai PHC (h5) ────────────────────
+  { id: 'd9', userId: 'ustaff-doc9', name: 'Dr. Senthil Kumar', specialization: 'General Medicine', facilityId: 'h5', qualification: 'MBBS', experience: 4, phone: '9840100109', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 100, rating: 4.0 },
+  { id: 'd10', userId: 'ustaff-doc10', name: 'Dr. Lakshmi P', specialization: 'General Medicine', facilityId: 'h5', qualification: 'MBBS', experience: 3, phone: '9840100110', availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], consultationFee: 100, rating: 3.9 },
 ];
 
 // ---------------------------------------------------------------------------
 // Health Workers
 // ---------------------------------------------------------------------------
 export const healthWorkers: HealthWorker[] = [
-  // No hardcoded demo health workers — all created by Hospital Administrators
+  { id: 'hw1', userId: 'ustaff-hw1', name: 'Suganthi M', phone: '9840100201', facilityId: 'h1', area: 'Pudukkottai Town', patientsAssigned: 45 },
+  { id: 'hw2', userId: 'ustaff-hw2', name: 'Rajendran K', phone: '9840100202', facilityId: 'h2', area: 'Alangudi', patientsAssigned: 32 },
+  { id: 'hw3', userId: 'ustaff-hw3', name: 'Senthil Kumaran', phone: '9840100203', facilityId: 'h3', area: 'Aranthangi', patientsAssigned: 38 },
+  { id: 'hw4', userId: 'ustaff-hw4', name: 'Kumar S', phone: '9840100204', facilityId: 'h4', area: 'Illupur', patientsAssigned: 28 },
+  { id: 'hw5', userId: 'ustaff-hw5', name: 'Anitha V', phone: '9840100205', facilityId: 'h5', area: 'Gandaravakottai', patientsAssigned: 22 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -164,11 +182,38 @@ export const healthWorkers: HealthWorker[] = [
 // ---------------------------------------------------------------------------
 import type { User } from '@/types';
 export const staffUsers: User[] = [
-  // Hospital Administrators (created by District Admin)
-  { id: 'uha1', name: 'Admin Rajan', email: 'hospital@demo.com', role: 'hospital_admin', username: 'rajan.admin', password: 'admin123', phone: '9840100010', facilityId: 'f3', status: 'active', createdAt: '2026-01-01', lastLogin: '2026-09-01' },
-  // No hardcoded demo doctors or health workers — all created by Hospital Administrators
-  // District Administrator
+  // ── District Administrator (auto-login, no password needed) ──────────
   { id: 'uga1', name: 'District Collector', email: 'district@demo.com', role: 'gov_admin', username: 'collector.dist', phone: '9860100001', status: 'active', createdAt: '2026-01-01', lastLogin: '2026-09-01' },
+
+  // ── Hospital 1: Pudukkottai Government Hospital (HOS-PDK-001) ────────
+  { id: 'ustaff-ha1', name: 'Rajesh Kumar', email: 'rajesh@pgsh.gov.in', role: 'hospital_admin', username: 'rajesh.pdk001', password: 'Admin@123', phone: '9840100001', facilityId: 'h1', status: 'active', createdAt: '2024-03-15', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc1', name: 'Dr. Arun Kumar', email: 'arun@pgsh.gov.in', role: 'doctor', username: 'arun.pdk001', password: 'Doctor@123', phone: '9840100101', facilityId: 'h1', departmentId: 'Cardiology', status: 'active', createdAt: '2024-04-01', mustChangePassword: true },
+  { id: 'ustaff-doc2', name: 'Dr. Priya Sharma', email: 'priya@pgsh.gov.in', role: 'doctor', username: 'priya.pdk002', password: 'Doctor@123', phone: '9840100102', facilityId: 'h1', departmentId: 'General Medicine', status: 'active', createdAt: '2024-04-01', mustChangePassword: true },
+  { id: 'ustaff-hw1', name: 'Suganthi M', email: 'suganthi@pgsh.gov.in', role: 'health_worker', username: 'suganthi.pdk001', password: 'HW@12345', phone: '9840100201', facilityId: 'h1', status: 'active', createdAt: '2024-05-01', mustChangePassword: true },
+
+  // ── Hospital 2: Alangudi Primary Health Centre (HOS-PDK-002) ─────────
+  { id: 'ustaff-ha2', name: 'Meena Devi', email: 'meena@aphc.gov.in', role: 'hospital_admin', username: 'meena.pdk002', password: 'Admin@123', phone: '9840100002', facilityId: 'h2', status: 'active', createdAt: '2024-06-20', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc3', name: 'Dr. Ravi Shankar', email: 'ravi@aphc.gov.in', role: 'doctor', username: 'ravi.pdk003', password: 'Doctor@123', phone: '9840100103', facilityId: 'h2', departmentId: 'General Medicine', status: 'active', createdAt: '2024-07-01', mustChangePassword: true },
+  { id: 'ustaff-doc4', name: 'Dr. Kavitha N', email: 'kavitha@aphc.gov.in', role: 'doctor', username: 'kavitha.pdk004', password: 'Doctor@123', phone: '9840100104', facilityId: 'h2', departmentId: 'Maternity', status: 'active', createdAt: '2024-07-01', mustChangePassword: true },
+  { id: 'ustaff-hw2', name: 'Rajendran K', email: 'rajendran@aphc.gov.in', role: 'health_worker', username: 'rajendran.pdk002', password: 'HW@12345', phone: '9840100202', facilityId: 'h2', status: 'active', createdAt: '2024-08-01', mustChangePassword: true },
+
+  // ── Hospital 3: Aranthangi Community Health Centre (HOS-PDK-003) ──────
+  { id: 'ustaff-ha3', name: 'Senthil Murugan', email: 'senthil@achc.gov.in', role: 'hospital_admin', username: 'senthil.pdk003', password: 'Admin@123', phone: '9840100003', facilityId: 'h3', status: 'active', createdAt: '2024-01-10', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc5', name: 'Dr. Mohan Prasad', email: 'mohan@achc.gov.in', role: 'doctor', username: 'mohan.pdk005', password: 'Doctor@123', phone: '9840100105', facilityId: 'h3', departmentId: 'Surgery', status: 'active', createdAt: '2024-02-01', mustChangePassword: true },
+  { id: 'ustaff-doc6', name: 'Dr. Kamala Devi', email: 'kamala@achc.gov.in', role: 'doctor', username: 'kamala.pdk006', password: 'Doctor@123', phone: '9840100106', facilityId: 'h3', departmentId: 'Paediatrics', status: 'active', createdAt: '2024-02-01', mustChangePassword: true },
+  { id: 'ustaff-hw3', name: 'Senthil Kumaran', email: 'senthilk@achc.gov.in', role: 'health_worker', username: 'senthilk.pdk003', password: 'HW@12345', phone: '9840100203', facilityId: 'h3', status: 'active', createdAt: '2024-03-01', mustChangePassword: true },
+
+  // ── Hospital 4: Illupur Government Hospital (HOS-PDK-004) ────────────
+  { id: 'ustaff-ha4', name: 'Kavitha R', email: 'kavitha.r@igh.gov.in', role: 'hospital_admin', username: 'kavitha.pdk004', password: 'Admin@123', phone: '9840100004', facilityId: 'h4', status: 'active', createdAt: '2024-09-01', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc7', name: 'Dr. Rajesh Verma', email: 'rajeshv@igh.gov.in', role: 'doctor', username: 'rajeshv.pdk007', password: 'Doctor@123', phone: '9840100107', facilityId: 'h4', departmentId: 'General Medicine', status: 'active', createdAt: '2024-10-01', mustChangePassword: true },
+  { id: 'ustaff-doc8', name: 'Dr. Anitha R', email: 'anitha@igh.gov.in', role: 'doctor', username: 'anitha.pdk008', password: 'Doctor@123', phone: '9840100108', facilityId: 'h4', departmentId: 'Orthopaedics', status: 'active', createdAt: '2024-10-01', mustChangePassword: true },
+  { id: 'ustaff-hw4', name: 'Kumar S', email: 'kumar@igh.gov.in', role: 'health_worker', username: 'kumar.pdk004', password: 'HW@12345', phone: '9840100204', facilityId: 'h4', status: 'active', createdAt: '2024-11-01', mustChangePassword: true },
+
+  // ── Hospital 5: Gandaravakottai PHC (HOS-PDK-005) ───────────────────
+  { id: 'ustaff-ha5', name: 'Priya Shankar', email: 'priya@gphc.gov.in', role: 'hospital_admin', username: 'priya.pdk005', password: 'Admin@123', phone: '9840100005', facilityId: 'h5', status: 'active', createdAt: '2025-02-01', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc9', name: 'Dr. Senthil Kumar', email: 'senthild@gphc.gov.in', role: 'doctor', username: 'senthild.pdk009', password: 'Doctor@123', phone: '9840100109', facilityId: 'h5', departmentId: 'General Medicine', status: 'active', createdAt: '2025-03-01', mustChangePassword: true },
+  { id: 'ustaff-doc10', name: 'Dr. Lakshmi P', email: 'lakshmi@gphc.gov.in', role: 'doctor', username: 'lakshmi.pdk010', password: 'Doctor@123', phone: '9840100110', facilityId: 'h5', departmentId: 'General Medicine', status: 'active', createdAt: '2025-03-01', mustChangePassword: true },
+  { id: 'ustaff-hw5', name: 'Anitha V', email: 'anitha@gphc.gov.in', role: 'health_worker', username: 'anitha.pdk005', password: 'HW@12345', phone: '9840100205', facilityId: 'h5', status: 'active', createdAt: '2025-04-01', mustChangePassword: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -553,53 +598,63 @@ export function getFollowupsForPatient(patientId: string): Followup[] {
 // ---------------------------------------------------------------------------
 export const hospitals: Hospital[] = [
   {
-    id: 'f3', hospitalId: 'HOS-2026-001', name: 'District Government Hospital',
-    type: 'government', address: '42 Medical Center Road',
-    district: 'Madurai', state: 'Tamil Nadu',
-    phone: '0452-2345678', email: 'dgh@district.gov.in',
-    departments: ['General Medicine', 'Cardiology', 'Orthopaedics', 'Paediatrics', 'Obstetrics', 'ENT', 'Ophthalmology'],
+    id: 'h1', hospitalId: 'HOS-PDK-001', name: 'Pudukkottai Government Hospital',
+    type: 'government', address: '12 Anna Salai, Pudukkottai',
+    district: 'Pudukkottai', state: 'Tamil Nadu',
+    phone: '04322-222000', email: 'pgsh@tn.gov.in',
+    departments: ['General Medicine', 'Cardiology', 'Orthopaedics', 'Paediatrics', 'Obstetrics', 'ENT'],
     services: ['OPD', 'IPD', 'Emergency', 'Surgery', 'ICU', 'Laboratory', 'Pharmacy'],
-    totalBeds: 200, occupiedBeds: 156, status: 'active',
-    adminUserId: 'uha1', createdByUserId: 'uga1', createdAt: '2024-03-15',
+    totalBeds: 200, occupiedBeds: 142, status: 'active',
+    adminUserId: 'ustaff-ha1', createdByUserId: 'uga1',
+    adminName: 'Rajesh Kumar', adminUsername: 'rajesh.pdk001', adminEmail: 'rajesh@pgsh.gov.in', adminPhone: '9840100001',
+    createdAt: '2024-03-15',
   },
   {
-    id: 'f1', hospitalId: 'HOS-2026-002', name: 'Maramadakki Primary Health Centre',
-    type: 'government', address: '8 Village Road',
-    district: 'Madurai', state: 'Tamil Nadu',
-    phone: '0452-3456789', email: 'mphc@district.gov.in',
-    departments: ['General Medicine'],
+    id: 'h2', hospitalId: 'HOS-PDK-002', name: 'Alangudi Primary Health Centre',
+    type: 'government', address: '5 Main Road, Alangudi',
+    district: 'Pudukkottai', state: 'Tamil Nadu',
+    phone: '04322-233000', email: 'aphc@tn.gov.in',
+    departments: ['General Medicine', 'Maternity'],
     services: ['OPD', 'Emergency', 'Laboratory', 'Pharmacy'],
     totalBeds: 30, occupiedBeds: 18, status: 'active',
-    adminUserId: 'uha2', createdByUserId: 'uga1', createdAt: '2024-06-20',
+    adminUserId: 'ustaff-ha2', createdByUserId: 'uga1',
+    adminName: 'Meena Devi', adminUsername: 'meena.pdk002', adminEmail: 'meena@aphc.gov.in', adminPhone: '9840100002',
+    createdAt: '2024-06-20',
   },
   {
-    id: 'f2', hospitalId: 'HOS-2026-003', name: 'Aravind Eye Hospital',
-    type: 'trust', address: '15 Anna Salai',
-    district: 'Madurai', state: 'Tamil Nadu',
-    phone: '0452-4567890', email: 'info@aravind.org',
-    departments: ['Ophthalmology'],
-    services: ['OPD', 'Surgery', 'Laboratory'],
-    totalBeds: 120, occupiedBeds: 85, status: 'active',
-    adminUserId: 'uha3', createdByUserId: 'uga1', createdAt: '2023-11-10',
+    id: 'h3', hospitalId: 'HOS-PDK-003', name: 'Aranthangi Community Health Centre',
+    type: 'government', address: '22 Hospital Road, Aranthangi',
+    district: 'Pudukkottai', state: 'Tamil Nadu',
+    phone: '04322-244000', email: 'achc@tn.gov.in',
+    departments: ['General Medicine', 'Surgery', 'Paediatrics'],
+    services: ['OPD', 'IPD', 'Emergency', 'Surgery', 'Laboratory', 'Pharmacy'],
+    totalBeds: 60, occupiedBeds: 41, status: 'active',
+    adminUserId: 'ustaff-ha3', createdByUserId: 'uga1',
+    adminName: 'Senthil Murugan', adminUsername: 'senthil.pdk003', adminEmail: 'senthil@achc.gov.in', adminPhone: '9840100003',
+    createdAt: '2024-01-10',
   },
   {
-    id: 'f4', hospitalId: 'HOS-2026-004', name: 'Meenakshi Mission Hospital',
-    type: 'private', address: '78 RES Colony',
-    district: 'Madurai', state: 'Tamil Nadu',
-    phone: '0452-5678901', email: 'admin@mmh.in',
-    departments: ['General Medicine', 'Cardiology', 'Nephrology', 'Neurology', 'Orthopaedics'],
-    services: ['OPD', 'IPD', 'Emergency', 'Surgery', 'ICU', 'Dialysis', 'Laboratory', 'Pharmacy'],
-    totalBeds: 300, occupiedBeds: 210, status: 'active',
-    adminUserId: 'uha4', createdByUserId: 'uga1', createdAt: '2023-05-01',
+    id: 'h4', hospitalId: 'HOS-PDK-004', name: 'Illupur Government Hospital',
+    type: 'government', address: '8 District Road, Illupur',
+    district: 'Pudukkottai', state: 'Tamil Nadu',
+    phone: '04322-255000', email: 'igh@tn.gov.in',
+    departments: ['General Medicine', 'Orthopaedics'],
+    services: ['OPD', 'Emergency', 'Laboratory', 'Pharmacy'],
+    totalBeds: 40, occupiedBeds: 25, status: 'active',
+    adminUserId: 'ustaff-ha4', createdByUserId: 'uga1',
+    adminName: 'Kavitha R', adminUsername: 'kavitha.pdk004', adminEmail: 'kavitha@igh.gov.in', adminPhone: '9840100004',
+    createdAt: '2024-09-01',
   },
   {
-    id: 'f5', hospitalId: 'HOS-2026-005', name: 'Village Health Centre — Thoor',
-    type: 'government', address: '2 Main Street, Thoor',
-    district: 'Madurai', state: 'Tamil Nadu',
-    phone: '0452-6789012', email: 'vhc-thoor@district.gov.in',
+    id: 'h5', hospitalId: 'HOS-PDK-005', name: 'Gandaravakottai PHC',
+    type: 'government', address: '3 Village Road, Gandaravakottai',
+    district: 'Pudukkottai', state: 'Tamil Nadu',
+    phone: '04322-266000', email: 'gphc@tn.gov.in',
     departments: ['General Medicine'],
     services: ['OPD', 'Emergency', 'Pharmacy'],
     totalBeds: 15, occupiedBeds: 8, status: 'active',
-    adminUserId: 'uha5', createdByUserId: 'uga1', createdAt: '2024-08-01',
+    adminUserId: 'ustaff-ha5', createdByUserId: 'uga1',
+    adminName: 'Priya Shankar', adminUsername: 'priya.pdk005', adminEmail: 'priya@gphc.gov.in', adminPhone: '9840100005',
+    createdAt: '2025-02-01',
   },
 ];

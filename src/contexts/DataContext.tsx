@@ -154,10 +154,10 @@ const DataContext = createContext<DataContextValue | null>(null);
 let nextReferralNum = 11;
 let nextPatientId = 11;
 let nextNotifId = 7;
-let nextHospitalNum = 0; // initialized after hospitals loaded
-let nextHANum = 0;
-let nextDoctorNum = 0;
-let nextHWNum = 0;
+let nextHospitalNum = 6; // starts at 6 to avoid collision with h1-h5 mock data
+let nextHANum = 6; // starts at 6 (hospitals 1-5 already have admins)
+let nextDoctorNum = 11; // starts at 11 (d1-d10 already exist)
+let nextHWNum = 6; // starts at 6 (hw1-hw5 already exist)
 
 // ── ID Generation (PDK format) ─────────────────────────────────
 export function generateHospitalId(num: number) {

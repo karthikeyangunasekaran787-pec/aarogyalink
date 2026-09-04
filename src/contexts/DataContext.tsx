@@ -83,7 +83,10 @@ interface DataContextValue {
   completeConsultation: (referralId: string) => void;
   addTreatment: (referralId: string) => void;
   scheduleFollowup: (referralId: string, date: string, time: string) => void;
+  createFollowup: (data: Omit<Followup, 'id' | 'createdAt'>) => void;
   completeFollowup: (referralId: string) => void;
+  completeFollowupById: (followupId: string) => void;
+  markFollowupMissed: (followupId: string) => void;
   closeReferral: (referralId: string) => void;
   createReferral: (data: Omit<Referral, 'id' | 'referralId' | 'status' | 'currentStep' | 'totalSteps' | 'createdAt' | 'updatedAt' | 'isOverdue'>) => void;
 
@@ -99,10 +102,6 @@ interface DataContextValue {
   addVitals: (data: Omit<Vitals, 'id'>) => void;
   addHealthRecord: (data: Omit<HealthRecord, 'id'>) => void;
   addConsultation: (data: Omit<Consultation, 'id'>) => void;
-
-  // Followup actions
-  completeFollowupById: (followupId: string) => void;
-  markFollowupMissed: (followupId: string) => void;
 
   // Notification actions
   addNotification: (data: Omit<Notification, 'id' | 'createdAt'>) => void;
@@ -405,7 +404,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return { ...r, status: 'followup' as ReferralStatus, currentStep: 7, updatedAt: now() };
     }));
     addReferralEvent(referralId, 'followup', `Follow-up scheduled for ${date} at ${time}`, 'Doctor');
-  }, [addReferralEvent]);
+    // Also create a Followup record so it appears in the follow-ups tab
+    const ref = referrals.find(r => r.id === referralId);
+    if (ref) {
+      const fu: Followup = {
+        id: `fu-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        referralId: ref.id,
+        patientId: ref.patientId,
+        patientName: ref.patientName,
+        doctorId: ref.doctorId || '',
+        doctorName: ref.doctorName || 'Doctor',
+        facilityName: ref.destinationFacilityName,
+        scheduledDate: date,
+        scheduledTime: time,
+        status: 'scheduled',
+        reason: ref.reason || 'Follow-up consultation',
+        createdAt: now().split('T')[0],
+      };
+      setFollowups(prev => [...prev, fu]);
+    }
+  }, [referrals, addReferralEvent]);
 
   const completeFollowup = useCallback((referralId: string) => {
     setReferrals(prev => prev.map(r => {
@@ -413,8 +431,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (r.status !== 'followup') return r;
       return { ...r, status: 'closed' as ReferralStatus, currentStep: 8, closedAt: now(), updatedAt: now() };
     }));
+    // Mark all followups for this referral as completed
+    setFollowups(prev => prev.map(f => f.referralId === referralId ? { ...f, status: 'completed' as FollowupStatus } : f));
     addReferralEvent(referralId, 'closed', 'Follow-up completed. Referral closed.', 'System');
   }, [addReferralEvent]);
+
+  const createFollowup = useCallback((data: Omit<Followup, 'id' | 'createdAt'>) => {
+    const fu: Followup = {
+      ...data,
+      id: `fu-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      createdAt: now().split('T')[0],
+    };
+    setFollowups(prev => [...prev, fu]);
+  }, []);
+
+  const completeFollowupById = useCallback((followupId: string) => {
+    setFollowups(prev => prev.map(f => f.id === followupId ? { ...f, status: 'completed' as FollowupStatus } : f));
+  }, []);
+
+  const markFollowupMissed = useCallback((followupId: string) => {
+    setFollowups(prev => prev.map(f => f.id === followupId ? { ...f, status: 'missed' as FollowupStatus } : f));
+  }, []);
 
   const closeReferral = useCallback((referralId: string) => {
     setReferrals(prev => prev.map(r => {
@@ -506,15 +543,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const addConsultation = useCallback((data: Omit<Consultation, 'id'>) => {
     setConsultations(prev => [...prev, { ...data, id: `c${Date.now()}` }]);
-  }, []);
-
-  // ── Followup actions ──────────────────────────────────────────
-  const completeFollowupById = useCallback((followupId: string) => {
-    setFollowups(prev => prev.map(f => f.id === followupId ? { ...f, status: 'completed' as FollowupStatus } : f));
-  }, []);
-
-  const markFollowupMissed = useCallback((followupId: string) => {
-    setFollowups(prev => prev.map(f => f.id === followupId ? { ...f, status: 'missed' as FollowupStatus } : f));
   }, []);
 
   // ── Notification actions ──────────────────────────────────────
@@ -698,7 +726,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     districtAnalytics: computedAnalytics,
     referralFunnel: computedReferralFunnel,
     acceptReferral, rejectReferral, scheduleReferral, confirmArrival, startConsultation,
-    completeConsultation, addTreatment, scheduleFollowup, completeFollowup, closeReferral, createReferral,
+    completeConsultation, addTreatment, scheduleFollowup, createFollowup, completeFollowup, closeReferral, createReferral,
     bookAppointment, cancelAppointment, completeAppointment,
     addPatient, addDoctor, addHealthWorker, addVitals, addHealthRecord, addConsultation,
     completeFollowupById, markFollowupMissed,

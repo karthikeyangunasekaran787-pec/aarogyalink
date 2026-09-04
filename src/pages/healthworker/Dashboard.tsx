@@ -45,7 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function HWDashboard() {
   const { language, currentUser } = useApp();
-  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient } = useData();
+  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient, completeFollowupById, markFollowupMissed, completeFollowup } = useData();
   const navigate = useNavigate();
 
   // Load health workers from context or localStorage as fallback
@@ -95,8 +95,8 @@ export default function HWDashboard() {
   });
   const highRiskPatients = hwPatients.filter(p => p.chronicConditions && p.chronicConditions.length > 0);
   const pendingReferrals = referrals.filter(r => (r.status === 'created' || r.status === 'accepted') && r.sourceFacilityId === hwHospitalId);
-  const overdueFollowups = followups.filter(f => (f.status === 'missed' || f.status === 'overdue') && f.facilityName === (facilities.find(fac => fac.id === hwHospitalId)?.name || ''));
-  const dueFollowups = followups.filter(f => f.status === 'scheduled' && f.facilityName === (facilities.find(fac => fac.id === hwHospitalId)?.name || ''));
+  const overdueFollowups = followups.filter(f => (f.status === 'missed' || f.status === 'overdue'));
+  const dueFollowups = followups.filter(f => f.status === 'scheduled');
   const closedReferrals = referrals.filter(r => r.status === 'closed' && (r.sourceFacilityId === hwHospitalId || r.destinationFacilityId === hwHospitalId));
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -890,6 +890,28 @@ export default function HWDashboard() {
 
       {selectedTab === 'followups' && (
         <div className="space-y-3">
+          {/* Follow-up Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="p-3 text-center">
+                <p className="text-xl font-bold text-blue-600">{dueFollowups.length}</p>
+                <p className="text-[10px] text-muted-foreground">Scheduled</p>
+              </CardContent>
+            </Card>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="p-3 text-center">
+                <p className="text-xl font-bold text-red-600">{overdueFollowups.length}</p>
+                <p className="text-[10px] text-muted-foreground">Overdue / Missed</p>
+              </CardContent>
+            </Card>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="p-3 text-center">
+                <p className="text-xl font-bold text-emerald-600">{followups.filter(f => f.status === 'completed').length}</p>
+                <p className="text-[10px] text-muted-foreground">Completed</p>
+              </CardContent>
+            </Card>
+          </div>
+
           {[...dueFollowups, ...overdueFollowups].length === 0 ? (
             <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No pending follow-ups</CardContent></Card>
           ) : [...dueFollowups, ...overdueFollowups].map(f => (
@@ -910,6 +932,24 @@ export default function HWDashboard() {
                     {f.status === 'missed' ? 'Missed' : f.status === 'scheduled' ? 'Due' : f.status}
                   </Badge>
                 </div>
+                {f.status === 'scheduled' && (
+                  <div className="flex gap-2 mt-3">
+                    <Button size="sm" className="h-7 text-xs gap-1" onClick={() => {
+                      completeFollowupById(f.id);
+                      // Also close the associated referral if it exists
+                      if (f.referralId) completeFollowup(f.referralId);
+                      showFeedback(`Follow-up completed for ${f.patientName}`);
+                    }}>
+                      <CheckCircle2 className="h-3 w-3" /> Mark Complete
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => {
+                      markFollowupMissed(f.id);
+                      showFeedback(`Follow-up marked as missed for ${f.patientName}`);
+                    }}>
+                      <XCircle className="h-3 w-3" /> Mark Missed
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

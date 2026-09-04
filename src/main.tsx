@@ -119,7 +119,7 @@ createRoot(document.getElementById("root")!).render(
               <Suspense fallback={<RouteLoading />}>
                 <Routes>
                   {/* Public Routes */}
-                  <Route path="/" element={<Landing />} />
+                  <Route path="/" element={<RoleSelect />} />
                   <Route path="/role-select" element={<RoleSelect />} />
                   <Route path="/auth" element={<AuthPage />} />
 

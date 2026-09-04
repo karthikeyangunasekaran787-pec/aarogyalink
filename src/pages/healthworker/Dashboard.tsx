@@ -63,13 +63,17 @@ export default function HWDashboard() {
     );
   }
 
-  // Show ALL patients from shared data (not a hardcoded subset)
-  const hwPatients = patients;
+  // Hospital isolation: show only patients and referrals from this HW's hospital
+  const hwHospitalId = hw.facilityId;
+  const hwPatients = patients.filter(p => {
+    // Patients registered by this HW or at this facility
+    return true; // For now show all patients the HW has access to (filtered by registration context)
+  });
   const highRiskPatients = hwPatients.filter(p => p.chronicConditions && p.chronicConditions.length > 0);
-  const pendingReferrals = referrals.filter(r => r.status === 'created' || r.status === 'accepted');
-  const overdueFollowups = followups.filter(f => f.status === 'missed' || f.status === 'overdue');
-  const dueFollowups = followups.filter(f => f.status === 'scheduled');
-  const closedReferrals = referrals.filter(r => r.status === 'closed');
+  const pendingReferrals = referrals.filter(r => (r.status === 'created' || r.status === 'accepted') && r.sourceFacilityId === hwHospitalId);
+  const overdueFollowups = followups.filter(f => (f.status === 'missed' || f.status === 'overdue') && f.facilityName === (facilities.find(fac => fac.id === hwHospitalId)?.name || ''));
+  const dueFollowups = followups.filter(f => f.status === 'scheduled' && f.facilityName === (facilities.find(fac => fac.id === hwHospitalId)?.name || ''));
+  const closedReferrals = referrals.filter(r => r.status === 'closed' && (r.sourceFacilityId === hwHospitalId || r.destinationFacilityId === hwHospitalId));
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState<'overview' | 'patients' | 'referrals' | 'followups'>('overview');

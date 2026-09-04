@@ -12,7 +12,7 @@ import { useData } from '@/contexts/DataContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Heart, Mail, LogIn, AlertCircle, CheckCircle2, User, Lock } from 'lucide-react';
+import { Heart, Mail, LogIn, AlertCircle, CheckCircle2, User, Lock, KeyRound } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   patient: 'Patient',
@@ -40,7 +40,7 @@ const DISTRICT_ADMIN_DEMO = {
 
 export default function AuthPage() {
   const { currentRole, login, loginPatient, loginStaff } = useApp();
-  const { getPatientByEmail, staffUsers, facilities, hospitals } = useData();
+  const { getPatientByEmail, staffUsers, facilities, hospitals, updateStaffUser } = useData();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -50,6 +50,12 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [foundPatient, setFoundPatient] = useState<{ name: string; healthCardId: string } | null>(null);
+  const [pendingPasswordChange, setPendingPasswordChange] = useState<{
+    userId: string;
+    newPassword: string;
+    confirmPassword: string;
+  } | null>(null);
+  const [pwError, setPwError] = useState('');
 
   const returnTo = (location.state as { from?: { pathname: string } })?.from?.pathname || ROLE_ROUTES[currentRole] || '/patient/dashboard';
   const isPatient = currentRole === 'patient';
@@ -139,8 +145,12 @@ export default function AuthPage() {
       return;
     }
 
-    // For demo: password is not validated (any password works)
-    // In production, this would validate against password_hash
+    // Check if user must change password on first login
+    if (staffUser.mustChangePassword) {
+      setPendingPasswordChange({ userId: staffUser.id, newPassword: '', confirmPassword: '' });
+      setLoading(false);
+      return;
+    }
 
     // Login with the actual staff user data from the database
     // Look up facility name — check both facilities and hospitals (District Admin may have registered new hospitals)
@@ -161,6 +171,123 @@ export default function AuthPage() {
 
     navigate(returnTo, { replace: true });
   }, [username, password, currentRole, staffUsers, loginStaff, navigate, returnTo, facilities, hospitals]);
+
+  // Handle force password change submission
+  const handlePasswordChange = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError('');
+    if (!pendingPasswordChange) return;
+    if (pendingPasswordChange.newPassword.length < 6) {
+      setPwError('Password must be at least 6 characters.');
+      return;
+    }
+    if (pendingPasswordChange.newPassword !== pendingPasswordChange.confirmPassword) {
+      setPwError('Passwords do not match.');
+      return;
+    }
+    // Update the user's password and mustChangePassword flag
+    const updatedUser = staffUsers.find(u => u.id === pendingPasswordChange.userId);
+    if (updatedUser) {
+      updateStaffUser(updatedUser.id, {
+        password: pendingPasswordChange.newPassword,
+        mustChangePassword: false,
+      });
+      // Now login
+      const staffFacility = updatedUser.facilityId
+        ? (facilities.find(f => f.id === updatedUser.facilityId) || hospitals.find(h => h.id === updatedUser.facilityId))
+        : undefined;
+      loginStaff({
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        facilityId: updatedUser.facilityId,
+        facilityName: staffFacility?.name || 'Unknown Facility',
+        departmentName: updatedUser.departmentId,
+        departmentId: updatedUser.departmentId,
+      });
+      navigate(returnTo, { replace: true });
+    }
+  }, [pendingPasswordChange, staffUsers, updateStaffUser, facilities, hospitals, loginStaff, navigate, returnTo]);
+
+  // ── Force Password Change Screen ──
+  if (pendingPasswordChange) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8">
+        <Link to="/role-select" className="text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
+          ← Change Role
+        </Link>
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
+            <Heart className="h-5 w-5 text-primary-foreground" fill="currentColor" />
+          </div>
+          <div>
+            <span className="text-lg font-bold text-foreground tracking-tight">Aarogya</span>
+            <span className="text-lg font-bold text-primary tracking-tight ml-0">Link</span>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground mb-6">Connecting Rural Patients to the Right Care — Until Recovery.</p>
+
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 space-y-5">
+            <div className="text-center">
+              <div className="h-12 w-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-3">
+                <KeyRound className="h-6 w-6 text-amber-600" />
+              </div>
+              <h1 className="text-xl font-bold text-foreground">Change Your Password</h1>
+              <p className="text-xs text-muted-foreground mt-1">This is your first login. Please set a new password to continue.</p>
+            </div>
+
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">New Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    value={pendingPasswordChange.newPassword}
+                    onChange={(e) => { setPendingPasswordChange(p => p ? { ...p, newPassword: e.target.value } : null); setPwError(''); }}
+                    placeholder="Enter new password (min 6 characters)"
+                    className="pl-9 h-11"
+                    autoFocus
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Confirm New Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    value={pendingPasswordChange.confirmPassword}
+                    onChange={(e) => { setPendingPasswordChange(p => p ? { ...p, confirmPassword: e.target.value } : null); setPwError(''); }}
+                    placeholder="Confirm new password"
+                    className="pl-9 h-11"
+                    required
+                  />
+                </div>
+              </div>
+
+              {pwError && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {pwError}
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-11">
+                <span className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  Set New Password & Continue
+                </span>
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8">

@@ -116,6 +116,12 @@ export interface Hospital {
   status: 'active' | 'inactive' | 'suspended';
   adminUserId: string; // the hospital_admin user who manages this hospital
   createdByUserId: string; // district admin who created it
+  // Admin credentials (used during creation, stored for display)
+  adminName?: string;
+  adminUsername?: string;
+  adminEmail?: string;
+  adminPhone?: string;
+  adminTempPassword?: string; // shown once at creation
   createdAt: string;
 }
 

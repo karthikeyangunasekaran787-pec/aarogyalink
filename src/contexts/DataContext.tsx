@@ -94,8 +94,8 @@ interface DataContextValue {
 
   // Patient actions
   addPatient: (data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => Patient;
-  addDoctor: (data: Omit<Doctor, 'id'>) => Doctor;
-  addHealthWorker: (data: Omit<HealthWorker, 'id'>) => HealthWorker;
+  addDoctor: (data: Omit<Doctor, 'id'>) => { doctor: Doctor; credentials: { doctorId: string; username: string; tempPassword: string } };
+  addHealthWorker: (data: Omit<HealthWorker, 'id'>) => { hw: HealthWorker; credentials: { hwId: string; username: string; tempPassword: string } };
   addVitals: (data: Omit<Vitals, 'id'>) => void;
   addHealthRecord: (data: Omit<HealthRecord, 'id'>) => void;
   addConsultation: (data: Omit<Consultation, 'id'>) => void;
@@ -125,7 +125,7 @@ interface DataContextValue {
   getStaffByRole: (role: Role) => User[];
 
   // Hospital management (District Admin)
-  addHospital: (data: Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'>) => Hospital;
+  addHospital: (data: Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'>) => { hospital: Hospital; adminCredentials: { adminUserId: string; adminId: string; username: string; tempPassword: string } };
   updateHospital: (hospitalId: string, data: Partial<Hospital>) => void;
   toggleHospitalStatus: (hospitalId: string) => void;
   removeHospital: (hospitalId: string) => void;
@@ -155,6 +155,50 @@ let nextReferralNum = 11;
 let nextPatientId = 11;
 let nextNotifId = 7;
 let nextHospitalNum = 0; // initialized after hospitals loaded
+let nextHANum = 0;
+let nextDoctorNum = 0;
+let nextHWNum = 0;
+
+// ── ID Generation (PDK format) ─────────────────────────────────
+export function generateHospitalId(num: number) {
+  return `HOS-PDK-${String(num).padStart(3, '0')}`;
+}
+export function generateAdminId(num: number) {
+  return `HA-PDK-${String(num).padStart(3, '0')}`;
+}
+export function generateDoctorId(num: number) {
+  return `DOC-PDK-${String(num).padStart(3, '0')}`;
+}
+export function generateHWId(num: number) {
+  return `HW-PDK-${String(num).padStart(3, '0')}`;
+}
+export function generatePatientId(num: number) {
+  return `PAT-PDK-${String(num).padStart(4, '0')}`;
+}
+export function generateHealthCardId(num: number) {
+  return `HC-PDK-${String(num).padStart(4, '0')}`;
+}
+export function generateReferralId(num: number) {
+  return `REF-PDK-${String(num).padStart(4, '0')}`;
+}
+
+// ── Temporary Password Generation ───────────────────────────────
+export function generateTempPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let pw = '';
+  const arr = new Uint8Array(10);
+  if (typeof window !== 'undefined' && window.crypto) {
+    window.crypto.getRandomValues(arr);
+    for (let i = 0; i < 10; i++) pw += chars[arr[i] % chars.length];
+  } else {
+    for (let i = 0; i < 10; i++) pw += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  // Ensure at least one uppercase, one lowercase, one digit
+  if (!/[A-Z]/.test(pw)) pw = 'A' + pw.slice(1);
+  if (!/[a-z]/.test(pw)) pw = pw.slice(0, 1) + 'a' + pw.slice(2);
+  if (!/[0-9]/.test(pw)) pw = pw.slice(0, 2) + '7' + pw.slice(3);
+  return pw;
+}
 
 // ── localStorage persistence helpers ──────────────────────────────
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -405,17 +449,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addDoctor = useCallback((data: Omit<Doctor, 'id'>) => {
-    const id = `d${Date.now()}`;
+    const num = nextDoctorNum++;
+    const id = `d${num}`;
+    const doctorId = generateDoctorId(num);
     const doctor: Doctor = { ...data, id };
     setDoctorsList(prev => [...prev, doctor]);
-    return doctor;
+    const username = (data as Record<string, unknown>).username as string || `doc.pdk${String(num).padStart(3, '0')}`;
+    const tempPassword = (data as Record<string, unknown>).tempPassword as string || generateTempPassword();
+    return {
+      doctor,
+      credentials: { doctorId, username, tempPassword },
+    };
   }, []);
 
   const addHealthWorker = useCallback((data: Omit<HealthWorker, 'id'>) => {
-    const id = `hw${Date.now()}`;
+    const num = nextHWNum++;
+    const id = `hw${num}`;
+    const hwId = generateHWId(num);
     const hw: HealthWorker = { ...data, id };
     setHealthWorkersList(prev => [...prev, hw]);
-    return hw;
+    const username = (data as Record<string, unknown>).username as string || `hw.pdk${String(num).padStart(3, '0')}`;
+    const tempPassword = (data as Record<string, unknown>).tempPassword as string || generateTempPassword();
+    return {
+      hw,
+      credentials: { hwId, username, tempPassword },
+    };
   }, []);
 
   const addVitals = useCallback((data: Omit<Vitals, 'id'>) => {
@@ -521,11 +579,48 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const hospital: Hospital = {
       ...data,
       id: `h${num}`,
-      hospitalId: `HOS-2026-${String(num).padStart(3, '0')}`,
+      hospitalId: generateHospitalId(num),
       createdAt: now().split('T')[0],
     };
     setHospitalsList(prev => [...prev, hospital]);
-    return hospital;
+
+    // Auto-generate admin credentials
+    const haNum = nextHANum++;
+    const adminUserId = `ustaff-ha-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const username = data.adminUsername || `hosadmin.pdk${String(haNum).padStart(3, '0')}`;
+    const tempPassword = data.adminTempPassword || generateTempPassword();
+
+    const adminUser: User = {
+      id: adminUserId,
+      name: data.adminName || '',
+      email: data.adminEmail || '',
+      role: 'hospital_admin',
+      username,
+      password: tempPassword,
+      phone: data.adminPhone || '',
+      facilityId: hospital.id,
+      status: 'active',
+      createdBy: data.createdByUserId,
+      createdAt: now().split('T')[0],
+      mustChangePassword: true,
+    };
+    setStaffUsersList(prev => [...prev, adminUser]);
+
+    // Update hospital with admin user ID and credential display fields
+    setHospitalsList(prev => prev.map(h => h.id === hospital.id ? {
+      ...h,
+      adminUserId,
+      adminName: data.adminName,
+      adminUsername: username,
+      adminEmail: data.adminEmail,
+      adminPhone: data.adminPhone,
+      adminTempPassword: tempPassword,
+    } : h));
+
+    return {
+      hospital: { ...hospital, adminUserId, adminName: data.adminName, adminUsername: username, adminTempPassword: tempPassword },
+      adminCredentials: { adminUserId, adminId: generateAdminId(haNum), username, tempPassword },
+    };
   }, []);
 
   const updateHospital = useCallback((hospitalId: string, data: Partial<Hospital>) => {

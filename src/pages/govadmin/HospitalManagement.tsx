@@ -6,13 +6,14 @@
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
+import { generateTempPassword } from '@/contexts/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Building2, Plus, Search, MapPin, Phone, Mail,
   Bed, Edit2, Power, PowerOff, ChevronDown, ChevronUp,
-  AlertCircle, CheckCircle2, X, Trash2, Lock
+  AlertCircle, CheckCircle2, X, Trash2, Lock, Copy, Download, Check
 } from 'lucide-react';
 import type { Hospital } from '@/types';
 
@@ -53,6 +54,20 @@ export default function HospitalManagement() {
   const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [validationError, setValidationError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    hospital: Hospital;
+    adminId: string;
+    username: string;
+    tempPassword: string;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    }).catch(() => {});
+  };
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
@@ -72,8 +87,8 @@ export default function HospitalManagement() {
     }
     setValidationError('');
 
-    // Create hospital
-    const hospital = addHospital({
+    // Create hospital — addHospital auto-generates admin credentials
+    const { hospital, adminCredentials } = addHospital({
       name: form.name,
       type: form.type,
       address: form.address,
@@ -88,26 +103,20 @@ export default function HospitalManagement() {
       status: 'active',
       adminUserId: '',
       createdByUserId: currentUser?.id || '',
+      adminName: form.adminName,
+      adminUsername: form.adminUsername,
+      adminEmail: form.adminEmail,
+      adminPhone: form.adminPhone,
+      adminTempPassword: form.adminPassword || undefined,
     });
 
-    // Create Hospital Administrator account with provided login credentials
-    const adminUser = addStaffUser({
-      name: form.adminName,
-      email: form.adminEmail,
-      role: 'hospital_admin',
-      username: form.adminUsername,
-      password: form.adminPassword,
-      phone: form.adminPhone,
-      facilityId: hospital.id,
-      status: 'active',
-      createdBy: currentUser?.id,
-      mustChangePassword: false,
+    // Show credential confirmation screen
+    setCreatedCredentials({
+      hospital,
+      adminId: adminCredentials.adminId,
+      username: adminCredentials.username,
+      tempPassword: adminCredentials.tempPassword,
     });
-
-    // Update hospital with admin user ID
-    updateHospital(hospital.id, { adminUserId: adminUser.id });
-
-    showFeedback('success', `Hospital "${form.name}" created with administrator account "${form.adminUsername}".`);
     setForm({ ...EMPTY_FORM });
     setShowForm(false);
   };
@@ -181,6 +190,93 @@ export default function HospitalManagement() {
           {feedback.message}
           <button onClick={() => setFeedback(null)} className="ml-auto cursor-pointer"><X className="h-3.5 w-3.5" /></button>
         </div>
+      )}
+
+      {/* Credential Confirmation Screen */}
+      {createdCredentials && (
+        <Card className="border-emerald-200 bg-emerald-50/30">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Hospital Created Successfully</h3>
+                <p className="text-xs text-muted-foreground">Save these credentials securely. The password is shown only once.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Hospital Name</p>
+                  <p className="text-sm font-semibold text-foreground">{createdCredentials.hospital.name}</p>
+                </div>
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Hospital ID</p>
+                  <p className="text-sm font-semibold text-foreground">{createdCredentials.hospital.hospitalId}</p>
+                </div>
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Hospital Administrator</p>
+                  <p className="text-sm font-semibold text-foreground">{createdCredentials.hospital.adminName || 'Admin'}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Admin ID</p>
+                  <p className="text-sm font-semibold text-foreground">{createdCredentials.adminId}</p>
+                </div>
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Username</p>
+                      <p className="text-sm font-semibold text-foreground font-mono">{createdCredentials.username}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => copyToClipboard(createdCredentials.username, 'username')}>
+                      {copiedField === 'username' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                      {copiedField === 'username' ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Temporary Password</p>
+                      <p className="text-sm font-semibold text-foreground font-mono">{createdCredentials.tempPassword}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => copyToClipboard(createdCredentials.tempPassword, 'password')}>
+                      {copiedField === 'password' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                      {copiedField === 'password' ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <Lock className="h-4 w-4 text-amber-600 flex-shrink-0" />
+              <p className="text-xs text-amber-700">The Hospital Administrator must change this temporary password on first login.</p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  const creds = `Hospital: ${createdCredentials.hospital.name}\nHospital ID: ${createdCredentials.hospital.hospitalId}\nAdmin: ${createdCredentials.hospital.adminName}\nAdmin ID: ${createdCredentials.adminId}\nUsername: ${createdCredentials.username}\nPassword: ${createdCredentials.tempPassword}`;
+                  copyToClipboard(creds, 'all');
+                }}
+              >
+                {copiedField === 'all' ? <Check className="h-3 w-3" /> : <Download className="h-3 w-3" />}
+                {copiedField === 'all' ? 'Copied!' : 'Copy All Credentials'}
+              </Button>
+              <Button size="sm" onClick={() => setCreatedCredentials(null)}>
+                Done
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Stats */}

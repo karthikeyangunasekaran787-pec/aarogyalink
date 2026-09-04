@@ -6,13 +6,14 @@
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
+import { generateTempPassword } from '@/contexts/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   Users, Stethoscope, Heart, Plus, Search, Edit2, UserX, UserCheck, Trash2,
-  CheckCircle2, AlertCircle, X
+  CheckCircle2, AlertCircle, X, Copy, Check, Lock
 } from 'lucide-react';
 import type { User, Role } from '@/types';
 
@@ -57,6 +58,22 @@ export default function StaffManagement() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [createdStaffCredentials, setCreatedStaffCredentials] = useState<{
+    name: string;
+    role: string;
+    staffId: string;
+    username: string;
+    tempPassword: string;
+    hospital: string;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    }).catch(() => {});
+  };
 
   const showFeedback = (msg: string) => {
     setFeedback(msg);
@@ -82,10 +99,13 @@ export default function StaffManagement() {
     }
 
     const role: Role = form.role;
+    const username = form.username || (role === 'doctor' ? `doc.${hospitalFacilityId}${Date.now().toString().slice(-3)}` : `hw.${hospitalFacilityId}${Date.now().toString().slice(-3)}`);
+    const tempPassword = form.password || generateTempPassword();
+
     const newStaff = addStaffUser({
       name: form.name,
-      username: form.username,
-      password: form.password,
+      username,
+      password: tempPassword,
       email: form.email,
       phone: form.phone,
       role,
@@ -93,11 +113,14 @@ export default function StaffManagement() {
       departmentId: form.department || undefined,
       status: 'active',
       createdBy: currentUser?.id,
+      mustChangePassword: true,
     });
+
+    let staffId = '';
 
     // Also create a doctor record so the doctor dashboard shows their data
     if (role === 'doctor') {
-      addDoctor({
+      const { doctor, credentials } = addDoctor({
         userId: newStaff.id,
         name: newStaff.name,
         specialization: form.department || 'General Medicine',
@@ -108,24 +131,39 @@ export default function StaffManagement() {
         availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
         consultationFee: 100,
         rating: 0,
-      });
+        username: username,
+        tempPassword: tempPassword,
+      } as Omit<import('@/types').Doctor, 'id'>);
+      staffId = credentials.doctorId;
     }
 
     // Also create a health worker record so the HW dashboard shows their data
     if (role === 'health_worker') {
-      addHealthWorker({
+      const { hw, credentials } = addHealthWorker({
         userId: newStaff.id,
         name: newStaff.name,
         phone: newStaff.phone || '',
         facilityId: hospitalFacilityId,
         area: form.area || '',
         patientsAssigned: 0,
-      });
+        username: username,
+        tempPassword: tempPassword,
+      } as Omit<import('@/types').HealthWorker, 'id'>);
+      staffId = credentials.hwId;
     }
+
+    // Show credential confirmation screen
+    setCreatedStaffCredentials({
+      name: form.name,
+      role: role === 'doctor' ? 'Doctor' : 'Health Worker',
+      staffId,
+      username,
+      tempPassword,
+      hospital: facility?.name || 'Hospital',
+    });
 
     setForm(INITIAL_FORM);
     setShowForm(false);
-    showFeedback(`✅ ${role === 'doctor' ? 'Doctor' : 'Health Worker'} account created: ${newStaff.name} — Username: ${newStaff.username}, Password: ${form.password}`);
   };
 
   const handleToggleStatus = (userId: string, currentStatus: string) => {
@@ -209,6 +247,85 @@ export default function StaffManagement() {
         <div className="fixed top-20 right-6 z-50 bg-white border border-border rounded-xl shadow-lg px-4 py-3 text-sm font-medium text-foreground animate-in fade-in slide-in-from-top-2">
           {feedback}
         </div>
+      )}
+
+      {/* Credential Confirmation Screen */}
+      {createdStaffCredentials && (
+        <Card className="border-emerald-200 bg-emerald-50/30">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">{createdStaffCredentials.role} Account Created Successfully</h3>
+                <p className="text-xs text-muted-foreground">Save these credentials securely. The password is shown only once.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Name</p>
+                  <p className="text-sm font-semibold text-foreground">{createdStaffCredentials.name}</p>
+                </div>
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{createdStaffCredentials.role} ID</p>
+                  <p className="text-sm font-semibold text-foreground">{createdStaffCredentials.staffId}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Username</p>
+                      <p className="text-sm font-semibold text-foreground font-mono">{createdStaffCredentials.username}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => copyToClipboard(createdStaffCredentials.username, 'username')}
+                    >
+                      {copiedField === 'username' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                      {copiedField === 'username' ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Temporary Password</p>
+                      <p className="text-sm font-semibold text-foreground font-mono">{createdStaffCredentials.tempPassword}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => copyToClipboard(createdStaffCredentials.tempPassword, 'password')}
+                    >
+                      {copiedField === 'password' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                      {copiedField === 'password' ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-white rounded-lg border border-border">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Hospital</p>
+              <p className="text-sm font-semibold text-foreground">{createdStaffCredentials.hospital}</p>
+            </div>
+
+            <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <Lock className="h-4 w-4 text-amber-600 flex-shrink-0" />
+              <p className="text-xs text-amber-700">This is a temporary password. The user must change it on first login.</p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                const creds = `${createdStaffCredentials.role}: ${createdStaffCredentials.name}\nID: ${createdStaffCredentials.staffId}\nUsername: ${createdStaffCredentials.username}\nPassword: ${createdStaffCredentials.tempPassword}\nHospital: ${createdStaffCredentials.hospital}`;
+                copyToClipboard(creds, 'all');
+              }}>
+                {copiedField === 'all' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copiedField === 'all' ? 'Copied!' : 'Copy All Credentials'}
+              </Button>
+              <Button size="sm" onClick={() => setCreatedStaffCredentials(null)}>Done</Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="flex items-start justify-between">

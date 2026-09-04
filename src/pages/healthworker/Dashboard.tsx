@@ -333,7 +333,7 @@ export default function HWDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <Link to="/health-worker/register">
           <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
             <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
@@ -344,12 +344,12 @@ export default function HWDashboard() {
             </CardContent>
           </Card>
         </Link>
-        <Card className="hover:shadow-md transition-shadow cursor-pointer h-full" onClick={() => navigate('/patient/ai-triage')}>
+        <Card className="hover:shadow-md transition-shadow cursor-pointer h-full" onClick={() => setSelectedTab('overview')}>
           <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
             <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <Stethoscope className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-xs font-medium text-foreground">AI Triage</span>
+            <span className="text-xs font-medium text-foreground">Overview</span>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow cursor-pointer h-full" onClick={() => setSelectedTab('patients')}>
@@ -657,10 +657,11 @@ export default function HWDashboard() {
                     variant="ghost"
                     className="h-7 text-xs gap-1"
                     onClick={() => {
-                      navigate(`/patient/timeline`);
+                      setVitalsPatientId(p.id);
+                      handleEditVitals(p.id);
                     }}
                   >
-                    View <ChevronRight className="h-3 w-3" />
+                    Vitals <ChevronRight className="h-3 w-3" />
                   </Button>
                 </div>
                 {/* Show latest vitals if available */}

@@ -147,7 +147,7 @@ export default function PatientHome() {
               activeReferrals.map((ref) => (
                 <Link
                   key={ref.id}
-                  to={`/app/referrals/${ref.id}`}
+                  to={`/patient/referrals/${ref.id}`}
                   className="block rounded-lg border border-border p-3 hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-start justify-between mb-2">

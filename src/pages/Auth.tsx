@@ -393,7 +393,7 @@ export default function AuthPage() {
                   <Input
                     value={username}
                     onChange={(e) => { setUsername(e.target.value); setError(''); }}
-                    placeholder={currentRole === 'doctor' ? 'e.g. senthil.gm' : currentRole === 'health_worker' ? 'e.g. suganthi.hw' : 'e.g. rajan.admin'}
+                    placeholder={currentRole === 'doctor' ? 'e.g. arun.pdk001' : currentRole === 'health_worker' ? 'e.g. suganthi.pdk001' : 'e.g. rajesh.pdk001'}
                     className="pl-9 h-11"
                     autoFocus
                     required

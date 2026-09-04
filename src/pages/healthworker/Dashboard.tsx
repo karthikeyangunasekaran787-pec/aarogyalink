@@ -4,7 +4,7 @@
 
 import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router';
-import type { HealthWorker, Referral, ReferralEvent, ReferralStatus } from '@/types';
+import type { HealthWorker, Referral, ReferralEvent, ReferralStatus, Vitals } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
@@ -17,7 +17,8 @@ import { PriorityBadge } from '@/components/shared/RiskBadge';
 import {
   Users, AlertTriangle, FileText, Bell, UserPlus,
   Search, Activity, Stethoscope, PenLine, ChevronRight,
-  Clock, CheckCircle2, XCircle, Eye, X, MapPin, Calendar
+  Clock, CheckCircle2, XCircle, Eye, X, MapPin, Calendar,
+  Heart, Thermometer, Droplets, Ruler, Edit2, Save
 } from 'lucide-react';
 
 const REFERRAL_STEPS = [
@@ -44,7 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function HWDashboard() {
   const { language, currentUser } = useApp();
-  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification, getReferralEvents } = useData();
+  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient } = useData();
   const navigate = useNavigate();
 
   // Load health workers from context or localStorage as fallback
@@ -129,6 +130,69 @@ export default function HWDashboard() {
     : referralFilter === 'active' ? activeMyReferrals
     : completedMyReferrals;
 
+  // ── Vitals Entry State ──────────────────────────────────────
+  const [vitalsPatientId, setVitalsPatientId] = useState<string | null>(null);
+  const [editingVitalsId, setEditingVitalsId] = useState<string | null>(null);
+  const [vitalsForm, setVitalsForm] = useState({
+    systolic: '', diastolic: '', heartRate: '', temperature: '',
+    spO2: '', weight: '', height: '', bloodSugar: '',
+  });
+  const [vitalsFeedback, setVitalsFeedback] = useState<string | null>(null);
+
+  const showVitalsFeedback = (msg: string) => {
+    setVitalsFeedback(msg);
+    setTimeout(() => setVitalsFeedback(null), 3000);
+  };
+
+  const handleSaveVitals = () => {
+    if (!vitalsPatientId) return;
+    const patient = patients.find(p => p.id === vitalsPatientId);
+    if (!patient) return;
+
+    if (editingVitalsId) {
+      // Update existing vitals — we'll add a new record (append-only model)
+      showVitalsFeedback('Previous vitals updated with new reading.');
+    }
+
+    addVitals({
+      patientId: vitalsPatientId,
+      recordedBy: hw.name,
+      date: new Date().toISOString().split('T')[0],
+      bloodPressureSystolic: vitalsForm.systolic ? parseInt(vitalsForm.systolic) : undefined,
+      bloodPressureDiastolic: vitalsForm.diastolic ? parseInt(vitalsForm.diastolic) : undefined,
+      heartRate: vitalsForm.heartRate ? parseInt(vitalsForm.heartRate) : undefined,
+      temperature: vitalsForm.temperature ? parseFloat(vitalsForm.temperature) : undefined,
+      spO2: vitalsForm.spO2 ? parseInt(vitalsForm.spO2) : undefined,
+      weight: vitalsForm.weight ? parseFloat(vitalsForm.weight) : undefined,
+      height: vitalsForm.height ? parseFloat(vitalsForm.height) : undefined,
+      bloodSugar: vitalsForm.bloodSugar ? parseInt(vitalsForm.bloodSugar) : undefined,
+    });
+
+    setVitalsForm({ systolic: '', diastolic: '', heartRate: '', temperature: '', spO2: '', weight: '', height: '', bloodSugar: '' });
+    setVitalsPatientId(null);
+    setEditingVitalsId(null);
+    showVitalsFeedback(`Vitals recorded for ${patient.name} successfully!`);
+  };
+
+  const handleEditVitals = (patientId: string) => {
+    const existingVitals = getVitalsForPatient(patientId);
+    const latest = existingVitals[existingVitals.length - 1];
+    if (latest) {
+      setVitalsForm({
+        systolic: latest.bloodPressureSystolic?.toString() || '',
+        diastolic: latest.bloodPressureDiastolic?.toString() || '',
+        heartRate: latest.heartRate?.toString() || '',
+        temperature: latest.temperature?.toString() || '',
+        spO2: latest.spO2?.toString() || '',
+        weight: latest.weight?.toString() || '',
+        height: latest.height?.toString() || '',
+        bloodSugar: latest.bloodSugar?.toString() || '',
+      });
+      setEditingVitalsId(latest.id);
+    }
+    setVitalsPatientId(patientId);
+  };
+
   const filteredPatients = hwPatients.filter(p => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -184,9 +248,9 @@ export default function HWDashboard() {
   return (
     <div className="space-y-6">
       {/* Feedback Toast */}
-      {referralFeedback && (
+      {(referralFeedback || vitalsFeedback) && (
         <div className="fixed top-20 right-6 z-50 bg-white border border-border rounded-xl shadow-lg px-4 py-3 text-sm font-medium text-foreground animate-in fade-in slide-in-from-top-2">
-          {referralFeedback}
+          {referralFeedback || vitalsFeedback}
         </div>
       )}
 
@@ -286,6 +350,14 @@ export default function HWDashboard() {
               <Stethoscope className="h-5 w-5 text-primary" />
             </div>
             <span className="text-xs font-medium text-foreground">AI Triage</span>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow cursor-pointer h-full" onClick={() => setSelectedTab('patients')}>
+          <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
+            <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <Heart className="h-5 w-5 text-emerald-600" />
+            </div>
+            <span className="text-xs font-medium text-foreground">Record Vitals</span>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow cursor-pointer h-full" onClick={() => setShowReferralForm(true)}>
@@ -425,6 +497,96 @@ export default function HWDashboard() {
         </Card>
       )}
 
+      {/* ── Record Vitals Form ──────────────────────────────── */}
+      {vitalsPatientId && (
+        <Card className="border-emerald-200 bg-emerald-50/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Heart className="h-4 w-4 text-emerald-600" />
+                {editingVitalsId ? 'Edit Vitals' : 'Record Vitals'} — {patients.find(p => p.id === vitalsPatientId)?.name}
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => { setVitalsPatientId(null); setEditingVitalsId(null); setVitalsForm({ systolic: '', diastolic: '', heartRate: '', temperature: '', spO2: '', weight: '', height: '', bloodSugar: '' }); }}>✕</Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Blood Pressure */}
+            <div>
+              <p className="text-xs font-medium text-foreground mb-2 flex items-center gap-1.5">
+                <Heart className="h-3.5 w-3.5 text-red-500" /> Blood Pressure
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase">Systolic (mmHg)</label>
+                  <Input type="number" value={vitalsForm.systolic} onChange={e => setVitalsForm(f => ({ ...f, systolic: e.target.value }))} placeholder="120" className="h-9 text-sm" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase">Diastolic (mmHg)</label>
+                  <Input type="number" value={vitalsForm.diastolic} onChange={e => setVitalsForm(f => ({ ...f, diastolic: e.target.value }))} placeholder="80" className="h-9 text-sm" />
+                </div>
+              </div>
+            </div>
+
+            {/* Heart Rate & Temperature */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase mb-1 block flex items-center gap-1">
+                  <Activity className="h-3 w-3" /> Heart Rate (bpm)
+                </label>
+                <Input type="number" value={vitalsForm.heartRate} onChange={e => setVitalsForm(f => ({ ...f, heartRate: e.target.value }))} placeholder="72" className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase mb-1 block flex items-center gap-1">
+                  <Thermometer className="h-3 w-3" /> Temperature (°F)
+                </label>
+                <Input type="number" step="0.1" value={vitalsForm.temperature} onChange={e => setVitalsForm(f => ({ ...f, temperature: e.target.value }))} placeholder="98.6" className="h-9 text-sm" />
+              </div>
+            </div>
+
+            {/* SpO2 & Blood Sugar */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase mb-1 block flex items-center gap-1">
+                  <Droplets className="h-3 w-3" /> SpO2 (%)
+                </label>
+                <Input type="number" value={vitalsForm.spO2} onChange={e => setVitalsForm(f => ({ ...f, spO2: e.target.value }))} placeholder="98" className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase mb-1 block flex items-center gap-1">
+                  <Droplets className="h-3 w-3 text-amber-500" /> Blood Sugar (mg/dL)
+                </label>
+                <Input type="number" value={vitalsForm.bloodSugar} onChange={e => setVitalsForm(f => ({ ...f, bloodSugar: e.target.value }))} placeholder="110" className="h-9 text-sm" />
+              </div>
+            </div>
+
+            {/* Weight & Height */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase mb-1 block flex items-center gap-1">
+                  <Ruler className="h-3 w-3" /> Weight (kg)
+                </label>
+                <Input type="number" step="0.1" value={vitalsForm.weight} onChange={e => setVitalsForm(f => ({ ...f, weight: e.target.value }))} placeholder="65" className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase mb-1 block flex items-center gap-1">
+                  <Ruler className="h-3 w-3" /> Height (cm)
+                </label>
+                <Input type="number" step="0.1" value={vitalsForm.height} onChange={e => setVitalsForm(f => ({ ...f, height: e.target.value }))} placeholder="165" className="h-9 text-sm" />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button onClick={handleSaveVitals} className="gap-1.5" disabled={!vitalsForm.systolic && !vitalsForm.heartRate && !vitalsForm.temperature && !vitalsForm.bloodSugar}>
+                <Save className="h-4 w-4" /> {editingVitalsId ? 'Update Vitals' : 'Save Vitals'}
+              </Button>
+              <Button variant="outline" onClick={() => { setVitalsPatientId(null); setEditingVitalsId(null); setVitalsForm({ systolic: '', diastolic: '', heartRate: '', temperature: '', spO2: '', weight: '', height: '', bloodSugar: '' }); }}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tab Content */}
       {selectedTab === 'patients' && (
         <div className="space-y-3">
@@ -457,7 +619,27 @@ export default function HWDashboard() {
                     <Badge variant="outline" className="text-[10px]">{p.bloodGroup || '—'}</Badge>
                   </div>
                 </div>
-                <div className="flex gap-2 mt-3">
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => {
+                      setVitalsPatientId(p.id);
+                      setEditingVitalsId(null);
+                      setVitalsForm({ systolic: '', diastolic: '', heartRate: '', temperature: '', spO2: '', weight: '', height: '', bloodSugar: '' });
+                    }}
+                  >
+                    <Heart className="h-3 w-3" /> Record Vitals
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => handleEditVitals(p.id)}
+                  >
+                    <Edit2 className="h-3 w-3" /> Edit Latest
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -481,6 +663,37 @@ export default function HWDashboard() {
                     View <ChevronRight className="h-3 w-3" />
                   </Button>
                 </div>
+                {/* Show latest vitals if available */}
+                {(() => {
+                  const patientVitals = getVitalsForPatient(p.id);
+                  if (patientVitals.length === 0) return null;
+                  const latest = patientVitals[patientVitals.length - 1];
+                  return (
+                    <div className="mt-3 p-2 bg-muted/30 rounded-lg">
+                      <p className="text-[10px] text-muted-foreground uppercase mb-1">Latest Vitals ({latest.date}) by {latest.recordedBy}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {latest.bloodPressureSystolic && (
+                          <Badge variant="outline" className="text-[10px]">BP: {latest.bloodPressureSystolic}/{latest.bloodPressureDiastolic}</Badge>
+                        )}
+                        {latest.heartRate && (
+                          <Badge variant="outline" className="text-[10px]">HR: {latest.heartRate} bpm</Badge>
+                        )}
+                        {latest.temperature && (
+                          <Badge variant="outline" className="text-[10px]">Temp: {latest.temperature}°F</Badge>
+                        )}
+                        {latest.spO2 && (
+                          <Badge variant="outline" className="text-[10px]">SpO2: {latest.spO2}%</Badge>
+                        )}
+                        {latest.bloodSugar && (
+                          <Badge variant="outline" className="text-[10px]">Sugar: {latest.bloodSugar} mg/dL</Badge>
+                        )}
+                        {latest.weight && (
+                          <Badge variant="outline" className="text-[10px]">Weight: {latest.weight} kg</Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           ))}

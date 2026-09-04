@@ -620,42 +620,62 @@ export default function DoctorDashboard() {
                 </Card>
               )}
 
-              {/* Latest Vitals */}
+              {/* Vitals History */}
               {patientVitals.length > 0 && (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
                       <Activity className="h-[1.125rem] w-[1.125rem] text-primary" />
-                      Latest Vitals
+                      Vitals History ({patientVitals.length} records)
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      {patientVitals[0].bloodPressureSystolic && (
-                        <div className="rounded-lg bg-muted/50 p-2">
-                          <p className="text-sm font-bold">{patientVitals[0].bloodPressureSystolic}/{patientVitals[0].bloodPressureDiastolic}</p>
-                          <p className="text-[10px] text-muted-foreground">BP</p>
+                  <CardContent className="space-y-3">
+                    {patientVitals.slice().reverse().map((v, idx) => (
+                      <div key={v.id} className="p-3 rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-foreground">{v.date}</p>
+                          <p className="text-[10px] text-muted-foreground">Recorded by {v.recordedBy}</p>
                         </div>
-                      )}
-                      {patientVitals[0].heartRate && (
-                        <div className="rounded-lg bg-muted/50 p-2">
-                          <p className="text-sm font-bold">{patientVitals[0].heartRate}</p>
-                          <p className="text-[10px] text-muted-foreground">Heart Rate</p>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-center">
+                          {v.bloodPressureSystolic && (
+                            <div className="rounded-lg bg-white p-2 border border-border">
+                              <p className="text-sm font-bold text-foreground">{v.bloodPressureSystolic}/{v.bloodPressureDiastolic}</p>
+                              <p className="text-[10px] text-muted-foreground">BP (mmHg)</p>
+                            </div>
+                          )}
+                          {v.heartRate && (
+                            <div className="rounded-lg bg-white p-2 border border-border">
+                              <p className="text-sm font-bold text-foreground">{v.heartRate}</p>
+                              <p className="text-[10px] text-muted-foreground">Heart Rate</p>
+                            </div>
+                          )}
+                          {v.temperature && (
+                            <div className="rounded-lg bg-white p-2 border border-border">
+                              <p className="text-sm font-bold text-foreground">{v.temperature}°F</p>
+                              <p className="text-[10px] text-muted-foreground">Temp</p>
+                            </div>
+                          )}
+                          {v.spO2 && (
+                            <div className="rounded-lg bg-white p-2 border border-border">
+                              <p className="text-sm font-bold text-foreground">{v.spO2}%</p>
+                              <p className="text-[10px] text-muted-foreground">SpO2</p>
+                            </div>
+                          )}
+                          {v.bloodSugar && (
+                            <div className="rounded-lg bg-white p-2 border border-border">
+                              <p className="text-sm font-bold text-foreground">{v.bloodSugar}</p>
+                              <p className="text-[10px] text-muted-foreground">Blood Sugar</p>
+                            </div>
+                          )}
+                          {v.weight && (
+                            <div className="rounded-lg bg-white p-2 border border-border">
+                              <p className="text-sm font-bold text-foreground">{v.weight}kg</p>
+                              <p className="text-[10px] text-muted-foreground">Weight</p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {patientVitals[0].spO2 && (
-                        <div className="rounded-lg bg-muted/50 p-2">
-                          <p className="text-sm font-bold">{patientVitals[0].spO2}%</p>
-                          <p className="text-[10px] text-muted-foreground">SpO2</p>
-                        </div>
-                      )}
-                      {patientVitals[0].bloodSugar && (
-                        <div className="rounded-lg bg-muted/50 p-2">
-                          <p className="text-sm font-bold">{patientVitals[0].bloodSugar}</p>
-                          <p className="text-[10px] text-muted-foreground">Blood Sugar</p>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
               )}

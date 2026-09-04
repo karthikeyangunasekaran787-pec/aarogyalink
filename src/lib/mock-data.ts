@@ -222,9 +222,9 @@ export const staffUsers: User[] = [
 export const referrals: Referral[] = [
   {
     id: 'r1', referralId: 'REF-2026-001', patientId: 'p1', patientName: 'Lakshmi Devi',
-    sourceFacilityId: 'f1', sourceFacilityName: 'Kallikudi PHC',
-    destinationFacilityId: 'f3', destinationFacilityName: 'Madurai District Hospital',
-    department: 'Cardiology', doctorId: 'd3', doctorName: 'Dr. Rajesh Verma',
+    sourceFacilityId: 'h1', sourceFacilityName: 'Pudukkottai Government Hospital',
+    destinationFacilityId: 'h1', destinationFacilityName: 'Pudukkottai Government Hospital',
+    department: 'Cardiology', doctorId: 'd1', doctorName: 'Dr. Arun Kumar',
     priority: 'urgent', reason: 'Chest pain and irregular heartbeat detected during routine checkup. ECG shows arrhythmia.',
     status: 'closed', currentStep: 8, totalSteps: 8,
     appointmentDate: '2026-06-15', appointmentTime: '10:00',
@@ -233,9 +233,9 @@ export const referrals: Referral[] = [
   },
   {
     id: 'r2', referralId: 'REF-2026-002', patientId: 'p2', patientName: 'Raman Sharma',
-    sourceFacilityId: 'f2', sourceFacilityName: 'Thoor CHC',
-    destinationFacilityId: 'f3', destinationFacilityName: 'Madurai District Hospital',
-    department: 'Orthopedics', doctorId: 'd5', doctorName: 'Dr. Mohan Prasad',
+    sourceFacilityId: 'h2', sourceFacilityName: 'Alangudi Primary Health Centre',
+    destinationFacilityId: 'h3', destinationFacilityName: 'Aranthangi Community Health Centre',
+    department: 'Surgery', doctorId: 'd5', doctorName: 'Dr. Mohan Prasad',
     priority: 'urgent', reason: 'Suspected fracture of left radius. X-ray required and possible casting.',
     status: 'patient_arrived', currentStep: 4, totalSteps: 8,
     appointmentDate: '2026-07-20', appointmentTime: '11:30',
@@ -243,9 +243,9 @@ export const referrals: Referral[] = [
   },
   {
     id: 'r3', referralId: 'REF-2026-003', patientId: 'p3', patientName: 'Meena Kumari',
-    sourceFacilityId: 'f1', sourceFacilityName: 'Kallikudi PHC',
-    destinationFacilityId: 'f4', destinationFacilityName: 'Melur Government Hospital',
-    department: 'OBG', doctorId: 'd4', doctorName: 'Dr. Kamala Devi',
+    sourceFacilityId: 'h1', sourceFacilityName: 'Pudukkottai Government Hospital',
+    destinationFacilityId: 'h2', destinationFacilityName: 'Alangudi Primary Health Centre',
+    department: 'Maternity', doctorId: 'd4', doctorName: 'Dr. Kavitha N',
     priority: 'routine', reason: 'Routine prenatal checkup with high-risk pregnancy indicators.',
     status: 'followup', currentStep: 7, totalSteps: 8,
     appointmentDate: '2026-07-25', appointmentTime: '09:00',
@@ -253,37 +253,37 @@ export const referrals: Referral[] = [
   },
   {
     id: 'r4', referralId: 'REF-2026-004', patientId: 'p4', patientName: 'Murugan P',
-    sourceFacilityId: 'f1', sourceFacilityName: 'Kallikudi PHC',
-    destinationFacilityId: 'f5', destinationFacilityName: 'Meenakshi Medical College',
-    department: 'Cardiology', doctorId: 'd3', doctorName: 'Dr. Rajesh Verma',
+    sourceFacilityId: 'h1', sourceFacilityName: 'Pudukkottai Government Hospital',
+    destinationFacilityId: 'h1', destinationFacilityName: 'Pudukkottai Government Hospital',
+    department: 'Cardiology', doctorId: 'd1', doctorName: 'Dr. Arun Kumar',
     priority: 'emergency', reason: 'Acute chest pain with shortness of breath. Suspected MI.',
     status: 'accepted', currentStep: 2, totalSteps: 8,
     createdAt: '2026-07-28T06:30:00Z', updatedAt: '2026-07-28T07:15:00Z', isOverdue: false,
   },
   {
     id: 'r5', referralId: 'REF-2026-005', patientId: 'p5', patientName: 'Priya R',
-    sourceFacilityId: 'f2', sourceFacilityName: 'Thoor CHC',
-    destinationFacilityId: 'f3', destinationFacilityName: 'Madurai District Hospital',
-    department: 'ENT', priority: 'routine',
-    reason: 'Persistent ear discharge for 2 weeks. Needs specialist ENT evaluation.',
+    sourceFacilityId: 'h2', sourceFacilityName: 'Alangudi Primary Health Centre',
+    destinationFacilityId: 'h3', destinationFacilityName: 'Aranthangi Community Health Centre',
+    department: 'General Medicine', priority: 'routine',
+    reason: 'Persistent ear discharge for 2 weeks. Needs specialist evaluation.',
     status: 'scheduled', currentStep: 3, totalSteps: 8,
     appointmentDate: '2026-08-05', appointmentTime: '14:00',
     createdAt: '2026-07-25T11:00:00Z', updatedAt: '2026-07-27T09:00:00Z', isOverdue: false,
   },
   {
     id: 'r6', referralId: 'REF-2026-006', patientId: 'p6', patientName: 'Kumar S',
-    sourceFacilityId: 'f1', sourceFacilityName: 'Kallikudi PHC',
-    destinationFacilityId: 'f3', destinationFacilityName: 'Madurai District Hospital',
-    department: 'Pulmonology', priority: 'urgent',
-    reason: 'Worsening COPD symptoms. Spirometry shows FEV1 < 40%. Needs pulmonologist review.',
+    sourceFacilityId: 'h1', sourceFacilityName: 'Pudukkottai Government Hospital',
+    destinationFacilityId: 'h1', destinationFacilityName: 'Pudukkottai Government Hospital',
+    department: 'General Medicine', priority: 'urgent',
+    reason: 'Worsening COPD symptoms. Spirometry shows FEV1 < 40%. Needs specialist review.',
     status: 'created', currentStep: 1, totalSteps: 8,
     createdAt: '2026-07-29T08:00:00Z', updatedAt: '2026-07-29T08:00:00Z', isOverdue: false,
   },
   {
     id: 'r7', referralId: 'REF-2026-007', patientId: 'p7', patientName: 'Anitha V',
-    sourceFacilityId: 'f2', sourceFacilityName: 'Thoor CHC',
-    destinationFacilityId: 'f5', destinationFacilityName: 'Meenakshi Medical College',
-    department: 'Neurology', doctorId: 'd3', doctorName: 'Dr. Rajesh Verma',
+    sourceFacilityId: 'h2', sourceFacilityName: 'Alangudi Primary Health Centre',
+    destinationFacilityId: 'h3', destinationFacilityName: 'Aranthangi Community Health Centre',
+    department: 'General Medicine', doctorId: 'd5', doctorName: 'Dr. Mohan Prasad',
     priority: 'urgent', reason: 'Recurrent headaches with visual disturbances. Rule out intracranial pathology.',
     status: 'treatment', currentStep: 6, totalSteps: 8,
     appointmentDate: '2026-07-15', appointmentTime: '10:30',
@@ -291,19 +291,19 @@ export const referrals: Referral[] = [
   },
   {
     id: 'r8', referralId: 'REF-2026-008', patientId: 'p8', patientName: 'Rajan M',
-    sourceFacilityId: 'f4', sourceFacilityName: 'Melur Government Hospital',
-    destinationFacilityId: 'f5', destinationFacilityName: 'Meenakshi Medical College',
-    department: 'Endocrinology', priority: 'routine',
-    reason: 'Poorly controlled diabetes. HbA1c 11.2%. Needs endocrinologist for insulin management.',
+    sourceFacilityId: 'h4', sourceFacilityName: 'Illupur Government Hospital',
+    destinationFacilityId: 'h5', destinationFacilityName: 'Gandaravakottai PHC',
+    department: 'General Medicine', priority: 'routine',
+    reason: 'Poorly controlled diabetes. HbA1c 11.2%. Needs specialist for insulin management.',
     status: 'consultation', currentStep: 5, totalSteps: 8,
     appointmentDate: '2026-07-22', appointmentTime: '11:00',
     createdAt: '2026-07-18T10:00:00Z', updatedAt: '2026-07-22T11:30:00Z', isOverdue: false,
   },
   {
     id: 'r9', referralId: 'REF-2026-009', patientId: 'p9', patientName: 'Sangeetha K',
-    sourceFacilityId: 'f1', sourceFacilityName: 'Kallikudi PHC',
-    destinationFacilityId: 'f4', destinationFacilityName: 'Melur Government Hospital',
-    department: 'Pediatrics', doctorId: 'd2', doctorName: 'Dr. Priya Shankar',
+    sourceFacilityId: 'h1', sourceFacilityName: 'Pudukkottai Government Hospital',
+    destinationFacilityId: 'h4', destinationFacilityName: 'Illupur Government Hospital',
+    department: 'Paediatrics', doctorId: 'd6', doctorName: 'Dr. Kamala Devi',
     priority: 'urgent', reason: 'Child with recurring febrile seizures. Needs pediatric neurologist opinion.',
     status: 'scheduled', currentStep: 3, totalSteps: 8,
     appointmentDate: '2026-07-30', appointmentTime: '09:30',
@@ -311,10 +311,10 @@ export const referrals: Referral[] = [
   },
   {
     id: 'r10', referralId: 'REF-2026-010', patientId: 'p10', patientName: 'Vetri V',
-    sourceFacilityId: 'f2', sourceFacilityName: 'Thoor CHC',
-    destinationFacilityId: 'f3', destinationFacilityName: 'Madurai District Hospital',
-    department: 'Orthopedics', doctorId: 'd5', doctorName: 'Dr. Mohan Prasad',
-    priority: 'routine', reason: 'Chronic knee pain. Suspected osteoarthritis. Needs orthopedic evaluation.',
+    sourceFacilityId: 'h3', sourceFacilityName: 'Aranthangi Community Health Centre',
+    destinationFacilityId: 'h5', destinationFacilityName: 'Gandaravakottai PHC',
+    department: 'General Medicine', doctorId: 'd9', doctorName: 'Dr. Senthil Kumar',
+    priority: 'routine', reason: 'Chronic knee pain. Suspected osteoarthritis. Needs evaluation.',
     status: 'accepted', currentStep: 2, totalSteps: 8,
     appointmentDate: '2026-08-02', appointmentTime: '15:00',
     createdAt: '2026-07-28T10:00:00Z', updatedAt: '2026-07-29T08:30:00Z', isOverdue: false,
@@ -339,12 +339,12 @@ export const referralEvents: ReferralEvent[] = [
 // Appointments
 // ---------------------------------------------------------------------------
 export const appointments: Appointment[] = [
-  { id: 'a1', patientId: 'p1', doctorId: 'd3', facilityId: 'f3', department: 'Cardiology', date: '2026-07-30', time: '10:00', status: 'scheduled', reason: 'Follow-up: Atrial fibrillation', createdAt: '2026-07-28' },
-  { id: 'a2', patientId: 'p2', doctorId: 'd5', facilityId: 'f3', department: 'Orthopedics', date: '2026-07-20', time: '11:30', status: 'completed', reason: 'Left radius fracture evaluation', createdAt: '2026-07-18' },
-  { id: 'a3', patientId: 'p3', doctorId: 'd4', facilityId: 'f4', department: 'OBG', date: '2026-07-25', time: '09:00', status: 'completed', reason: 'Prenatal checkup', createdAt: '2026-07-10' },
-  { id: 'a4', patientId: 'p5', doctorId: 'd1', facilityId: 'f3', department: 'ENT', date: '2026-08-05', time: '14:00', status: 'scheduled', reason: 'Persistent ear discharge', createdAt: '2026-07-25' },
-  { id: 'a5', patientId: 'p8', doctorId: 'd3', facilityId: 'f5', department: 'Endocrinology', date: '2026-07-22', time: '11:00', status: 'completed', reason: 'Diabetes management review', createdAt: '2026-07-18' },
-  { id: 'a6', patientId: 'p9', doctorId: 'd2', facilityId: 'f4', department: 'Pediatrics', date: '2026-07-30', time: '09:30', status: 'scheduled', reason: 'Febrile seizure evaluation', createdAt: '2026-07-26' },
+  { id: 'a1', patientId: 'p1', doctorId: 'd1', facilityId: 'h1', department: 'Cardiology', date: '2026-07-30', time: '10:00', status: 'scheduled', reason: 'Follow-up: Atrial fibrillation', createdAt: '2026-07-28' },
+  { id: 'a2', patientId: 'p2', doctorId: 'd5', facilityId: 'h3', department: 'Surgery', date: '2026-07-20', time: '11:30', status: 'completed', reason: 'Left radius fracture evaluation', createdAt: '2026-07-18' },
+  { id: 'a3', patientId: 'p3', doctorId: 'd4', facilityId: 'h2', department: 'Maternity', date: '2026-07-25', time: '09:00', status: 'completed', reason: 'Prenatal checkup', createdAt: '2026-07-10' },
+  { id: 'a4', patientId: 'p5', doctorId: 'd2', facilityId: 'h1', department: 'General Medicine', date: '2026-08-05', time: '14:00', status: 'scheduled', reason: 'Persistent ear discharge', createdAt: '2026-07-25' },
+  { id: 'a5', patientId: 'p8', doctorId: 'd9', facilityId: 'h5', department: 'General Medicine', date: '2026-07-22', time: '11:00', status: 'completed', reason: 'Diabetes management review', createdAt: '2026-07-18' },
+  { id: 'a6', patientId: 'p9', doctorId: 'd6', facilityId: 'h3', department: 'Paediatrics', date: '2026-07-30', time: '09:30', status: 'scheduled', reason: 'Febrile seizure evaluation', createdAt: '2026-07-26' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -368,7 +368,7 @@ export const consultations: Consultation[] = [
     followupRequired: true, followupDate: '2026-08-08', createdAt: '2026-07-25',
   },
   {
-    id: 'c3', appointmentId: 'a5', patientId: 'p8', doctorId: 'd3',
+    id: 'c3', appointmentId: 'a5', patientId: 'p8', doctorId: 'd9',
     symptoms: ['Frequent urination', 'Fatigue', 'Blurred vision'],
     diagnosis: 'Poorly controlled Type 2 Diabetes Mellitus',
     prescription: ['Metformin 500mg → 1000mg', 'Glimepiride 2mg', 'Insulin Glargine'],
@@ -404,50 +404,50 @@ export const vitals: Vitals[] = [
 // Health Records
 // ---------------------------------------------------------------------------
 export const healthRecords: HealthRecord[] = [
-  { id: 'hr1', patientId: 'p1', type: 'consultation', title: 'Cardiology Consultation', description: 'Diagnosed with Atrial Fibrillation. Started on Warfarin.', facilityName: 'Madurai District Hospital', doctorName: 'Dr. Rajesh Verma', date: '2026-06-15' },
-  { id: 'hr2', patientId: 'p1', type: 'lab_report', title: 'ECG Report', description: 'Irregular rhythm detected. Atrial fibrillation confirmed.', facilityName: 'Madurai District Hospital', date: '2026-06-15' },
-  { id: 'hr3', patientId: 'p1', type: 'prescription', title: 'Warfarin Prescription', description: 'Warfarin 5mg daily, INR monitoring monthly', facilityName: 'Madurai District Hospital', doctorName: 'Dr. Rajesh Verma', date: '2026-06-15' },
-  { id: 'hr4', patientId: 'p1', type: 'consultation', title: 'Follow-up Visit', description: 'INR within range. Continue current medication.', facilityName: 'Madurai District Hospital', doctorName: 'Dr. Rajesh Verma', date: '2026-06-22' },
-  { id: 'hr5', patientId: 'p2', type: 'consultation', title: 'Orthopedic Consultation', description: 'Colles fracture confirmed. Cast applied.', facilityName: 'Madurai District Hospital', doctorName: 'Dr. Mohan Prasad', date: '2026-07-20' },
-  { id: 'hr6', patientId: 'p3', type: 'consultation', title: 'Prenatal Checkup', description: 'Normal pregnancy at 28 weeks. All parameters within range.', facilityName: 'Melur Government Hospital', doctorName: 'Dr. Kamala Devi', date: '2026-07-25' },
+  { id: 'hr1', patientId: 'p1', type: 'consultation', title: 'Cardiology Consultation', description: 'Diagnosed with Atrial Fibrillation. Started on Warfarin.', facilityName: 'Pudukkottai Government Hospital', doctorName: 'Dr. Arun Kumar', date: '2026-06-15' },
+  { id: 'hr2', patientId: 'p1', type: 'lab_report', title: 'ECG Report', description: 'Irregular rhythm detected. Atrial fibrillation confirmed.', facilityName: 'Pudukkottai Government Hospital', date: '2026-06-15' },
+  { id: 'hr3', patientId: 'p1', type: 'prescription', title: 'Warfarin Prescription', description: 'Warfarin 5mg daily, INR monitoring monthly', facilityName: 'Pudukkottai Government Hospital', doctorName: 'Dr. Arun Kumar', date: '2026-06-15' },
+  { id: 'hr4', patientId: 'p1', type: 'consultation', title: 'Follow-up Visit', description: 'INR within range. Continue current medication.', facilityName: 'Pudukkottai Government Hospital', doctorName: 'Dr. Arun Kumar', date: '2026-06-22' },
+  { id: 'hr5', patientId: 'p2', type: 'consultation', title: 'Surgery Consultation', description: 'Colles fracture confirmed. Cast applied.', facilityName: 'Aranthangi Community Health Centre', doctorName: 'Dr. Mohan Prasad', date: '2026-07-20' },
+  { id: 'hr6', patientId: 'p3', type: 'consultation', title: 'Prenatal Checkup', description: 'Normal pregnancy at 28 weeks. All parameters within range.', facilityName: 'Alangudi Primary Health Centre', doctorName: 'Dr. Kavitha N', date: '2026-07-25' },
 ];
 
 // ---------------------------------------------------------------------------
 // Follow-ups
 // ---------------------------------------------------------------------------
 export const followups: Followup[] = [
-  { id: 'fu1', referralId: 'r1', patientId: 'p1', patientName: 'Lakshmi Devi', doctorId: 'd3', doctorName: 'Dr. Rajesh Verma', facilityName: 'Madurai District Hospital', scheduledDate: '2026-06-22', scheduledTime: '10:00', status: 'completed', reason: 'INR monitoring and medication review', createdAt: '2026-06-15' },
-  { id: 'fu2', referralId: 'r3', patientId: 'p3', patientName: 'Meena Kumari', doctorId: 'd4', doctorName: 'Dr. Kamala Devi', facilityName: 'Melur Government Hospital', scheduledDate: '2026-08-08', scheduledTime: '09:00', status: 'scheduled', reason: 'Prenatal checkup - 32 weeks', missedFollowupRisk: 22, createdAt: '2026-07-25' },
-  { id: 'fu3', referralId: 'r5', patientId: 'p5', patientName: 'Priya R', doctorId: 'd1', doctorName: 'Dr. Senthil Kumar', facilityName: 'Madurai District Hospital', scheduledDate: '2026-08-12', scheduledTime: '14:00', status: 'scheduled', reason: 'ENT follow-up after initial evaluation', missedFollowupRisk: 45, createdAt: '2026-07-25' },
-  { id: 'fu4', referralId: 'r7', patientId: 'p7', patientName: 'Anitha V', doctorId: 'd3', doctorName: 'Dr. Rajesh Verma', facilityName: 'Meenakshi Medical College', scheduledDate: '2026-07-28', scheduledTime: '10:30', status: 'missed', reason: 'Post-treatment review for neurological symptoms', missedFollowupRisk: 68, createdAt: '2026-07-20' },
+  { id: 'fu1', referralId: 'r1', patientId: 'p1', patientName: 'Lakshmi Devi', doctorId: 'd1', doctorName: 'Dr. Arun Kumar', facilityName: 'Pudukkottai Government Hospital', scheduledDate: '2026-06-22', scheduledTime: '10:00', status: 'completed', reason: 'INR monitoring and medication review', createdAt: '2026-06-15' },
+  { id: 'fu2', referralId: 'r3', patientId: 'p3', patientName: 'Meena Kumari', doctorId: 'd4', doctorName: 'Dr. Kavitha N', facilityName: 'Alangudi Primary Health Centre', scheduledDate: '2026-08-08', scheduledTime: '09:00', status: 'scheduled', reason: 'Prenatal checkup - 32 weeks', missedFollowupRisk: 22, createdAt: '2026-07-25' },
+  { id: 'fu3', referralId: 'r5', patientId: 'p5', patientName: 'Priya R', doctorId: 'd2', doctorName: 'Dr. Priya Sharma', facilityName: 'Pudukkottai Government Hospital', scheduledDate: '2026-08-12', scheduledTime: '14:00', status: 'scheduled', reason: 'General medicine follow-up after initial evaluation', missedFollowupRisk: 45, createdAt: '2026-07-25' },
+  { id: 'fu4', referralId: 'r7', patientId: 'p7', patientName: 'Anitha V', doctorId: 'd5', doctorName: 'Dr. Mohan Prasad', facilityName: 'Aranthangi Community Health Centre', scheduledDate: '2026-07-28', scheduledTime: '10:30', status: 'missed', reason: 'Post-treatment review for neurological symptoms', missedFollowupRisk: 68, createdAt: '2026-07-20' },
 ];
 
 // ---------------------------------------------------------------------------
 // Medicine Stock
 // ---------------------------------------------------------------------------
 export const medicineStock: MedicineStock[] = [
-  { id: 'ms1', medicineId: 'm1', medicineName: 'Paracetamol 500mg', facilityId: 'f1', facilityName: 'Kallikudi PHC', quantity: 500, unit: 'tablets', expiryDate: '2027-06', status: 'in_stock' },
-  { id: 'ms2', medicineId: 'm2', medicineName: 'Metformin 500mg', facilityId: 'f1', facilityName: 'Kallikudi PHC', quantity: 120, unit: 'tablets', expiryDate: '2027-03', status: 'in_stock' },
-  { id: 'ms3', medicineId: 'm3', medicineName: 'Amlodipine 5mg', facilityId: 'f1', facilityName: 'Kallikudi PHC', quantity: 30, unit: 'tablets', expiryDate: '2026-12', status: 'low_stock' },
-  { id: 'ms4', medicineId: 'm4', medicineName: 'Amoxicillin 250mg', facilityId: 'f2', facilityName: 'Thoor CHC', quantity: 300, unit: 'capsules', expiryDate: '2027-01', status: 'in_stock' },
-  { id: 'ms5', medicineId: 'm5', medicineName: 'Insulin Glargine', facilityId: 'f3', facilityName: 'Madurai District Hospital', quantity: 45, unit: 'vials', expiryDate: '2026-11', status: 'in_stock' },
-  { id: 'ms6', medicineId: 'm6', medicineName: 'Warfarin 5mg', facilityId: 'f3', facilityName: 'Madurai District Hospital', quantity: 0, unit: 'tablets', expiryDate: '2027-04', status: 'out_of_stock' },
-  { id: 'ms7', medicineId: 'm7', medicineName: 'Salbutamol Inhaler', facilityId: 'f1', facilityName: 'Kallikudi PHC', quantity: 8, unit: 'inhalers', expiryDate: '2026-09', status: 'low_stock' },
-  { id: 'ms8', medicineId: 'm8', medicineName: 'Omeprazole 20mg', facilityId: 'f4', facilityName: 'Melur Government Hospital', quantity: 200, unit: 'capsules', expiryDate: '2027-05', status: 'in_stock' },
+  { id: 'ms1', medicineId: 'm1', medicineName: 'Paracetamol 500mg', facilityId: 'h1', facilityName: 'Pudukkottai Government Hospital', quantity: 500, unit: 'tablets', expiryDate: '2027-06', status: 'in_stock' },
+  { id: 'ms2', medicineId: 'm2', medicineName: 'Metformin 500mg', facilityId: 'h1', facilityName: 'Pudukkottai Government Hospital', quantity: 120, unit: 'tablets', expiryDate: '2027-03', status: 'in_stock' },
+  { id: 'ms3', medicineId: 'm3', medicineName: 'Amlodipine 5mg', facilityId: 'h2', facilityName: 'Alangudi Primary Health Centre', quantity: 30, unit: 'tablets', expiryDate: '2026-12', status: 'low_stock' },
+  { id: 'ms4', medicineId: 'm4', medicineName: 'Amoxicillin 250mg', facilityId: 'h2', facilityName: 'Alangudi Primary Health Centre', quantity: 300, unit: 'capsules', expiryDate: '2027-01', status: 'in_stock' },
+  { id: 'ms5', medicineId: 'm5', medicineName: 'Insulin Glargine', facilityId: 'h3', facilityName: 'Aranthangi Community Health Centre', quantity: 45, unit: 'vials', expiryDate: '2026-11', status: 'in_stock' },
+  { id: 'ms6', medicineId: 'm6', medicineName: 'Warfarin 5mg', facilityId: 'h3', facilityName: 'Aranthangi Community Health Centre', quantity: 0, unit: 'tablets', expiryDate: '2027-04', status: 'out_of_stock' },
+  { id: 'ms7', medicineId: 'm7', medicineName: 'Salbutamol Inhaler', facilityId: 'h4', facilityName: 'Illupur Government Hospital', quantity: 8, unit: 'inhalers', expiryDate: '2026-09', status: 'low_stock' },
+  { id: 'ms8', medicineId: 'm8', medicineName: 'Omeprazole 20mg', facilityId: 'h5', facilityName: 'Gandaravakottai PHC', quantity: 200, unit: 'capsules', expiryDate: '2027-05', status: 'in_stock' },
 ];
 
 // ---------------------------------------------------------------------------
 // Diagnostics
 // ---------------------------------------------------------------------------
 export const diagnostics: Diagnostic[] = [
-  { id: 'dg1', name: 'Complete Blood Count', category: 'Blood', facilityId: 'f1', facilityName: 'Kallikudi PHC', available: true, waitTime: 1, cost: 150 },
-  { id: 'dg2', name: 'ECG', category: 'Cardiac', facilityId: 'f1', facilityName: 'Kallikudi PHC', available: true, waitTime: 0, cost: 200 },
-  { id: 'dg3', name: 'Chest X-Ray', category: 'Radiology', facilityId: 'f2', facilityName: 'Thoor CHC', available: true, waitTime: 1, cost: 300 },
-  { id: 'dg4', name: 'CT Scan', category: 'Radiology', facilityId: 'f3', facilityName: 'Madurai District Hospital', available: true, waitTime: 3, cost: 2500 },
-  { id: 'dg5', name: 'MRI Brain', category: 'Radiology', facilityId: 'f5', facilityName: 'Meenakshi Medical College', available: true, waitTime: 5, cost: 5000 },
-  { id: 'dg6', name: 'Thyroid Profile', category: 'Blood', facilityId: 'f4', facilityName: 'Melur Government Hospital', available: true, waitTime: 2, cost: 400 },
-  { id: 'dg7', name: 'HbA1c', category: 'Blood', facilityId: 'f3', facilityName: 'Madurai District Hospital', available: true, waitTime: 1, cost: 350 },
-  { id: 'dg8', name: 'Ultrasound Abdomen', category: 'Radiology', facilityId: 'f2', facilityName: 'Thoor CHC', available: false, waitTime: 7, cost: 600 },
+  { id: 'dg1', name: 'Complete Blood Count', category: 'Blood', facilityId: 'h1', facilityName: 'Pudukkottai Government Hospital', available: true, waitTime: 1, cost: 150 },
+  { id: 'dg2', name: 'ECG', category: 'Cardiac', facilityId: 'h1', facilityName: 'Pudukkottai Government Hospital', available: true, waitTime: 0, cost: 200 },
+  { id: 'dg3', name: 'Chest X-Ray', category: 'Radiology', facilityId: 'h2', facilityName: 'Alangudi Primary Health Centre', available: true, waitTime: 1, cost: 300 },
+  { id: 'dg4', name: 'CT Scan', category: 'Radiology', facilityId: 'h3', facilityName: 'Aranthangi Community Health Centre', available: true, waitTime: 3, cost: 2500 },
+  { id: 'dg5', name: 'MRI Brain', category: 'Radiology', facilityId: 'h3', facilityName: 'Aranthangi Community Health Centre', available: true, waitTime: 5, cost: 5000 },
+  { id: 'dg6', name: 'Thyroid Profile', category: 'Blood', facilityId: 'h4', facilityName: 'Illupur Government Hospital', available: true, waitTime: 2, cost: 400 },
+  { id: 'dg7', name: 'HbA1c', category: 'Blood', facilityId: 'h5', facilityName: 'Gandaravakottai PHC', available: true, waitTime: 1, cost: 350 },
+  { id: 'dg8', name: 'Ultrasound Abdomen', category: 'Radiology', facilityId: 'h2', facilityName: 'Alangudi Primary Health Centre', available: false, waitTime: 7, cost: 600 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -468,7 +468,7 @@ export const villageAccessScores: VillageAccessScore[] = [
 // Notifications
 // ---------------------------------------------------------------------------
 export const notifications: Notification[] = [
-  { id: 'n1', userId: 'u1', title: 'Follow-up Reminder', message: 'Your follow-up appointment with Dr. Rajesh Verma is scheduled for Jul 30 at 10:00 AM.', type: 'info', read: false, createdAt: '2026-07-28T08:00:00Z' },
+  { id: 'n1', userId: 'u1', title: 'Follow-up Reminder', message: 'Your follow-up appointment with Dr. Arun Kumar is scheduled for Jul 30 at 10:00 AM.', type: 'info', read: false, createdAt: '2026-07-28T08:00:00Z' },
   { id: 'n2', userId: 'u1', title: 'Prescription Refill', message: 'Your Warfarin prescription may need a refill in 5 days.', type: 'warning', read: false, createdAt: '2026-07-27T09:00:00Z' },
   { id: 'n3', userId: 'u1', title: 'Referral Update', message: 'Your referral REF-2026-001 has been closed. Treatment completed successfully.', type: 'success', read: true, createdAt: '2026-06-22T14:30:00Z' },
   { id: 'n4', userId: 'uhw1', title: 'Overdue Follow-up', message: 'Patient Anitha V missed her follow-up appointment. Please follow up.', type: 'alert', read: false, createdAt: '2026-07-29T07:00:00Z' },

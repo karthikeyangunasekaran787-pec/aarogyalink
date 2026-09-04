@@ -2,9 +2,9 @@
 // Health Worker Dashboard — Functional Patient & Referral Management
 // ============================================================================
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router';
-import type { HealthWorker } from '@/types';
+import type { HealthWorker, Referral, ReferralEvent, ReferralStatus } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
@@ -16,12 +16,35 @@ import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import {
   Users, AlertTriangle, FileText, Bell, UserPlus,
-  Search, Activity, Stethoscope, PenLine, ChevronRight
+  Search, Activity, Stethoscope, PenLine, ChevronRight,
+  Clock, CheckCircle2, XCircle, Eye, X, MapPin, Calendar
 } from 'lucide-react';
+
+const REFERRAL_STEPS = [
+  { key: 'created', label: 'Created', icon: FileText },
+  { key: 'accepted', label: 'Accepted', icon: CheckCircle2 },
+  { key: 'scheduled', label: 'Scheduled', icon: Calendar },
+  { key: 'patient_arrived', label: 'Patient Arrived', icon: Users },
+  { key: 'consultation', label: 'Consultation', icon: Stethoscope },
+  { key: 'treatment', label: 'Treatment', icon: Activity },
+  { key: 'followup', label: 'Follow-up', icon: Clock },
+  { key: 'closed', label: 'Closed', icon: CheckCircle2 },
+];
+
+const STATUS_COLORS: Record<string, string> = {
+  created: 'bg-blue-50 text-blue-700 border-blue-200',
+  accepted: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  scheduled: 'bg-violet-50 text-violet-700 border-violet-200',
+  patient_arrived: 'bg-amber-50 text-amber-700 border-amber-200',
+  consultation: 'bg-orange-50 text-orange-700 border-orange-200',
+  treatment: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  followup: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  closed: 'bg-gray-100 text-gray-600 border-gray-200',
+};
 
 export default function HWDashboard() {
   const { language, currentUser } = useApp();
-  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification } = useData();
+  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification, getReferralEvents } = useData();
   const navigate = useNavigate();
 
   // Load health workers from context or localStorage as fallback
@@ -86,6 +109,25 @@ export default function HWDashboard() {
   const [referralDestination, setReferralDestination] = useState('');
   const [referralDepartment, setReferralDepartment] = useState('');
   const [referralFeedback, setReferralFeedback] = useState<string | null>(null);
+
+  // Referrals this HW created (from their hospital)
+  const myReferrals = useMemo(() =>
+    referrals.filter(r => r.sourceFacilityId === hwHospitalId),
+    [referrals, hwHospitalId]
+  );
+  const activeMyReferrals = myReferrals.filter(r => r.status !== 'closed');
+  const completedMyReferrals = myReferrals.filter(r => r.status === 'closed');
+
+  // Selected referral for monitoring detail
+  const [selectedReferralId, setSelectedReferralId] = useState<string | null>(null);
+  const selectedReferral = selectedReferralId ? myReferrals.find(r => r.id === selectedReferralId) : null;
+  const selectedReferralEvents = selectedReferral ? getReferralEvents(selectedReferral.id) : [];
+
+  // Referral monitoring filter
+  const [referralFilter, setReferralFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const filteredReferrals = referralFilter === 'all' ? myReferrals
+    : referralFilter === 'active' ? activeMyReferrals
+    : completedMyReferrals;
 
   const filteredPatients = hwPatients.filter(p => {
     if (!searchQuery) return true;
@@ -446,27 +488,190 @@ export default function HWDashboard() {
       )}
 
       {selectedTab === 'referrals' && (
-        <div className="space-y-3">
-          {referrals.length === 0 ? (
-            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No referrals</CardContent></Card>
-          ) : referrals.map(ref => (
-            <Card key={ref.id} className="hover:shadow-md transition-shadow">
+        <div className="space-y-4">
+          {/* Referral Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setReferralFilter('all')}>
+              <CardContent className="p-3 text-center">
+                <p className="text-xl font-bold text-foreground">{myReferrals.length}</p>
+                <p className="text-[10px] text-muted-foreground">Total Referrals</p>
+              </CardContent>
+            </Card>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setReferralFilter('active')}>
+              <CardContent className="p-3 text-center">
+                <p className="text-xl font-bold text-amber-600">{activeMyReferrals.length}</p>
+                <p className="text-[10px] text-muted-foreground">In Progress</p>
+              </CardContent>
+            </Card>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setReferralFilter('completed')}>
+              <CardContent className="p-3 text-center">
+                <p className="text-xl font-bold text-emerald-600">{completedMyReferrals.length}</p>
+                <p className="text-[10px] text-muted-foreground">Completed</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Filter Tabs */}
+          <div className="flex gap-2">
+            {(['all', 'active', 'completed'] as const).map(f => (
+              <Button key={f} size="sm" variant={referralFilter === f ? 'default' : 'outline'} className="text-xs" onClick={() => setReferralFilter(f)}>
+                {f === 'all' ? 'All' : f === 'active' ? 'In Progress' : 'Completed'}
+              </Button>
+            ))}
+          </div>
+
+          {/* Referral List */}
+          {filteredReferrals.length === 0 ? (
+            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No referrals found</CardContent></Card>
+          ) : filteredReferrals.map(ref => (
+            <Card key={ref.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedReferralId(ref.id)}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="text-sm font-semibold text-foreground">{ref.patientName}</p>
                     <p className="text-xs text-muted-foreground">{ref.referralId} • {ref.department}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">To: {ref.destinationFacilityName}</p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <MapPin className="h-3 w-3 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground">To: {ref.destinationFacilityName}</p>
+                    </div>
+                    {ref.appointmentDate && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Calendar className="h-3 w-3 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">{ref.appointmentDate} at {ref.appointmentTime}</p>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end gap-1">
                     <PriorityBadge priority={ref.priority} />
-                    <Badge variant="outline" className="text-[10px] capitalize">{ref.status.replace(/_/g, ' ')}</Badge>
+                    <Badge className={`text-[10px] ${STATUS_COLORS[ref.status] || ''}`}>\n                      {ref.status.replace(/_/g, ' ')}\n                    </Badge>
+                    <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-0.5 mt-1">
+                      <Eye className="h-3 w-3" /> Monitor
+                    </Button>
                   </div>
                 </div>
                 <ReferralProgressMini currentStep={ref.currentStep} totalSteps={ref.totalSteps} isOverdue={ref.isOverdue} />
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* ── Referral Monitoring Detail Modal ──────────────────── */}
+      {selectedReferral && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedReferralId(null)} />
+          <div className="relative bg-background rounded-xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-background border-b border-border p-4 flex items-center justify-between z-10">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Referral Monitor</h3>
+                <p className="text-xs text-muted-foreground">{selectedReferral.referralId}</p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedReferralId(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Patient Info */}
+              <div className="p-3 bg-muted/30 rounded-lg">
+                <p className="text-sm font-semibold text-foreground">{selectedReferral.patientName}</p>
+                <p className="text-xs text-muted-foreground">Priority: <PriorityBadge priority={selectedReferral.priority} /></p>
+              </div>
+
+              {/* Route */}
+              <div className="p-3 bg-muted/30 rounded-lg">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Referral Route</p>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-medium text-foreground">{selectedReferral.sourceFacilityName}</span>
+                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  <span className="font-medium text-primary">{selectedReferral.destinationFacilityName}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Department: {selectedReferral.department}</p>
+                {selectedReferral.doctorName && (
+                  <p className="text-xs text-muted-foreground">Doctor: {selectedReferral.doctorName}</p>
+                )}
+                {selectedReferral.appointmentDate && (
+                  <p className="text-xs text-muted-foreground">Appointment: {selectedReferral.appointmentDate} at {selectedReferral.appointmentTime}</p>
+                )}
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex items-center gap-2">
+                <Badge className={`text-xs ${STATUS_COLORS[selectedReferral.status] || ''}`}>\n                  {selectedReferral.status.replace(/_/g, ' ')}\n                </Badge>
+                {selectedReferral.isOverdue && (
+                  <Badge className="text-xs bg-red-50 text-red-700 border-red-200">Overdue</Badge>
+                )}
+              </div>
+
+              {/* Progress Bar */}
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Progress</p>
+                <ReferralProgressMini currentStep={selectedReferral.currentStep} totalSteps={selectedReferral.totalSteps} isOverdue={selectedReferral.isOverdue} />
+              </div>
+
+              {/* Step Indicators */}
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Lifecycle Steps</p>
+                <div className="space-y-1">
+                  {REFERRAL_STEPS.map((step, idx) => {
+                    const isCompleted = selectedReferral.currentStep > idx;
+                    const isCurrent = selectedReferral.currentStep === idx + 1;
+                    const isPending = selectedReferral.currentStep < idx + 1;
+                    const Icon = step.icon;
+                    const eventForStep = selectedReferralEvents.find(e => e.status === step.key as ReferralStatus);
+                    return (
+                      <div key={step.key} className={`flex items-center gap-3 p-2 rounded-lg ${
+                        isCurrent ? 'bg-primary/5 border border-primary/20' : ''
+                      }`}>
+                        <div className={`h-7 w-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isCompleted ? 'bg-emerald-100 text-emerald-600' :
+                          isCurrent ? 'bg-primary text-primary-foreground' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-3.5 w-3.5" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium ${isCompleted || isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>\n                            {step.label}
+                          </p>
+                          {eventForStep && (
+                            <p className="text-[10px] text-muted-foreground truncate">{eventForStep.description}</p>
+                          )}
+                          {eventForStep && (
+                            <p className="text-[10px] text-muted-foreground">{new Date(eventForStep.timestamp).toLocaleString()}</p>
+                          )}
+                        </div>
+                        {isCurrent && (
+                          <Badge className="text-[9px] bg-primary/10 text-primary border-primary/20">Current</Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Timeline */}
+              {selectedReferralEvents.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Timeline</p>
+                  <div className="space-y-2">
+                    {selectedReferralEvents.map(event => (
+                      <div key={event.id} className="flex items-start gap-2 p-2 bg-muted/30 rounded-lg">
+                        <div className="h-2 w-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground">{event.description}</p>
+                          <p className="text-[10px] text-muted-foreground">by {event.performedBy} • {new Date(event.timestamp).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <Button variant="outline" className="w-full" onClick={() => setSelectedReferralId(null)}>Close</Button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -500,21 +705,50 @@ export default function HWDashboard() {
 
       {selectedTab === 'overview' && (
         <div className="space-y-4">
+          {/* Active Referrals Alert */}
+          {activeMyReferrals.length > 0 && (
+            <Card className="border-amber-200 bg-amber-50/30">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <p className="text-sm font-semibold text-foreground">{activeMyReferrals.length} Active Referrals to Monitor</p>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">These referrals are in progress. Click any referral to monitor its full lifecycle.</p>
+                <div className="space-y-2">
+                  {activeMyReferrals.slice(0, 3).map(ref => (
+                    <div key={ref.id} className="flex items-center justify-between p-2 bg-white rounded-lg border border-border cursor-pointer hover:bg-muted/50" onClick={() => { setSelectedReferralId(ref.id); setSelectedTab('referrals'); }}>
+                      <div>
+                        <p className="text-xs font-medium text-foreground">{ref.patientName} → {ref.destinationFacilityName}</p>
+                        <p className="text-[10px] text-muted-foreground">{ref.referralId} • {ref.department}</p>
+                      </div>
+                      <Badge className={`text-[9px] ${STATUS_COLORS[ref.status] || ''}`}>\n                        {ref.status.replace(/_/g, ' ')}\n                      </Badge>
+                    </div>
+                  ))}
+                  {activeMyReferrals.length > 3 && (
+                    <Button size="sm" variant="ghost" className="w-full text-xs" onClick={() => { setReferralFilter('active'); setSelectedTab('referrals'); }}>
+                      View all {activeMyReferrals.length} active referrals →
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Activity className="h-[1.125rem] w-[1.125rem] text-primary" />
-                Recent Activity
+                Recent Referral Activity
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {referrals.slice(-5).reverse().map(ref => (
-                <div key={ref.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+              {myReferrals.slice(-5).reverse().map(ref => (
+                <div key={ref.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50" onClick={() => { setSelectedReferralId(ref.id); setSelectedTab('referrals'); }}>
                   <div className={`h-2 w-2 rounded-full mt-2 flex-shrink-0 ${
                     ref.priority === 'emergency' ? 'bg-red-500' :
                     ref.priority === 'urgent' ? 'bg-amber-500' : 'bg-emerald-500'
                   }`} />
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">
                       {ref.patientName} — {ref.referralId}
                     </p>
@@ -522,10 +756,11 @@ export default function HWDashboard() {
                       {ref.status.replace(/_/g, ' ')} • {ref.department} • To: {ref.destinationFacilityName}
                     </p>
                   </div>
+                  <Badge className={`text-[9px] ${STATUS_COLORS[ref.status] || ''}`}>\n                    {ref.status.replace(/_/g, ' ')}\n                  </Badge>
                 </div>
               ))}
-              {referrals.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">No recent activity</p>
+              {myReferrals.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No referrals created yet</p>
               )}
             </CardContent>
           </Card>

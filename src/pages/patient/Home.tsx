@@ -19,11 +19,12 @@ import {
 
 export default function PatientHome() {
   const { language, currentUser } = useApp();
-  const { patients, referrals, appointments, facilities, getReferralsForPatient } = useData();
+  const { patients, referrals, appointments, facilities, getReferralsForPatient, getConsultationsForPatient, doctors } = useData();
   const patient = patients.find(p => p.id === currentUser?.patientId) || patients[0];
   const activeReferrals = getReferralsForPatient(patient.id).filter(r => r.status !== 'closed');
   const upcomingAppointments = appointments.filter(a => a.patientId === patient.id && a.status === 'scheduled');
   const recentNotifications: { id: string; userId: string; title: string; message: string; type: string; read: boolean; createdAt: string; }[] = [];
+  const recentTreatments = getConsultationsForPatient(patient.id).slice(-3).reverse();
   const latestVitals = {
     bloodPressureSystolic: 152,
     bloodPressureDiastolic: 95,
@@ -243,6 +244,57 @@ export default function PatientHome() {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Treatments */}
+      {recentTreatments.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Stethoscope className="h-[1.125rem] w-[1.125rem] text-primary" />
+                Recent Treatments
+              </CardTitle>
+              <Link to="/patient/timeline">
+                <Button variant="ghost" size="sm" className="text-xs h-7 gap-1">
+                  {t('view', language)} <ChevronRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recentTreatments.map(treatment => {
+              const doctor = doctors.find(d => d.id === treatment.doctorId);
+              return (
+                <div key={treatment.id} className="rounded-lg border border-border p-3">
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{treatment.diagnosis}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{treatment.notes || 'Consultation completed'}</p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] bg-teal-50 text-teal-600 border-teal-200">
+                      Treatment
+                    </Badge>
+                  </div>
+                  {treatment.prescription.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {treatment.prescription.map((med, i) => (
+                        <Badge key={i} variant="outline" className="text-[10px] bg-emerald-50 text-emerald-600 border-emerald-200">
+                          {med}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                    {doctor && <span>Dr. {doctor.name}</span>}
+                    <span>•</span>
+                    <span>{treatment.createdAt}</span>
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

@@ -200,6 +200,26 @@ export function generateTempPassword(): string {
   return pw;
 }
 
+// ── Data version — bump this when mock data changes to force reload ──
+const DATA_VERSION = 'v3-hospital-isolation-2026-09';
+const VERSION_KEY = 'aal_data_version';
+
+function clearStaleStorage() {
+  try {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('aal_'));
+    keys.forEach(k => localStorage.removeItem(k));
+    localStorage.setItem(VERSION_KEY, DATA_VERSION);
+  } catch { /* ignore */ }
+}
+
+// Clear stale data on first load if version changed
+try {
+  const storedVersion = localStorage.getItem(VERSION_KEY);
+  if (storedVersion !== DATA_VERSION) {
+    clearStaleStorage();
+  }
+} catch { /* ignore */ }
+
 // ── localStorage persistence helpers ──────────────────────────────
 function loadFromStorage<T>(key: string, fallback: T): T {
   try {

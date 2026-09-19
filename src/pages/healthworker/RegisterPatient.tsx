@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
+import { useSubmitGuard } from '@/hooks/use-submit-guard';
 import { t } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,7 @@ export default function RegisterPatient() {
   const [registeredPatientId, setRegisteredPatientId] = useState('');
   const [registeredHealthCardId, setRegisteredHealthCardId] = useState('');
   const [validationError, setValidationError] = useState('');
+  const guardSubmit = useSubmitGuard();
 
   const update = (field: keyof PatientForm, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -94,6 +96,10 @@ export default function RegisterPatient() {
       return;
     }
     setValidationError('');
+
+    // Guard against a double-click registering the same patient twice
+    // (checked after validation so a failed attempt never blocks a retry).
+    if (!guardSubmit()) return;
 
     // Map form data to Patient type and save to DataContext
     const genderMap: Record<string, 'male' | 'female' | 'other'> = {

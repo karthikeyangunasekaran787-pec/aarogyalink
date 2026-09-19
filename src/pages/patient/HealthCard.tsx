@@ -6,13 +6,16 @@ import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { QRCode } from '@/components/shared/QRCode';
+import { UnlinkedPatientNotice } from '@/components/shared/UnlinkedPatientNotice';
 import { useData } from '@/contexts/DataContext';
 import { CreditCard, Download, Share2, Heart, Droplets, Phone, AlertTriangle, Shield } from 'lucide-react';
 
 export default function HealthCard() {
   const { patients } = useData();
   const { language, currentUser } = useApp();
-  const patient = patients.find(p => p.id === currentUser?.patientId) || patients[0];
+  // Never fall back to another patient's record (private health data).
+  const patient = patients.find(p => p.id === currentUser?.patientId);
+  if (!patient) return <UnlinkedPatientNotice language={language} />;
 
   return (
     <div className="max-w-lg mx-auto space-y-6">

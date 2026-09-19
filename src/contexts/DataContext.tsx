@@ -207,6 +207,18 @@ export function generateReferralId(num: number) {
   return `REF-PDK-${String(num).padStart(4, '0')}`;
 }
 
+/**
+ * Unique id for append-only records (vitals, health records, consultations).
+ * A bare timestamp could collide when two records are saved in the same
+ * millisecond, and duplicate ids are dropped by the cross-device merge — which
+ * would lose a vitals reading. A random suffix guarantees uniqueness while
+ * keeping the timestamp prefix so ids stay roughly time-ordered.
+ */
+export function uniqueRecordId(prefix: string, now: number = Date.now(), rand: number = Math.random()): string {
+  const suffix = Math.floor(rand * 0xffffff).toString(36).padStart(4, '0').slice(0, 4);
+  return `${prefix}${now}${suffix}`;
+}
+
 // ── Temporary Password Generation ───────────────────────────────
 export function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -712,15 +724,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addVitals = useCallback((data: Omit<Vitals, 'id'>) => {
-    setVitalsList(prev => [...prev, { ...data, id: `v${Date.now()}` }]);
+    setVitalsList(prev => [...prev, { ...data, id: uniqueRecordId('v') }]);
   }, []);
 
   const addHealthRecord = useCallback((data: Omit<HealthRecord, 'id'>) => {
-    setHealthRecordsList(prev => [...prev, { ...data, id: `hr${Date.now()}` }]);
+    setHealthRecordsList(prev => [...prev, { ...data, id: uniqueRecordId('hr') }]);
   }, []);
 
   const addConsultation = useCallback((data: Omit<Consultation, 'id'>) => {
-    setConsultations(prev => [...prev, { ...data, id: `c${Date.now()}` }]);
+    setConsultations(prev => [...prev, { ...data, id: uniqueRecordId('c') }]);
   }, []);
 
   // ── Notification actions ──────────────────────────────────────

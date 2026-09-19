@@ -43,7 +43,9 @@ export default function StaffManagement() {
   const { language, currentUser } = useApp();
   const { staffUsers, facilities, hospitals, addStaffUser, addDoctor, addHealthWorker, disableStaffUser, enableStaffUser, removeStaffUser, getStaffByFacility } = useData();
 
-  const hospitalFacilityId = currentUser?.facilityId || 'f3';
+  // Never fall back to another hospital's id: an admin without a facility must
+  // see an empty staff list rather than a different hospital's staff.
+  const hospitalFacilityId = currentUser?.facilityId || '';
   // Look up hospital from both facilities and newly registered hospitals
   const facility = facilities.find(f => f.id === hospitalFacilityId)
     || hospitals.find(h => h.id === hospitalFacilityId);

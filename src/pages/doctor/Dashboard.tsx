@@ -2,8 +2,9 @@
 // Doctor Dashboard — Functional Consultation & Referral Management
 // ============================================================================
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Doctor } from '@/types';
+import { recordsOrCache, resolveDoctor } from '@/lib/resolve-staff';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
@@ -19,47 +20,21 @@ import {
   CheckCircle2, PlayCircle, PenLine, ChevronRight
 } from 'lucide-react';
 
+/**
+ * Shell: resolves the signed-in user's Doctor record.
+ *
+ * The record can arrive AFTER the first render (e.g. created by a Hospital
+ * Administrator on another device and delivered by cloud sync), so resolution
+ * happens here and the dashboard body — which owns all the state hooks — is
+ * only mounted once the record exists. Returning early inside the body would
+ * change the hook order between renders and crash the page.
+ */
 export default function DoctorDashboard() {
-  const { language, currentUser } = useApp();
-  const {
-    doctors, patients, referrals, followups, facilities,
-    getAppointmentsForDoctor, getReferralsForPatient, getVitalsForPatient,
-    getConsultationsForPatient,
-    startConsultation, completeConsultation, scheduleFollowup, closeReferral,
-    addConsultation: addConsultationToData, createReferral, addNotification,
-    completeAppointment, cancelAppointment, staffUsers
-  } = useData();
+  const { currentUser } = useApp();
+  const { doctors, staffUsers } = useData();
+  const records = useMemo(() => recordsOrCache(doctors, 'aal_doctors'), [doctors]);
+  const doctor = resolveDoctor(records, currentUser, staffUsers);
 
-  // Load doctors from context or localStorage as fallback
-  const allDoctors = (() => {
-    // First try context state
-    if (doctors.length > 0) return doctors;
-    // Then try localStorage
-    try {
-      const stored = localStorage.getItem('aal_doctors');
-      if (stored) {
-        const parsed = JSON.parse(stored) as Doctor[];
-        if (parsed.length > 0) return parsed;
-      }
-    } catch { /* ignore */ }
-    return [];
-  })();
-
-  // Find doctor record — primary: match by userId; fallback: match by name from staffUsers
-  let doctor = allDoctors.find(d => d.userId === currentUser?.id);
-
-  // Fallback: if no match by userId, try to find by matching the logged-in user's name
-  if (!doctor && currentUser?.name) {
-    const staffRecord = staffUsers.find(u => u.id === currentUser?.id);
-    if (staffRecord) {
-      doctor = allDoctors.find(d =>
-        d.userId === staffRecord.id ||
-        (d.name.toLowerCase() === staffRecord.name.toLowerCase() && d.facilityId === staffRecord.facilityId)
-      );
-    }
-  }
-
-  // Show a message if no doctor record found
   if (!doctor) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -68,13 +43,27 @@ export default function DoctorDashboard() {
           <h2 className="text-lg font-semibold text-foreground">No Doctor Profile Found</h2>
           <p className="text-sm text-muted-foreground max-w-md">
             Your account ({currentUser?.id || 'unknown'}) has no matching doctor profile.
-            Doctor records found: {allDoctors.length}.
+            Doctor records found: {records.length}.
             Please contact your Hospital Administrator to create your doctor record via Staff Management.
           </p>
         </div>
       </div>
     );
   }
+
+  return <DoctorDashboardContent doctor={doctor} />;
+}
+
+function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
+  const { language } = useApp();
+  const {
+    patients, referrals, followups, facilities,
+    getAppointmentsForDoctor, getReferralsForPatient, getVitalsForPatient,
+    getConsultationsForPatient,
+    startConsultation, completeConsultation, scheduleFollowup, closeReferral,
+    addConsultation: addConsultationToData, createReferral, addNotification,
+    completeAppointment, cancelAppointment
+  } = useData();
 
   const doctorFacility = facilities.find(f => f.id === doctor.facilityId);
   const doctorAppointments = getAppointmentsForDoctor(doctor.id);

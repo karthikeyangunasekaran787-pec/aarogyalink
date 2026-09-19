@@ -88,7 +88,9 @@ export default function BookAppointment() {
 
   const handleBook = () => {
     if (!doctor || !location) return;
-    const patientId = currentUser?.patientId || 'p1';
+    // Never book against another patient's record if this account is unlinked.
+    const patientId = currentUser?.patientId;
+    if (!patientId) return;
     bookAppointment({
       patientId,
       doctorId: doctor.id,

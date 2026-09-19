@@ -7,6 +7,8 @@ import { useNavigate, Link } from 'react-router';
 import type { HealthWorker, Referral, ReferralEvent, ReferralStatus, Vitals } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
+import { useSubmitGuard } from '@/hooks/use-submit-guard';
+import { recordsOrCache, resolveHealthWorker } from '@/lib/resolve-staff';
 import { t } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,34 +45,24 @@ const STATUS_COLORS: Record<string, string> = {
   closed: 'bg-gray-100 text-gray-600 border-gray-200',
 };
 
+/**
+ * Shell: resolves the signed-in user's Health Worker record.
+ *
+ * The record can arrive AFTER the first render (it may come from the cloud on
+ * a device that has never seen it), so resolution happens in this shell and the
+ * dashboard body — which owns all the state hooks — is only mounted once the
+ * record exists. Returning early inside the body would change the hook order
+ * between renders and crash the page.
+ */
 export default function HWDashboard() {
-  const { language, currentUser } = useApp();
-  const { patients, referrals, followups, healthWorkers, facilities, hospitals, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient, completeFollowupById, markFollowupMissed, completeFollowup } = useData();
-  const navigate = useNavigate();
+  const { currentUser } = useApp();
+  const { healthWorkers } = useData();
+  const records = useMemo(
+    () => recordsOrCache(healthWorkers, 'aal_healthWorkers'),
+    [healthWorkers],
+  );
+  const hw = resolveHealthWorker(records, currentUser);
 
-  // Load health workers from context or localStorage as fallback
-  const allHealthWorkers = (() => {
-    if (healthWorkers.length > 0) return healthWorkers;
-    try {
-      const stored = localStorage.getItem('aal_healthWorkers');
-      if (stored) {
-        const parsed = JSON.parse(stored) as HealthWorker[];
-        if (parsed.length > 0) return parsed;
-      }
-    } catch { /* ignore */ }
-    return [];
-  })();
-
-  // Find HW record — primary: match by userId; fallback: match by name
-  let hw = allHealthWorkers.find(h => h.userId === currentUser?.id);
-
-  if (!hw && currentUser?.name) {
-    hw = allHealthWorkers.find(h =>
-      h.name.toLowerCase() === currentUser.name.toLowerCase()
-    );
-  }
-
-  // If no health worker record found, show a message
   if (!hw) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -79,13 +71,21 @@ export default function HWDashboard() {
           <h2 className="text-lg font-semibold text-foreground">No Health Worker Record Found</h2>
           <p className="text-sm text-muted-foreground max-w-md">
             Your account ({currentUser?.id || 'unknown'}) has no matching health worker profile.
-            HW records found: {allHealthWorkers.length}.
+            HW records found: {records.length}.
             Please contact your Hospital Administrator to create your health worker record via Staff Management.
           </p>
         </div>
       </div>
     );
   }
+
+  return <HWDashboardContent hw={hw} />;
+}
+
+function HWDashboardContent({ hw }: { hw: HealthWorker }) {
+  const { language } = useApp();
+  const { patients, referrals, followups, facilities, hospitals, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient, completeFollowupById, markFollowupMissed, completeFollowup } = useData();
+  const navigate = useNavigate();
 
   // Hospital isolation: show only patients and referrals from this HW's hospital
   const hwHospitalId = hw.facilityId;
@@ -138,6 +138,8 @@ export default function HWDashboard() {
     spO2: '', weight: '', height: '', bloodSugar: '',
   });
   const [vitalsFeedback, setVitalsFeedback] = useState<string | null>(null);
+  const guardVitals = useSubmitGuard();
+  const guardReferral = useSubmitGuard();
 
   const showVitalsFeedback = (msg: string) => {
     setVitalsFeedback(msg);
@@ -148,6 +150,8 @@ export default function HWDashboard() {
     if (!vitalsPatientId) return;
     const patient = patients.find(p => p.id === vitalsPatientId);
     if (!patient) return;
+    // Ignore a double-click so the same reading isn't stored twice.
+    if (!guardVitals()) return;
 
     if (editingVitalsId) {
       // Update existing vitals — we'll add a new record (append-only model)
@@ -228,6 +232,8 @@ export default function HWDashboard() {
       showFeedback('Please fill all required fields.');
       return;
     }
+    // Ignore a double-click so one referral isn't created twice.
+    if (!guardReferral()) return;
 
     createReferral({
       patientId: patient.id,

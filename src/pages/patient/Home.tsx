@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { RiskBadge } from '@/components/shared/RiskBadge';
+import { UnlinkedPatientNotice } from '@/components/shared/UnlinkedPatientNotice';
 import { useData } from '@/contexts/DataContext';
 import { Link } from 'react-router';
 import {
@@ -20,7 +21,11 @@ import {
 export default function PatientHome() {
   const { language, currentUser } = useApp();
   const { patients, referrals, appointments, facilities, hospitals, getReferralsForPatient, getConsultationsForPatient, doctors } = useData();
-  const patient = patients.find(p => p.id === currentUser?.patientId) || patients[0];
+  // Never fall back to another patient's record: an unlinked account must not
+  // see someone else's health data.
+  const patient = patients.find(p => p.id === currentUser?.patientId);
+  if (!patient) return <UnlinkedPatientNotice language={language} />;
+
   const activeReferrals = getReferralsForPatient(patient.id).filter(r => r.status !== 'closed');
   const upcomingAppointments = appointments.filter(a => a.patientId === patient.id && a.status === 'scheduled');
   const recentNotifications: { id: string; userId: string; title: string; message: string; type: string; read: boolean; createdAt: string; }[] = [];

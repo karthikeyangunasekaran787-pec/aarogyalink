@@ -14,13 +14,11 @@ export const getAll = query({
   args: {},
   handler: async (ctx) => {
     const rows = await ctx.db.query("collections").collect();
-    const out: Record<string, unknown> = {};
+    // Return RAW payloads. Parsing + version validation happens on the client
+    // (unwrapFromCloud) so stale/foreign-version records are rejected there.
+    const out: Record<string, string> = {};
     for (const row of rows) {
-      try {
-        out[row.key] = JSON.parse(row.data);
-      } catch {
-        // Ignore malformed rows.
-      }
+      out[row.key] = row.data;
     }
     return out;
   },
@@ -40,6 +38,19 @@ export const saveCollection = mutation({
       await ctx.db.patch(existing._id, { data, updatedAt: Date.now() });
     } else {
       await ctx.db.insert("collections", { key, data, updatedAt: Date.now() });
+    }
+  },
+});
+
+export const deleteCollection = mutation({
+  args: { key: v.string() },
+  handler: async (ctx, { key }) => {
+    const existing = await ctx.db
+      .query("collections")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .unique();
+    if (existing) {
+      await ctx.db.delete(existing._id);
     }
   },
 });

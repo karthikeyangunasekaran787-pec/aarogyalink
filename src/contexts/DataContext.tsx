@@ -735,17 +735,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const lastWrittenRef = useRef<Record<string, string>>({});
   const didSyncRef = useRef(false);
 
-  // 1) Adopt cloud data whenever it changes (including other devices' writes)
+  // 1) Adopt cloud data whenever it changes (including other devices' writes).
+  // Merge semantics: for shared ids the CLOUD version wins (source of truth),
+  // but local-only records (created while offline) are preserved and will be
+  // pushed up by the sync effect. This prevents an offline device's work
+  // (e.g. patients registered offline) from being silently wiped.
   useEffect(() => {
     if (!cloudReady) return;
     const raw = cloudRaw as Record<string, unknown>;
     const adopted: Record<string, unknown[]> = {};
-    for (const { key, set } of collectionRegistry) {
-      const items = unwrapFromCloud(raw[key]);
-      if (items) {
-        lastWrittenRef.current[key] = wrapForCloud(items);
-        adopted[key] = items;
-        set(items);
+    const idOf = (item: unknown): string | undefined =>
+      (item as { id?: string; villageId?: string }).id ?? (item as { villageId?: string }).villageId;
+    for (const { key, get, set } of collectionRegistry) {
+      const cloudItems = unwrapFromCloud(raw[key]);
+      if (cloudItems) {
+        const localItems = get();
+        const merged = cloudItems.length === localItems.length && cloudItems.every((c, i) => c === localItems[i])
+          ? cloudItems // already identical — skip allocation
+          : [
+              ...cloudItems,
+              ...localItems.filter(l => {
+                const lid = idOf(l);
+                return lid === undefined || !cloudItems.some(c => idOf(c) === lid);
+              }),
+            ];
+        lastWrittenRef.current[key] = wrapForCloud(cloudItems); // pure cloud payload — merge gets pushed up if non-empty union
+        adopted[key] = merged;
+        set(merged);
       }
     }
     // Keep ID counters ahead of the adopted data to avoid collisions
@@ -790,19 +806,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloudReady, cloudRaw, saveCollection]);
 
-  // 3) Push local changes to the cloud (debounced, skip unchanged)
+  // 3) Push local changes to the cloud (debounced, skip unchanged).
+  // Correctness relies on two guards instead of a first-fire skip:
+  //   - payload diff vs lastWrittenRef (adopted cloud payloads are recorded,
+  //     so unchanged state is never re-pushed), and
+  //   - every fire cancels pending timers, so any stale pre-adoption write is
+  //     always superseded by the post-adopt render before the debounce fires.
   const cloudTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const cloudSyncedRef = useRef(false);
   useEffect(() => {
-    if (!cloudReady) {
-      cloudSyncedRef.current = false;
-      return;
-    }
-    // Skip the first fire after hydration: adopt/seed already aligned state
-    if (!cloudSyncedRef.current) {
-      cloudSyncedRef.current = true;
-      return;
-    }
+    if (!cloudReady) return;
     for (const { key, get } of collectionRegistry) {
       const payload = wrapForCloud(get());
       // Always cancel any pending write first — a render triggered by cloud

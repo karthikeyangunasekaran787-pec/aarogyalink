@@ -16,14 +16,15 @@ import {
 export default function GovDashboard() {
   const { language } = useApp();
   const {
-    patients, referrals, followups, facilities, villageAccessScores,
+    patients, referrals, followups, currentFacilities, villageAccessScores,
     medicineStock, diagnostics,
     districtAnalytics: liveAnalytics, referralFunnel, aiInsights,
   } = useData();
 
-  // Compute facility performance from actual referrals
+  // Compute facility performance from actual referrals. Uses the dynamic
+  // facility list so hospitals added by the District Administrator appear here.
   const facilityPerformance = useMemo(() => {
-    return facilities.map(f => {
+    return currentFacilities.map(f => {
       const fReferrals = referrals.filter(r => r.destinationFacilityId === f.id);
       const closed = fReferrals.filter(r => r.status === 'closed').length;
       const closureRate = fReferrals.length > 0 ? Math.round((closed / fReferrals.length) * 100) : 0;
@@ -35,7 +36,7 @@ export default function GovDashboard() {
         totalReferrals: fReferrals.length,
       };
     });
-  }, [facilities, referrals]);
+  }, [currentFacilities, referrals]);
 
   // Compute monthly trends from actual referral dates
   const monthlyTrends = useMemo(() => {
@@ -71,7 +72,7 @@ export default function GovDashboard() {
           {language === 'ta' ? 'மாவட்ட கட்டுப்பாட்டு மையம்' : language === 'hi' ? 'जिला कमांड सेंटर' : 'District Command Center'}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Madurai District • {facilities.length} Facilities • {patients.length} Registered Patients
+          Madurai District • {currentFacilities.length} Facilities • {patients.length} Registered Patients
         </p>
       </div>
 

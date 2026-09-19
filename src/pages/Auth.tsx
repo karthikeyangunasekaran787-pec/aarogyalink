@@ -5,7 +5,7 @@
 // Staff (Doctor, HW, Hospital Admin): login via username/password
 // ============================================================================
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
@@ -39,10 +39,14 @@ const DISTRICT_ADMIN_DEMO = {
 };
 
 export default function AuthPage() {
-  const { currentRole, login, loginPatient, loginStaff } = useApp();
+  const { currentRole, login, loginPatient, loginStaff, currentUser, isAuthenticated, isAuthLoading } = useApp();
   const { getPatientByEmail, staffUsers, facilities, hospitals, updateStaffUser } = useData();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Set once a login happens on this page so the auto-redirect below never
+  // overrides the intended return path after an explicit sign-in.
+  const justLoggedInRef = useRef(false);
 
   const [emailValue, setEmailValue] = useState('');
   const [username, setUsername] = useState('');
@@ -61,9 +65,20 @@ export default function AuthPage() {
   const isPatient = currentRole === 'patient';
   const isDistrictAdmin = currentRole === 'gov_admin';
 
+  // ── Already signed in: return to the correct dashboard ──────────
+  // Keeps a restored session usable (e.g. reopening /auth after a refresh)
+  // instead of showing the login form to an authenticated user.
+  useEffect(() => {
+    if (isAuthLoading) return;
+    if (!isAuthenticated || !currentUser) return;
+    if (justLoggedInRef.current || pendingPasswordChange) return;
+    navigate(ROLE_ROUTES[currentUser.role] || '/', { replace: true });
+  }, [isAuthLoading, isAuthenticated, currentUser, pendingPasswordChange, navigate]);
+
   // ── District Admin: auto-login — no credentials needed ──────────
   useEffect(() => {
     if (isDistrictAdmin) {
+      justLoggedInRef.current = true;
       login(DISTRICT_ADMIN_DEMO.email);
       navigate(ROLE_ROUTES.gov_admin, { replace: true });
     }
@@ -92,6 +107,7 @@ export default function AuthPage() {
     }
 
     setFoundPatient({ name: patient.name, healthCardId: patient.healthCardId });
+    justLoggedInRef.current = true;
     loginPatient(emailValue, patient.id, patient.healthCardId, patient.name);
 
     setTimeout(() => {
@@ -153,6 +169,7 @@ export default function AuthPage() {
     }
 
     // Login with the actual staff user data from the database
+    justLoggedInRef.current = true;
     // Look up facility name — check both facilities and hospitals (District Admin may have registered new hospitals)
     const staffFacility = staffUser.facilityId
       ? (facilities.find(f => f.id === staffUser.facilityId) || hospitals.find(h => h.id === staffUser.facilityId))
@@ -188,6 +205,7 @@ export default function AuthPage() {
     // Update the user's password and mustChangePassword flag
     const updatedUser = staffUsers.find(u => u.id === pendingPasswordChange.userId);
     if (updatedUser) {
+      justLoggedInRef.current = true;
       updateStaffUser(updatedUser.id, {
         password: pendingPasswordChange.newPassword,
         mustChangePassword: false,

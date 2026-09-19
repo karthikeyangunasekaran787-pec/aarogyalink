@@ -3,8 +3,40 @@
 // ============================================================================
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useConvexAuth } from 'convex/react';
 import type { Role } from '@/types';
 import type { Language } from '@/lib/i18n';
+
+// Persisted application session. Kept separate from temporary React state so a
+// browser refresh restores the signed-in user instead of dropping them back to
+// role selection. (localStorage is intentional: offline-first rural use.)
+const AUTH_SESSION_KEY = 'aal_auth_session';
+
+interface StoredSession {
+  user: AuthUser;
+  role: Role;
+}
+
+function readStoredSession(): StoredSession | null {
+  try {
+    const raw = localStorage.getItem(AUTH_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredSession;
+    if (parsed && parsed.user && parsed.user.role) return parsed;
+  } catch {
+    /* corrupted cache — ignore */
+  }
+  return null;
+}
+
+function writeStoredSession(session: StoredSession | null) {
+  try {
+    if (session) localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    else localStorage.removeItem(AUTH_SESSION_KEY);
+  } catch {
+    /* storage unavailable — ignore */
+  }
+}
 
 export interface AuthUser {
   id: string;
@@ -27,6 +59,8 @@ const DEMO_ACCOUNTS: Record<string, AuthUser> = {
 interface AppState {
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
+  /** True while the persisted session / Convex auth state is still resolving. */
+  isAuthLoading: boolean;
   login: (email: string) => boolean;
   loginPatient: (email: string, patientId: string, healthCardId: string, name: string) => void;
   loginStaff: (staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; facilityName?: string; departmentName?: string; departmentId?: string }) => void;
@@ -44,7 +78,8 @@ interface AppState {
 const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [currentRole, setCurrentRole] = useState<Role>('patient');
+  // Restore the session synchronously so a refresh keeps the user signed in.
+  const [currentRole, setCurrentRole] = useState<Role>(() => readStoredSession()?.role ?? 'patient');
   const [language, setLanguage] = useState<Language>('en');
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
 
@@ -60,38 +95,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => readStoredSession()?.user ?? null);
+
+  // Convex Auth is the transport-level session used by the backend functions.
+  // It is deliberately NOT the only proof of authentication: the demo login
+  // creates the app session, which is restored from storage on refresh.
+  const { isLoading: convexAuthLoading, isAuthenticated: convexAuthenticated } = useConvexAuth();
+
+  // Safety valve: never keep the app stuck on a loading screen if the auth
+  // handshake cannot complete (offline demo, unreachable deployment).
+  const [authTimedOut, setAuthTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setAuthTimedOut(true), 2500);
+    return () => clearTimeout(t);
+  }, []);
 
   const isAuthenticated = currentUser !== null;
+  // Only block rendering while auth is resolving AND we have no restored
+  // session — a restored session should render immediately.
+  const isAuthLoading = !authTimedOut && convexAuthLoading && !isAuthenticated && !convexAuthenticated;
+
+  const persist = useCallback((user: AuthUser | null) => {
+    writeStoredSession(user ? { user, role: user.role } : null);
+  }, []);
 
   const login = useCallback((email: string) => {
     const account = DEMO_ACCOUNTS[currentRole];
-    if (account) {
-      setCurrentUser(account);
-      return true;
-    }
-    setCurrentUser({
+    const user: AuthUser = account ?? {
       id: `u-${currentRole}`,
       name: currentRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       email,
       role: currentRole,
-    });
+    };
+    setCurrentUser(user);
+    setCurrentRole(user.role);
+    persist(user);
     return true;
-  }, [currentRole]);
+  }, [currentRole, persist]);
 
   const loginPatient = useCallback((email: string, patientId: string, healthCardId: string, name: string) => {
-    setCurrentUser({
+    const user: AuthUser = {
       id: `u-${patientId}`,
       name,
       email,
       role: 'patient',
       patientId,
       healthCardId,
-    });
-  }, []);
+    };
+    setCurrentUser(user);
+    setCurrentRole('patient');
+    persist(user);
+  }, [persist]);
 
   const loginStaff = useCallback((staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; facilityName?: string; departmentName?: string; departmentId?: string }) => {
-    setCurrentUser({
+    const user: AuthUser = {
       id: staffUser.id,
       name: staffUser.name,
       email: staffUser.email,
@@ -99,20 +156,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       facilityId: staffUser.facilityId,
       facilityName: staffUser.facilityName,
       departmentName: staffUser.departmentName,
-    });
-  }, []);
+    };
+    setCurrentUser(user);
+    setCurrentRole(user.role);
+    persist(user);
+  }, [persist]);
 
   const logout = useCallback(() => {
     setCurrentUser(null);
+    persist(null);
     try { sessionStorage.clear(); } catch { /* ok */ }
-  }, []);
+  }, [persist]);
 
   const handleSetRole = useCallback((role: Role) => {
     setCurrentRole(role);
   }, []);
 
   const value: AppState = {
-    currentUser, isAuthenticated, login, loginPatient, loginStaff, logout,
+    currentUser, isAuthenticated, isAuthLoading, login, loginPatient, loginStaff, logout,
     currentRole, setCurrentRole: handleSetRole,
     language, setLanguage,
     isOffline, setIsOffline,

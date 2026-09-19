@@ -230,6 +230,11 @@ export interface ReferralEvent {
   description: string;
   performedBy: string;
   timestamp: string;
+  // Audit attribution — who actually performed the transition, in which role
+  // and at which facility. Optional so existing records stay valid.
+  performedByUserId?: string;
+  performedByRole?: string;
+  performedByFacilityId?: string;
 }
 
 export interface Followup {

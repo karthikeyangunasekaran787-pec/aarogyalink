@@ -21,8 +21,21 @@ const ROLE_DASHBOARDS: Record<string, string> = {
 };
 
 export function RequireAuth({ children, allowedRoles }: RequireAuthProps) {
-  const { isAuthenticated, currentUser } = useApp();
+  const { isAuthenticated, isAuthLoading, currentUser } = useApp();
   const location = useLocation();
+
+  // Authentication is still being restored (persisted session / Convex Auth).
+  // Do NOT redirect yet — a refresh must not bounce the user to role select.
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <span className="text-sm text-muted-foreground">Restoring session...</span>
+        </div>
+      </div>
+    );
+  }
 
   // Not authenticated → redirect to role selection
   if (!isAuthenticated || !currentUser) {

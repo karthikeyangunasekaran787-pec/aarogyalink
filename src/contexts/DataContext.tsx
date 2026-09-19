@@ -4,7 +4,10 @@
 // Analytics are computed dynamically from actual data.
 // ============================================================================
 
-import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { DATA_VERSION, wrapForCloud, unwrapFromCloud } from './cloudData';
 import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
@@ -199,23 +202,16 @@ export function generateTempPassword(): string {
   return pw;
 }
 
-// ── Data version — bump this when mock data changes to force reload ──
-const DATA_VERSION = 'v3-hospital-isolation-2026-09';
-const VERSION_KEY = 'aal_data_version';
-
-function clearStaleStorage() {
-  try {
-    const keys = Object.keys(localStorage).filter(k => k.startsWith('aal_'));
-    keys.forEach(k => localStorage.removeItem(k));
-    localStorage.setItem(VERSION_KEY, DATA_VERSION);
-  } catch { /* ignore */ }
-}
-
-// Clear stale data on first load if version changed
+// Clear stale local cache when the shared-data version changes so every
+// device reloads fresh seed data instead of an outdated cache.
+// (The shared version itself lives in cloudData.ts)
 try {
-  const storedVersion = localStorage.getItem(VERSION_KEY);
-  if (storedVersion !== DATA_VERSION) {
-    clearStaleStorage();
+  const LOCAL_VERSION_KEY = 'aal_data_version';
+  if (localStorage.getItem(LOCAL_VERSION_KEY) !== DATA_VERSION) {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('aal_'))
+      .forEach(k => localStorage.removeItem(k));
+    localStorage.setItem(LOCAL_VERSION_KEY, DATA_VERSION);
   }
 } catch { /* ignore */ }
 
@@ -235,19 +231,29 @@ function saveToStorage<T>(key: string, data: T) {
   } catch { /* quota exceeded or private mode — silently ignore */ }
 }
 
+// Keys of collections shared through Convex (see collectionRegistry below)
+type CloudCollectionKey =
+  | 'patients' | 'doctors' | 'healthWorkers' | 'staffUsers' | 'hospitals'
+  | 'referrals' | 'appointments' | 'followups' | 'notifications' | 'referralEvents'
+  | 'consultations' | 'vitals' | 'healthRecords' | 'medicineStock'
+  | 'diagnostics' | 'villageAccessScores' | 'referralPredictions';
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>(() => loadFromStorage('patients', initPatients));
   const [doctorsList, setDoctorsList] = useState<Doctor[]>(() => loadFromStorage('doctors', initDoctors));
   const [healthWorkersList, setHealthWorkersList] = useState<HealthWorker[]>(() => loadFromStorage('healthWorkers', initHealthWorkers));
-  const [referrals, setReferrals] = useState<Referral[]>(initReferrals);
-  const [appointments, setAppointments] = useState<Appointment[]>(initAppointments);
-  const [followups, setFollowups] = useState<Followup[]>(initFollowups);
-  const [notifications, setNotifications] = useState<Notification[]>(initNotifications);
-  const [referralEvents, setReferralEvents] = useState<ReferralEvent[]>(initReferralEvents);
-  const [consultations, setConsultations] = useState<Consultation[]>(initConsultations);
-  const [vitalsList, setVitalsList] = useState<Vitals[]>(initVitals);
-  const [healthRecordsList, setHealthRecordsList] = useState<HealthRecord[]>(initHealthRecords);
-  const [medicineStockList, setMedicineStockList] = useState<MedicineStock[]>(initMedicineStock);
+  const [referrals, setReferrals] = useState<Referral[]>(() => loadFromStorage('referrals', initReferrals));
+  const [appointments, setAppointments] = useState<Appointment[]>(() => loadFromStorage('appointments', initAppointments));
+  const [followups, setFollowups] = useState<Followup[]>(() => loadFromStorage('followups', initFollowups));
+  const [notifications, setNotifications] = useState<Notification[]>(() => loadFromStorage('notifications', initNotifications));
+  const [referralEvents, setReferralEvents] = useState<ReferralEvent[]>(() => loadFromStorage('referralEvents', initReferralEvents));
+  const [consultations, setConsultations] = useState<Consultation[]>(() => loadFromStorage('consultations', initConsultations));
+  const [vitalsList, setVitalsList] = useState<Vitals[]>(() => loadFromStorage('vitals', initVitals));
+  const [healthRecordsList, setHealthRecordsList] = useState<HealthRecord[]>(() => loadFromStorage('healthRecords', initHealthRecords));
+  const [medicineStockList, setMedicineStockList] = useState<MedicineStock[]>(() => loadFromStorage('medicineStock', initMedicineStock));
+  const [diagnosticsList, setDiagnosticsList] = useState<Diagnostic[]>(() => loadFromStorage('diagnostics', initDiagnostics));
+  const [villageScoresList, setVillageScoresList] = useState<VillageAccessScore[]>(() => loadFromStorage('villageAccessScores', initVillageScores));
+  const [predictionsList, setPredictionsList] = useState<ReferralPrediction[]>(() => loadFromStorage('referralPredictions', initPredictions));
 
   const now = () => new Date().toISOString();
 
@@ -276,7 +282,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const lowStockMedicines = medicineStockList.filter(m => m.status === 'low_stock').length;
     const outOfStockMedicines = medicineStockList.filter(m => m.status === 'out_of_stock').length;
     const totalMedicines = medicineStockList.filter(m => m.status !== 'out_of_stock').length;
-    const availableDiagnostics = initDiagnostics.filter((d: Diagnostic) => d.available).length;
+    const availableDiagnostics = diagnosticsList.filter((d: Diagnostic) => d.available).length;
 
     const totalBeds = initFacilities.reduce((sum: number, f: Facility) => sum + f.totalBeds, 0);
     const occupiedBeds = initFacilities.reduce((sum: number, f: Facility) => sum + f.occupiedBeds, 0);
@@ -286,8 +292,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ? Math.round(initFacilities.reduce((sum: number, f: Facility) => sum + f.averageWaitTime, 0) / initFacilities.length)
       : 0;
 
-    const avgVillageScore = initVillageScores.length > 0
-      ? Math.round(initVillageScores.reduce((sum: number, v: VillageAccessScore) => sum + v.overallScore, 0) / initVillageScores.length)
+    const avgVillageScore = villageScoresList.length > 0
+      ? Math.round(villageScoresList.reduce((sum: number, v: VillageAccessScore) => sum + v.overallScore, 0) / villageScoresList.length)
       : 0;
 
     return {
@@ -306,7 +312,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       lowStockMedicines: lowStockMedicines + outOfStockMedicines,
       ruralAccessScore: avgVillageScore,
     };
-  }, [referrals, followups, patients, medicineStockList]);
+  }, [referrals, followups, patients, medicineStockList, diagnosticsList, villageScoresList]);
 
   const computedReferralFunnel = useMemo<ReferralFunnelStage[]>(() => {
     const total = referrals.length || 1;
@@ -692,12 +698,148 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setHospitalsList(prev => prev.filter(h => h.id !== hospitalId));
   }, [hospitalsList]);
 
-  // ── Persist changes to localStorage ────────────────────────────
+  // ── Cross-device sync via Convex ────────────────────────────────
+  // The cloud is the source of truth; localStorage is the offline cache.
+  // Every device subscribes to the same rows, so a hospital created by the
+  // District Admin on one device appears on all other devices automatically.
+  const cloudRaw = useQuery(api.appData.getAll);
+  const saveCollection = useMutation(api.appData.saveCollection);
+  const cloudReady = cloudRaw !== undefined;
+
+  // One registry entry per shared collection. `get` reads current state,
+  // `set` adopts cloud data (typed cast per collection).
+  const collectionRegistry: Array<{
+    key: CloudCollectionKey;
+    get: () => unknown[];
+    set: (items: unknown[]) => void;
+  }> = [
+    { key: 'patients', get: () => patients, set: (xs) => setPatients(xs as Patient[]) },
+    { key: 'doctors', get: () => doctorsList, set: (xs) => setDoctorsList(xs as Doctor[]) },
+    { key: 'healthWorkers', get: () => healthWorkersList, set: (xs) => setHealthWorkersList(xs as HealthWorker[]) },
+    { key: 'staffUsers', get: () => staffUsersList, set: (xs) => setStaffUsersList(xs as User[]) },
+    { key: 'hospitals', get: () => hospitalsList, set: (xs) => setHospitalsList(xs as Hospital[]) },
+    { key: 'referrals', get: () => referrals, set: (xs) => setReferrals(xs as Referral[]) },
+    { key: 'appointments', get: () => appointments, set: (xs) => setAppointments(xs as Appointment[]) },
+    { key: 'followups', get: () => followups, set: (xs) => setFollowups(xs as Followup[]) },
+    { key: 'notifications', get: () => notifications, set: (xs) => setNotifications(xs as Notification[]) },
+    { key: 'referralEvents', get: () => referralEvents, set: (xs) => setReferralEvents(xs as ReferralEvent[]) },
+    { key: 'consultations', get: () => consultations, set: (xs) => setConsultations(xs as Consultation[]) },
+    { key: 'vitals', get: () => vitalsList, set: (xs) => setVitalsList(xs as Vitals[]) },
+    { key: 'healthRecords', get: () => healthRecordsList, set: (xs) => setHealthRecordsList(xs as HealthRecord[]) },
+    { key: 'medicineStock', get: () => medicineStockList, set: (xs) => setMedicineStockList(xs as MedicineStock[]) },
+    { key: 'diagnostics', get: () => diagnosticsList, set: (xs) => setDiagnosticsList(xs as Diagnostic[]) },
+    { key: 'villageAccessScores', get: () => villageScoresList, set: (xs) => setVillageScoresList(xs as VillageAccessScore[]) },
+    { key: 'referralPredictions', get: () => predictionsList, set: (xs) => setPredictionsList(xs as ReferralPrediction[]) },
+  ];
+
+  const lastWrittenRef = useRef<Record<string, string>>({});
+  const didSyncRef = useRef(false);
+
+  // 1) Adopt cloud data whenever it changes (including other devices' writes)
+  useEffect(() => {
+    if (!cloudReady) return;
+    const raw = cloudRaw as Record<string, unknown>;
+    const adopted: Record<string, unknown[]> = {};
+    for (const { key, set } of collectionRegistry) {
+      const items = unwrapFromCloud(raw[key]);
+      if (items) {
+        lastWrittenRef.current[key] = wrapForCloud(items);
+        adopted[key] = items;
+        set(items);
+      }
+    }
+    // Keep ID counters ahead of the adopted data to avoid collisions
+    // with records created on other devices (IDs like h7, d12, hw6, r14, p12).
+    const maxNum = (items: unknown[], re: RegExp): number => items.reduce<number>((acc, it) => {
+      const m = (it as { id?: string }).id?.match(re);
+      return m ? Math.max(acc, parseInt(m[1], 10)) : acc;
+    }, 0);
+    if (adopted.hospitals) {
+      const n = maxNum(adopted.hospitals, /^h(\d+)$/);
+      nextHospitalNum = Math.max(nextHospitalNum, n + 1);
+      nextHANum = Math.max(nextHANum, n + 1);
+    }
+    if (adopted.doctors) {
+      nextDoctorNum = Math.max(nextDoctorNum, maxNum(adopted.doctors, /^d(\d+)$/) + 1);
+    }
+    if (adopted.healthWorkers) {
+      nextHWNum = Math.max(nextHWNum, maxNum(adopted.healthWorkers, /^hw(\d+)$/) + 1);
+    }
+    if (adopted.referrals) {
+      nextReferralNum = Math.max(nextReferralNum, maxNum(adopted.referrals, /^r(\d+)$/) + 1);
+    }
+    if (adopted.patients) {
+      nextPatientId = Math.max(nextPatientId, maxNum(adopted.patients, /^p(\d+)$/) + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudReady, cloudRaw]);
+
+  // 2) Seed the cloud with seed data when it has nothing for the current version
+  useEffect(() => {
+    if (!cloudReady || didSyncRef.current) return;
+    const raw = cloudRaw as Record<string, unknown>;
+    const hasValidData = collectionRegistry.some(({ key }) => unwrapFromCloud(raw[key]) !== null);
+    if (!hasValidData) {
+      didSyncRef.current = true;
+      for (const { key, get } of collectionRegistry) {
+        const payload = wrapForCloud(get());
+        lastWrittenRef.current[key] = payload;
+        void saveCollection({ key, data: payload });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudReady, cloudRaw, saveCollection]);
+
+  // 3) Push local changes to the cloud (debounced, skip unchanged)
+  const cloudTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const cloudSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!cloudReady) {
+      cloudSyncedRef.current = false;
+      return;
+    }
+    // Skip the first fire after hydration: adopt/seed already aligned state
+    if (!cloudSyncedRef.current) {
+      cloudSyncedRef.current = true;
+      return;
+    }
+    for (const { key, get } of collectionRegistry) {
+      const payload = wrapForCloud(get());
+      // Always cancel any pending write first — a render triggered by cloud
+      // adoption can otherwise leave a stale debounced write that would
+      // overwrite newer cloud data with pre-adoption local state.
+      clearTimeout(cloudTimersRef.current[key]);
+      if (lastWrittenRef.current[key] === payload) continue;
+      lastWrittenRef.current[key] = payload;
+      cloudTimersRef.current[key] = setTimeout(() => {
+        void saveCollection({ key, data: payload });
+      }, 300);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patients, doctorsList, healthWorkersList, staffUsersList, hospitalsList,
+     referrals, appointments, followups, notifications, referralEvents,
+     consultations, vitalsList, healthRecordsList, medicineStockList,
+     diagnosticsList, villageScoresList, predictionsList,
+     cloudReady, saveCollection]);
+
+  // ── Persist changes to localStorage (offline cache) ─────────────
   useEffect(() => { saveToStorage('patients', patients); }, [patients]);
   useEffect(() => { saveToStorage('doctors', doctorsList); }, [doctorsList]);
   useEffect(() => { saveToStorage('healthWorkers', healthWorkersList); }, [healthWorkersList]);
   useEffect(() => { saveToStorage('staffUsers', staffUsersList); }, [staffUsersList]);
   useEffect(() => { saveToStorage('hospitals', hospitalsList); }, [hospitalsList]);
+  useEffect(() => { saveToStorage('referrals', referrals); }, [referrals]);
+  useEffect(() => { saveToStorage('appointments', appointments); }, [appointments]);
+  useEffect(() => { saveToStorage('followups', followups); }, [followups]);
+  useEffect(() => { saveToStorage('notifications', notifications); }, [notifications]);
+  useEffect(() => { saveToStorage('referralEvents', referralEvents); }, [referralEvents]);
+  useEffect(() => { saveToStorage('consultations', consultations); }, [consultations]);
+  useEffect(() => { saveToStorage('vitals', vitalsList); }, [vitalsList]);
+  useEffect(() => { saveToStorage('healthRecords', healthRecordsList); }, [healthRecordsList]);
+  useEffect(() => { saveToStorage('medicineStock', medicineStockList); }, [medicineStockList]);
+  useEffect(() => { saveToStorage('diagnostics', diagnosticsList); }, [diagnosticsList]);
+  useEffect(() => { saveToStorage('villageAccessScores', villageScoresList); }, [villageScoresList]);
+  useEffect(() => { saveToStorage('referralPredictions', predictionsList); }, [predictionsList]);
 
   // ── Helpers ───────────────────────────────────────────────────
   const getPatientById = useCallback((id: string) => patients.find(p => p.id === id), [patients]);
@@ -715,14 +857,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const getVitalsForPatient = useCallback((patientId: string) => vitalsList.filter(v => v.patientId === patientId), [vitalsList]);
   const getHealthRecordsForPatient = useCallback((patientId: string) => healthRecordsList.filter(r => r.patientId === patientId), [healthRecordsList]);
   const getConsultationsForPatient = useCallback((patientId: string) => consultations.filter(c => c.patientId === patientId), [consultations]);
-  const getPredictionForReferral = useCallback((referralId: string) => initPredictions.find(p => p.referralId === referralId), []);
+  const getPredictionForReferral = useCallback((referralId: string) => predictionsList.find(p => p.referralId === referralId), [predictionsList]);
 
   const value: DataContextValue = {
     patients, doctors: doctorsList, facilities: initFacilities, referrals, appointments, followups,
     healthWorkers: healthWorkersList, vitals: vitalsList, healthRecords: healthRecordsList,
-    medicineStock: medicineStockList, diagnostics: initDiagnostics,
-    villageAccessScores: initVillageScores, notifications, referralEvents, consultations,
-    referralPredictions: initPredictions, aiInsights: initInsights,
+    medicineStock: medicineStockList, diagnostics: diagnosticsList,
+    villageAccessScores: villageScoresList, notifications, referralEvents, consultations,
+    referralPredictions: predictionsList, aiInsights: initInsights,
     districtAnalytics: computedAnalytics,
     referralFunnel: computedReferralFunnel,
     acceptReferral, rejectReferral, scheduleReferral, confirmArrival, startConsultation,

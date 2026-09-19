@@ -1,0 +1,1 @@
+import{r as u}from"./react-vendor-LcU9Zt0-.js";const n=700;function s(r,t,e=n){return t-r<e}function a(r=n){const t=u.useRef(0);return u.useCallback(()=>{const e=Date.now();return s(t.current,e,r)?!1:(t.current=e,!0)},[r])}export{a as u};

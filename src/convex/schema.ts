@@ -34,10 +34,14 @@ const schema = defineSchema(
 
     // add other tables here
 
-    // tableName: defineTable({
-    //   ...
-    //   // table fields
-    // }).index("by_field", ["field"])
+    // Generic key-value store that backs the app's shared data collections.
+    // Each row holds one serialized collection (patients, hospitals, staffUsers,
+    // referrals, ...) so all devices see the same data through Convex.
+    collections: defineTable({
+      key: v.string(),
+      data: v.string(), // JSON-serialized collection payload
+      updatedAt: v.number(),
+    }).index("by_key", ["key"]),
   },
   {
     schemaValidation: false,

@@ -20,30 +20,27 @@ import { useAuthActions } from '@convex-dev/auth/react';
 export function useConvexSessionReady(): boolean {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const { signIn } = useAuthActions();
-  const [ready, setReady] = useState(false);
   const startedRef = useRef(false);
+  // Set from the sign-in promise (asynchronously, never during the effect
+  // body) so readiness does not depend solely on the auth flag re-rendering.
+  const [signInComplete, setSignInComplete] = useState(false);
 
   useEffect(() => {
-    if (isLoading) return;
-
-    if (isAuthenticated) {
-      setReady(true);
-      return;
-    }
-
-    if (startedRef.current) return;
+    // Wait for the stored-session check to settle before deciding.
+    if (isLoading || isAuthenticated || startedRef.current) return;
     startedRef.current = true;
 
     signIn('anonymous')
-      .then(() => setReady(true))
+      .then(() => setSignInComplete(true))
       .catch((error) => {
         console.warn(
           '[auth] Anonymous Convex session unavailable — running on the local cache only.',
           error,
         );
-        setReady(false);
       });
   }, [isLoading, isAuthenticated, signIn]);
 
-  return ready;
+  // Ready when a Convex session exists; until then the cloud query is skipped
+  // and the app runs from its offline cache.
+  return isAuthenticated || signInComplete;
 }

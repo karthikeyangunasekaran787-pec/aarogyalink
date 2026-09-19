@@ -6,37 +6,10 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import { useConvexAuth } from 'convex/react';
 import type { Role } from '@/types';
 import type { Language } from '@/lib/i18n';
-
-// Persisted application session. Kept separate from temporary React state so a
+// Persisted application session (kept separate from temporary React state, so a
 // browser refresh restores the signed-in user instead of dropping them back to
-// role selection. (localStorage is intentional: offline-first rural use.)
-const AUTH_SESSION_KEY = 'aal_auth_session';
-
-interface StoredSession {
-  user: AuthUser;
-  role: Role;
-}
-
-function readStoredSession(): StoredSession | null {
-  try {
-    const raw = localStorage.getItem(AUTH_SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredSession;
-    if (parsed && parsed.user && parsed.user.role) return parsed;
-  } catch {
-    /* corrupted cache — ignore */
-  }
-  return null;
-}
-
-function writeStoredSession(session: StoredSession | null) {
-  try {
-    if (session) localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-    else localStorage.removeItem(AUTH_SESSION_KEY);
-  } catch {
-    /* storage unavailable — ignore */
-  }
-}
+// role selection). localStorage is intentional: offline-first rural use.
+import { readStoredSession, writeStoredSession } from '@/lib/session';
 
 export interface AuthUser {
   id: string;
@@ -79,7 +52,8 @@ const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   // Restore the session synchronously so a refresh keeps the user signed in.
-  const [currentRole, setCurrentRole] = useState<Role>(() => readStoredSession()?.role ?? 'patient');
+  const [restored] = useState(() => readStoredSession<AuthUser>());
+  const [currentRole, setCurrentRole] = useState<Role>(() => (restored?.role as Role) ?? 'patient');
   const [language, setLanguage] = useState<Language>('en');
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
 
@@ -95,7 +69,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => readStoredSession()?.user ?? null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => restored?.user ?? null);
 
   // Convex Auth is the transport-level session used by the backend functions.
   // It is deliberately NOT the only proof of authentication: the demo login
@@ -116,7 +90,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const isAuthLoading = !authTimedOut && convexAuthLoading && !isAuthenticated && !convexAuthenticated;
 
   const persist = useCallback((user: AuthUser | null) => {
-    writeStoredSession(user ? { user, role: user.role } : null);
+    writeStoredSession<AuthUser>(user ? { user, role: user.role } : null);
   }, []);
 
   const login = useCallback((email: string) => {

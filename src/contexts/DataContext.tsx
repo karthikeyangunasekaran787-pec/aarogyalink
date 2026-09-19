@@ -184,6 +184,25 @@ export function generatePatientId(num: number) {
 export function generateHealthCardId(num: number) {
   return `HC-PDK-${String(num).padStart(4, '0')}`;
 }
+
+/**
+ * Derive a patient's identifiers from ONE counter value.
+ *
+ * A single number backs the patient id, the health card id and the user id, so
+ * they can never drift apart. (Previously `nextPatientId++` was used for the
+ * id and the already-incremented value again for the health card, producing
+ * mismatched identifiers.)
+ */
+export function patientIdentifiers(num: number) {
+  const id = `p${num}`;
+  return {
+    id,
+    healthCardId: `AL-PT-2026-${String(num).padStart(3, '0')}`,
+    // Matches AppContext.loginPatient (`u-${patientId}`) so patient-scoped
+    // notifications resolve to the signed-in patient.
+    userId: `u-${id}`,
+  };
+}
 export function generateReferralId(num: number) {
   return `REF-PDK-${String(num).padStart(4, '0')}`;
 }
@@ -652,20 +671,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // ── Patient actions ───────────────────────────────────────────
   const addPatient = useCallback((data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => {
-    // Capture the counter ONCE so the patient id and the health card id are
-    // derived from the same number. (Previously `nextPatientId++` was used for
-    // the id and the already-incremented value again for the health card, so
-    // the two identifiers drifted apart.)
-    const num = nextPatientId++;
-    const id = `p${num}`;
-    const healthCardId = `AL-PT-2026-${String(num).padStart(3, '0')}`;
+    // One counter value backs every identifier (see patientIdentifiers).
+    const ids = patientIdentifiers(nextPatientId++);
     const patient: Patient = {
       ...data,
-      id,
-      // Matches the id used by AppContext.loginPatient (`u-${patientId}`) so
-      // patient-scoped notifications resolve to the signed-in patient.
-      userId: `u-${id}`,
-      healthCardId,
+      ...ids,
       registeredAt: now().split('T')[0],
       createdAt: now().split('T')[0],
     };

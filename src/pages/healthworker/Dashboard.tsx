@@ -45,7 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function HWDashboard() {
   const { language, currentUser } = useApp();
-  const { patients, referrals, followups, healthWorkers, facilities, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient, completeFollowupById, markFollowupMissed, completeFollowup } = useData();
+  const { patients, referrals, followups, healthWorkers, facilities, hospitals, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient, completeFollowupById, markFollowupMissed, completeFollowup } = useData();
   const navigate = useNavigate();
 
   // Load health workers from context or localStorage as fallback
@@ -204,9 +204,26 @@ export default function HWDashboard() {
     setTimeout(() => setReferralFeedback(null), 3000);
   };
 
+  /**
+   * Referral destinations: hospitals are the primary referral targets because
+   * Hospital Admins route by hospital id (h1, h2, ...). Facilities (f1–f5)
+   * are offered too, but hospitals must be present or referrals sent to them
+   * never appear in the Hospital Admin's referral inbox.
+   */
+  const referralDestinations = useMemo(() => {
+    const hospitalOptions = hospitals
+      .filter(h => h.status === 'active' && h.id !== hw.facilityId)
+      .map(h => ({ id: h.id, name: `${h.name} (Hospital)`, kind: 'hospital' as const }));
+    const facilityOptions = facilities
+      .filter(f => f.id !== hw.facilityId && !hospitals.some(h => h.id === f.id))
+      .map(f => ({ id: f.id, name: f.name, kind: 'facility' as const }));
+    return [...hospitalOptions, ...facilityOptions];
+  }, [hospitals, facilities, hw.facilityId]);
+
   const handleCreateReferral = () => {
     const patient = patients.find(p => p.id === referralPatientId);
-    const destination = facilities.find(f => f.id === referralDestination);
+    const destination = referralDestinations.find(d => d.id === referralDestination);
+    const destinationName = destination?.name.replace(/ \(Hospital\)$/, '') || '';
     if (!patient || !referralReason || !destination || !referralDepartment) {
       showFeedback('Please fill all required fields.');
       return;
@@ -216,9 +233,11 @@ export default function HWDashboard() {
       patientId: patient.id,
       patientName: patient.name,
       sourceFacilityId: hw.facilityId,
-      sourceFacilityName: facilities.find(f => f.id === hw.facilityId)?.name || 'PHC',
+      sourceFacilityName: hospitals.find(h => h.id === hw.facilityId)?.name
+        || facilities.find(f => f.id === hw.facilityId)?.name
+        || 'PHC',
       destinationFacilityId: destination.id,
-      destinationFacilityName: destination.name,
+      destinationFacilityName: destinationName,
       department: referralDepartment,
       priority: referralPriority,
       reason: referralReason,
@@ -229,7 +248,7 @@ export default function HWDashboard() {
     addNotification({
       userId: patient.userId,
       title: 'New Referral Created',
-      message: `A ${referralPriority} referral has been created for you at ${destination.name} (${referralDepartment}).`,
+      message: `A ${referralPriority} referral has been created for you at ${destinationName} (${referralDepartment}).`,
       type: referralPriority === 'emergency' ? 'alert' : 'info',
       read: false,
     });
@@ -455,9 +474,9 @@ export default function HWDashboard() {
                   onChange={(e) => setReferralDestination(e.target.value)}
                   className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  <option value="">Select facility...</option>
-                  {facilities.filter(f => f.id !== hw.facilityId).map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
+                  <option value="">Select hospital / facility...</option>
+                  {referralDestinations.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
               </div>

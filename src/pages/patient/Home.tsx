@@ -19,7 +19,7 @@ import {
 
 export default function PatientHome() {
   const { language, currentUser } = useApp();
-  const { patients, referrals, appointments, facilities, getReferralsForPatient, getConsultationsForPatient, doctors } = useData();
+  const { patients, referrals, appointments, facilities, hospitals, getReferralsForPatient, getConsultationsForPatient, doctors } = useData();
   const patient = patients.find(p => p.id === currentUser?.patientId) || patients[0];
   const activeReferrals = getReferralsForPatient(patient.id).filter(r => r.status !== 'closed');
   const upcomingAppointments = appointments.filter(a => a.patientId === patient.id && a.status === 'scheduled');
@@ -205,7 +205,7 @@ export default function PatientHome() {
                       <span>{apt.time}</span>
                       <span>•</span>
                       <MapPin className="h-3 w-3" />
-                      <span>{facilities.find(f => f.id === apt.facilityId)?.name || 'Hospital'}</span>
+                      <span>{facilities.find(f => f.id === apt.facilityId)?.name || hospitals.find(h => h.id === apt.facilityId)?.name || 'Hospital'}</span>
                     </div>
                   </div>
                 );

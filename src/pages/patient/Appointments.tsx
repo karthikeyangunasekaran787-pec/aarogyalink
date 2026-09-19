@@ -20,7 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function Appointments() {
-  const { appointments, facilities } = useData();
+  const { appointments, facilities, hospitals } = useData();
   const { language, currentUser } = useApp();
   const patientAppointments = appointments.filter(a => a.patientId === currentUser?.patientId);
   const upcoming = patientAppointments.filter(a => a.status === 'scheduled');
@@ -62,7 +62,9 @@ export default function Appointments() {
             </Card>
           ) : (
             upcoming.map(apt => {
-              const facility = facilities.find(f => f.id === apt.facilityId);
+              // Appointments can be booked at hospitals (h*) or facilities (f*)
+              const facility = facilities.find(f => f.id === apt.facilityId)
+                ?? hospitals.find(h => h.id === apt.facilityId);
               return (
                 <Card key={apt.id}>
                   <CardContent className="p-4">

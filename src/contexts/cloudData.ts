@@ -4,8 +4,50 @@
 
 // Shared-data version. Bump this to invalidate BOTH the localStorage cache and
 // the cloud records on every device, forcing a reload of fresh mock data.
-// v6: fixes unbounded growth from id-less collections (referralPredictions).
-export const DATA_VERSION = 'v6-size-fix-2026-09';
+// v7: shared deletion tombstones — deletes now propagate to every device and
+// can no longer be resurrected by the cloud-merge adopt cycle.
+export const DATA_VERSION = 'v7-tombstones-2026-09';
+
+/** Cloud collection key that stores deletion tombstones. */
+export const TOMBSTONES_KEY = 'tombstones';
+
+/**
+ * Tombstone entries are stored as `${collectionKey}:${mergeKey}` strings, e.g.
+ * "staffUsers:id:ustaff-123". They record that a record with that identity was
+ * deleted, so the adopt merge can exclude it even if a stale cloud payload
+ * still contains it (deletes must win over in-flight writes).
+ */
+export function tombstoneEntry(collectionKey: string, mergeKey: string): string {
+  return `${collectionKey}:${mergeKey}`;
+}
+
+export function parseTombstoneEntry(entry: string): { collectionKey: string; mergeKey: string } | null {
+  const idx = entry.indexOf(':');
+  if (idx <= 0) return null;
+  return { collectionKey: entry.slice(0, idx), mergeKey: entry.slice(idx + 1) };
+}
+
+/** Build the per-collection set of deleted merge keys from a tombstone list. */
+export function tombstonesByCollection(entries: string[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    const parsed = parseTombstoneEntry(entry);
+    if (!parsed) continue;
+    let set = map.get(parsed.collectionKey);
+    if (!set) {
+      set = new Set<string>();
+      map.set(parsed.collectionKey, set);
+    }
+    set.add(parsed.mergeKey);
+  }
+  return map;
+}
+
+/** Remove records whose merge key is tombstoned. */
+export function filterTombstoned<T>(items: T[], deletedKeys: Set<string> | undefined): T[] {
+  if (!deletedKeys || deletedKeys.size === 0) return items;
+  return items.filter(item => !deletedKeys.has(mergeKeyOf(item)));
+}
 
 interface CloudEnvelope<T = unknown> {
   v: string;
@@ -85,4 +127,15 @@ export const MAX_CLOUD_PAYLOAD_BYTES = 900 * 1024; // 900 KiB safety margin
 export function safePayload<T>(items: T[]): string | null {
   const payload = wrapForCloud(items);
   return new TextEncoder().encode(payload).length <= MAX_CLOUD_PAYLOAD_BYTES ? payload : null;
+}
+
+/**
+ * Highest numeric suffix found in record ids matching `re`, or 0.
+ * Used to keep ID counters ahead of data created on any device.
+ */
+export function maxIdNum(items: unknown[], re: RegExp): number {
+  return items.reduce<number>((acc, it) => {
+    const m = (it as { id?: string }).id?.match(re);
+    return m ? Math.max(acc, parseInt(m[1], 10)) : acc;
+  }, 0);
 }

@@ -7,7 +7,7 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { DATA_VERSION, wrapForCloud, unwrapFromCloud, mergeCollections, safePayload } from './cloudData';
+import { DATA_VERSION, wrapForCloud, unwrapFromCloud, mergeCollections, safePayload, mergeKeyOf, tombstoneEntry, tombstonesByCollection, filterTombstoned, maxIdNum, TOMBSTONES_KEY } from './cloudData';
 import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
@@ -257,6 +257,62 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const now = () => new Date().toISOString();
 
+  // ── Cross-device sync via Convex ────────────────────────────────
+  // The cloud is the source of truth; localStorage is the offline cache.
+  // Every device subscribes to the same rows, so a hospital created by the
+  // District Admin on one device appears on all other devices automatically.
+  const cloudRaw = useQuery(api.appData.getAll);
+  const saveCollection = useMutation(api.appData.saveCollection);
+  const cloudReady = cloudRaw !== undefined;
+
+  /** Push the FULL tombstone set (local + cloud) to the cloud, debounced. */
+  const pushTombstones = useCallback(() => {
+    if (tombstoneTimersRef.current) clearTimeout(tombstoneTimersRef.current);
+    tombstoneTimersRef.current = setTimeout(() => {
+      const all = new Set<string>(tombstonesFromCloudRef.current);
+      for (const [collectionKey, keys] of deletedIdsRef.current) {
+        for (const k of keys) all.add(tombstoneEntry(collectionKey, k));
+      }
+      const payload = wrapForCloud([...all]);
+      if (lastWrittenRef.current[TOMBSTONES_KEY] === payload) return;
+      lastWrittenRef.current[TOMBSTONES_KEY] = payload;
+      void saveCollection({ key: TOMBSTONES_KEY, data: payload });
+    }, 200);
+  }, [saveCollection]);
+
+  // ── Cross-device sync plumbing (refs + tombstone helpers) ──────
+  // Declared early because delete actions below record tombstones.
+  const lastWrittenRef = useRef<Record<string, string>>({});
+  const deletedIdsRef = useRef<Map<string, Set<string>>>(new Map()); // collectionKey -> Set<mergeKey>
+  const tombstonesFromCloudRef = useRef<string[]>([]);
+  const tombstoneTimersRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Add local tombstones for the given records of a collection. */
+  const recordDeletion = useCallback((collectionKey: string, items: unknown[]) => {
+    let set = deletedIdsRef.current.get(collectionKey);
+    if (!set) {
+      set = new Set();
+      deletedIdsRef.current.set(collectionKey, set);
+    }
+    for (const item of items) set.add(mergeKeyOf(item));
+  }, []);
+
+  /** Merge tombstones received from the cloud into the local set. */
+  const adoptTombstones = useCallback((entries: string[]) => {
+    tombstonesFromCloudRef.current = [
+      ...new Set([...tombstonesFromCloudRef.current, ...entries]),
+    ];
+    const byCollection = tombstonesByCollection(entries);
+    for (const [collectionKey, keys] of byCollection) {
+      let set = deletedIdsRef.current.get(collectionKey);
+      if (!set) {
+        set = new Set();
+        deletedIdsRef.current.set(collectionKey, set);
+      }
+      for (const k of keys) set.add(k);
+    }
+  }, []);
+
   const addReferralEvent = useCallback((referralId: string, status: ReferralStatus, description: string, performedBy: string) => {
     const event: ReferralEvent = {
       id: `re-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -492,6 +548,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const cancelAppointment = useCallback((appointmentId: string) => {
+    // Status update (not a deletion) — propagates via normal cloud sync.
     setAppointments(prev => prev.map(a => a.id === appointmentId ? { ...a, status: 'cancelled' as AppointmentStatus } : a));
   }, []);
 
@@ -583,8 +640,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeMedicineStock = useCallback((stockId: string) => {
+    const item = medicineStockList.find(ms => ms.id === stockId);
+    if (item) recordDeletion('medicineStock', [item]);
     setMedicineStockList(prev => prev.filter(ms => ms.id !== stockId));
-  }, []);
+    pushTombstones();
+  }, [medicineStockList, recordDeletion, pushTombstones]);
 
   // ── Staff management ─────────────────────────────────────────
   const [staffUsersList, setStaffUsersList] = useState<User[]>(() => loadFromStorage('staffUsers', initStaffUsers));
@@ -609,8 +669,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeStaffUser = useCallback((userId: string) => {
+    const user = staffUsersList.find(u => u.id === userId);
+    recordDeletion('staffUsers', user ? [user] : []);
     setStaffUsersList(prev => prev.filter(u => u.id !== userId));
-  }, []);
+    // Cascade: remove the linked doctor / health worker record too, so the
+    // person disappears from booking, dashboards and referral pickers on
+    // every device (previously the Doctor/HealthWorker row survived and the
+    // staff member kept showing up after deletion).
+    const linkedDoctors = doctorsList.filter(d => d.userId === userId);
+    const linkedHWs = healthWorkersList.filter(hw => hw.userId === userId);
+    if (linkedDoctors.length > 0) {
+      recordDeletion('doctors', linkedDoctors);
+      setDoctorsList(prev => prev.filter(d => d.userId !== userId));
+    }
+    if (linkedHWs.length > 0) {
+      recordDeletion('healthWorkers', linkedHWs);
+      setHealthWorkersList(prev => prev.filter(hw => hw.userId !== userId));
+    }
+    pushTombstones();
+  }, [staffUsersList, doctorsList, healthWorkersList, recordDeletion, pushTombstones]);
 
   const getStaffByFacility = useCallback((facilityId: string) => staffUsersList.filter(u => u.facilityId === facilityId), [staffUsersList]);
   const getStaffByRole = useCallback((role: Role) => staffUsersList.filter(u => u.role === role), [staffUsersList]);
@@ -694,17 +771,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (hospital?.adminUserId) {
       setStaffUsersList(prev => prev.map(u => u.id === hospital.adminUserId ? { ...u, status: 'disabled' as const } : u));
     }
-    // Remove the hospital
+    // Tombstone + remove so the deletion syncs to every device instead of
+    // being resurrected by the cloud merge.
+    recordDeletion('hospitals', hospital ? [hospital] : []);
     setHospitalsList(prev => prev.filter(h => h.id !== hospitalId));
-  }, [hospitalsList]);
-
-  // ── Cross-device sync via Convex ────────────────────────────────
-  // The cloud is the source of truth; localStorage is the offline cache.
-  // Every device subscribes to the same rows, so a hospital created by the
-  // District Admin on one device appears on all other devices automatically.
-  const cloudRaw = useQuery(api.appData.getAll);
-  const saveCollection = useMutation(api.appData.saveCollection);
-  const cloudReady = cloudRaw !== undefined;
+    pushTombstones();
+  }, [hospitalsList, recordDeletion, pushTombstones]);
 
   // One registry entry per shared collection. `get` reads current state,
   // `set` adopts cloud data (typed cast per collection).
@@ -732,7 +804,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     { key: 'referralPredictions', get: () => predictionsList, set: (xs) => setPredictionsList(xs as ReferralPrediction[]) },
   ];
 
-  const lastWrittenRef = useRef<Record<string, string>>({});
   const didSyncRef = useRef(false);
 
   // 1) Adopt cloud data whenever it changes (including other devices' writes).
@@ -740,46 +811,53 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // but local-only records (created while offline) are preserved and will be
   // pushed up by the sync effect. This prevents an offline device's work
   // (e.g. patients registered offline) from being silently wiped.
+  // Tombstoned records (deleted anywhere) are ALWAYS excluded — deletes win.
   useEffect(() => {
     if (!cloudReady) return;
     const raw = cloudRaw as Record<string, unknown>;
+    // Adopt shared deletion tombstones first so this cycle excludes them.
+    const cloudTombstones = unwrapFromCloud<string>(raw[TOMBSTONES_KEY]);
+    if (cloudTombstones) adoptTombstones(cloudTombstones);
     const adopted: Record<string, unknown[]> = {};
     for (const { key, get, set } of collectionRegistry) {
       const cloudItems = unwrapFromCloud(raw[key]);
       if (cloudItems) {
+        // Exclude tombstoned records from BOTH sides so a delete made here or
+        // on any other device cannot be resurrected by the merge.
+        const purged = filterTombstoned(cloudItems, deletedIdsRef.current.get(key));
+        // If the cloud row itself still contains tombstoned records (e.g. a
+        // stale in-flight write resurrected them), actively repair the cloud
+        // row — the push effect would otherwise see an unchanged local state
+        // and skip the write, leaving the resurrection in place.
+        if (purged.length !== cloudItems.length) {
+          void saveCollection({ key, data: wrapForCloud(purged) });
+        }
         // mergeCollections dedupes by stable key (id / villageId / referralId),
         // keeping cloud-wins semantics while preserving local-only records.
-        // This replaced an id-only check that treated id-less collections
-        // (referralPredictions) as always-local and duplicated them on every
-        // adopt cycle until the payload exceeded Convex's 1 MiB doc limit.
-        const merged = mergeCollections(cloudItems, get());
-        lastWrittenRef.current[key] = wrapForCloud(cloudItems); // pure cloud payload — the merge gets pushed up if non-empty union
+        const merged = mergeCollections(purged, filterTombstoned(get(), deletedIdsRef.current.get(key)));
+        lastWrittenRef.current[key] = wrapForCloud(purged); // pure cloud payload — the merge gets pushed up if non-empty union
         adopted[key] = merged;
         set(merged);
       }
     }
     // Keep ID counters ahead of the adopted data to avoid collisions
     // with records created on other devices (IDs like h7, d12, hw6, r14, p12).
-    const maxNum = (items: unknown[], re: RegExp): number => items.reduce<number>((acc, it) => {
-      const m = (it as { id?: string }).id?.match(re);
-      return m ? Math.max(acc, parseInt(m[1], 10)) : acc;
-    }, 0);
     if (adopted.hospitals) {
-      const n = maxNum(adopted.hospitals, /^h(\d+)$/);
+      const n = maxIdNum(adopted.hospitals, /^h(\d+)$/);
       nextHospitalNum = Math.max(nextHospitalNum, n + 1);
       nextHANum = Math.max(nextHANum, n + 1);
     }
     if (adopted.doctors) {
-      nextDoctorNum = Math.max(nextDoctorNum, maxNum(adopted.doctors, /^d(\d+)$/) + 1);
+      nextDoctorNum = Math.max(nextDoctorNum, maxIdNum(adopted.doctors, /^d(\d+)$/) + 1);
     }
     if (adopted.healthWorkers) {
-      nextHWNum = Math.max(nextHWNum, maxNum(adopted.healthWorkers, /^hw(\d+)$/) + 1);
+      nextHWNum = Math.max(nextHWNum, maxIdNum(adopted.healthWorkers, /^hw(\d+)$/) + 1);
     }
     if (adopted.referrals) {
-      nextReferralNum = Math.max(nextReferralNum, maxNum(adopted.referrals, /^r(\d+)$/) + 1);
+      nextReferralNum = Math.max(nextReferralNum, maxIdNum(adopted.referrals, /^r(\d+)$/) + 1);
     }
     if (adopted.patients) {
-      nextPatientId = Math.max(nextPatientId, maxNum(adopted.patients, /^p(\d+)$/) + 1);
+      nextPatientId = Math.max(nextPatientId, maxIdNum(adopted.patients, /^p(\d+)$/) + 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloudReady, cloudRaw]);

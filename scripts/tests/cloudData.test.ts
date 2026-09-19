@@ -6,7 +6,82 @@ import { describe, expect, test } from 'bun:test';
 import {
   DATA_VERSION, wrapForCloud, unwrapFromCloud,
   mergeKeyOf, mergeCollections, safePayload, payloadSizeBytes, MAX_CLOUD_PAYLOAD_BYTES,
+  tombstoneEntry, parseTombstoneEntry, tombstonesByCollection, filterTombstoned, maxIdNum, TOMBSTONES_KEY,
 } from '../../src/contexts/cloudData';
+
+describe('deletion tombstones', () => {
+  test('tombstone entry round-trips through parse', () => {
+    const entry = tombstoneEntry('staffUsers', 'id:ustaff-123');
+    expect(entry).toBe('staffUsers:id:ustaff-123');
+    const parsed = parseTombstoneEntry(entry);
+    expect(parsed).toEqual({ collectionKey: 'staffUsers', mergeKey: 'id:ustaff-123' });
+    expect(parseTombstoneEntry('no-colon-here')).toBeNull();
+  });
+
+  test('tombstonesByCollection groups by collection key', () => {
+    const map = tombstonesByCollection([
+      'staffUsers:id:a', 'staffUsers:id:b', 'doctors:id:d1', 'hospitals:id:h9',
+    ]);
+    expect(map.get('staffUsers')).toEqual(new Set(['id:a', 'id:b']));
+    expect(map.get('doctors')).toEqual(new Set(['id:d1']));
+    expect(map.get('hospitals')).toEqual(new Set(['id:h9']));
+    expect(map.get('patients')).toBeUndefined();
+  });
+
+  test('filterTombstoned removes deleted records from both merge sides', () => {
+    const cloud = [{ id: 'h1' }, { id: 'h2' }, { id: 'h3' }];
+    const deleted = new Set(['id:h2']);
+    expect(filterTombstoned(cloud, deleted)).toEqual([{ id: 'h1' }, { id: 'h3' }]);
+    expect(filterTombstoned(cloud, undefined)).toEqual(cloud);
+    expect(filterTombstoned(cloud, new Set())).toEqual(cloud);
+  });
+
+  test('delete-then-merge keeps the record deleted (no resurrection)', () => {
+    // Device A deletes h2, device B still has a stale cloud payload with h2.
+    const staleCloud = [{ id: 'h1', name: 'A' }, { id: 'h2', name: 'B' }];
+    const localAfterDelete = [{ id: 'h1', name: 'A' }];
+    const deleted = new Set([mergeKeyOf({ id: 'h2', name: 'B' })]);
+    const merged = mergeCollections(
+      filterTombstoned(staleCloud, deleted),
+      filterTombstoned(localAfterDelete, deleted),
+    );
+    expect(merged.some(h => h.id === 'h2')).toBe(false);
+    expect(merged.length).toBe(1);
+  });
+
+  test('mergeKeyOf is stable across JSON round-trips (tombstone key matches)', () => {
+    const record = { id: 'ustaff-abc-123', name: 'X' };
+    const throughCloud = unwrapFromCloud<typeof record>(wrapForCloud([record]))![0];
+    expect(mergeKeyOf(record)).toBe(mergeKeyOf(throughCloud));
+  });
+
+  test('maxIdNum finds the highest numeric suffix for counter sync', () => {
+    expect(maxIdNum([{ id: 'h1' }, { id: 'h7' }, { id: 'h12' }], /^h(\d+)$/)).toBe(12);
+    expect(maxIdNum([{ id: 'x9' }], /^h(\d+)$/)).toBe(0);
+    expect(maxIdNum([], /^h(\d+)$/)).toBe(0);
+  });
+
+  test('TOMBSTONES_KEY is distinct from all collection keys', () => {
+    const collectionKeys = ['patients', 'doctors', 'healthWorkers', 'staffUsers', 'hospitals', 'referrals', 'appointments', 'followups', 'notifications', 'referralEvents', 'consultations', 'vitals', 'healthRecords', 'medicineStock', 'diagnostics', 'villageAccessScores', 'referralPredictions'];
+    expect(collectionKeys).not.toContain(TOMBSTONES_KEY);
+  });
+
+  test('deleted doctor disappears from a stale device merge on reconnect', () => {
+    // Full end-to-end tombstone flow:
+    // 1. Device A and B both have doc d1; device A deletes it.
+    const doc = { id: 'd1', userId: 'ustaff-doc1', name: 'Dr. Arun' };
+    const deletedKeys = new Set([mergeKeyOf(doc)]);
+    // 2. Device B adopts a stale cloud payload that still contains d1.
+    const staleCloud = [doc, { id: 'd2', userId: 'ustaff-doc2', name: 'Dr. Priya' }];
+    const localOnB = [{ id: 'd2', userId: 'ustaff-doc2', name: 'Dr. Priya' }];
+    // 3. Merge with tombstone filtering — d1 must NOT reappear.
+    const merged = mergeCollections(
+      filterTombstoned(staleCloud, deletedKeys),
+      filterTombstoned(localOnB, deletedKeys),
+    );
+    expect(merged.map(d => d.id)).toEqual(['d2']);
+  });
+});
 
 describe('cloudData helpers', () => {
   test('wrap/unwrap round-trips an array', () => {

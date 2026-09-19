@@ -42,6 +42,25 @@ const schema = defineSchema(
       data: v.string(), // JSON-serialized collection payload
       updatedAt: v.number(),
     }).index("by_key", ["key"]),
+
+    // Server-side session binding: maps an authenticated Convex user to the
+    // role / hospital / patient they are authorized for. Written only by
+    // appSession.ts after verifying stored credentials, and read by the
+    // authorization layer in appData.ts — never trusted from the client.
+    authSessions: defineTable({
+      token: v.string(),
+      convexUserId: v.string(),
+      role: v.string(),
+      hospitalId: v.optional(v.string()),
+      staffUserId: v.optional(v.string()),
+      patientId: v.optional(v.string()),
+      username: v.optional(v.string()),
+      name: v.optional(v.string()),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_token", ["token"])
+      .index("by_user", ["convexUserId"]),
   },
   {
     schemaValidation: false,

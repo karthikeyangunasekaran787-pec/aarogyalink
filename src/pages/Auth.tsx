@@ -7,8 +7,17 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
+import { useMutation } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
+import {
+  DISTRICT_ADMIN_USERNAME,
+  clearPendingLogin,
+  rememberPendingLogin,
+  writeBackendToken,
+} from '@/lib/backend-session';
+import type { Role } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,11 +47,30 @@ const DISTRICT_ADMIN_DEMO = {
   role: 'gov_admin' as const,
 };
 
+/** Identity resolved for a staff login (server-verified when reachable). */
+interface StaffIdentity {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  facilityId?: string;
+  departmentId?: string;
+  mustChangePassword?: boolean;
+}
+
 export default function AuthPage() {
   const { currentRole, login, loginPatient, loginStaff, currentUser, isAuthenticated, isAuthLoading } = useApp();
   const { getPatientByEmail, staffUsers, facilities, hospitals, updateStaffUser } = useData();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Server-side session binding (see src/convex/appSession.ts). The backend
+  // verifies credentials against STORED data and returns the role/hospital it
+  // finds there — the client never declares its own authorization.
+  const loginStaffSession = useMutation(api.appSession.loginStaffSession);
+  const loginPatientSession = useMutation(api.appSession.loginPatientSession);
+  const loginDistrictSession = useMutation(api.appSession.loginDistrictSession);
+  const districtBoundRef = useRef(false);
 
   // Set once a login happens on this page so the auto-redirect below never
   // overrides the intended return path after an explicit sign-in.
@@ -77,12 +105,29 @@ export default function AuthPage() {
 
   // ── District Admin: auto-login — no credentials needed ──────────
   useEffect(() => {
-    if (isDistrictAdmin) {
-      justLoggedInRef.current = true;
-      login(DISTRICT_ADMIN_DEMO.email);
-      navigate(ROLE_ROUTES.gov_admin, { replace: true });
+    if (!isDistrictAdmin) return;
+    justLoggedInRef.current = true;
+    login(DISTRICT_ADMIN_DEMO.email);
+    // Bind the backend session once so district-wide data is shared with this
+    // device. If the backend is unreachable the login still works offline and
+    // the binding is retried from memory once it can be verified.
+    if (!districtBoundRef.current) {
+      districtBoundRef.current = true;
+      void loginDistrictSession({ username: DISTRICT_ADMIN_USERNAME })
+        .then(result => {
+          if (result?.ok && 'token' in result && result.token) {
+            writeBackendToken(result.token as string);
+            clearPendingLogin();
+          } else {
+            rememberPendingLogin({ kind: 'district', username: DISTRICT_ADMIN_USERNAME });
+          }
+        })
+        .catch(() => {
+          rememberPendingLogin({ kind: 'district', username: DISTRICT_ADMIN_USERNAME });
+        });
     }
-  }, [isDistrictAdmin, login, navigate]);
+    navigate(ROLE_ROUTES.gov_admin, { replace: true });
+  }, [isDistrictAdmin, login, navigate, loginDistrictSession]);
 
   // ── Patient Login: look up by email ───────────────────────────
   const handlePatientLogin = useCallback(async (e: React.FormEvent) => {
@@ -98,22 +143,65 @@ export default function AuthPage() {
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    const patient = getPatientByEmail(emailValue);
-    setLoading(false);
-
-    if (!patient) {
-      setError('Patient not registered. Please contact your Health Worker to register your account first.');
-      return;
+    // Look the patient up on the server first: this is what lets a patient
+    // registered on ANOTHER device sign in here, and it binds the backend
+    // session to the stored patient record.
+    let identity: { patientId: string; healthCardId: string; name: string } | null = null;
+    try {
+      const result = await loginPatientSession({ email: emailValue });
+      if (result?.ok && result.user && 'patientId' in result.user && result.user.patientId) {
+        if ('token' in result && result.token) {
+          writeBackendToken(result.token as string);
+          clearPendingLogin();
+        }
+        identity = {
+          patientId: result.user.patientId as string,
+          healthCardId: (result.user.healthCardId as string) || '',
+          name: (result.user.name as string) || '',
+        };
+      }
+    } catch {
+      /* backend unreachable — fall back to this device's cached records */
     }
 
-    setFoundPatient({ name: patient.name, healthCardId: patient.healthCardId });
+    if (!identity) {
+      const patient = getPatientByEmail(emailValue);
+      if (!patient) {
+        setLoading(false);
+        setError('Patient not registered. Please contact your Health Worker to register your account first.');
+        return;
+      }
+      // Keep the credentials in memory so the backend binding can be created
+      // once the patient record is reachable, without a reload.
+      const fallback = { patientId: patient.id, name: patient.name };
+      rememberPendingLogin({ kind: 'patient', email: emailValue, healthCardId: patient.healthCardId, fallback });
+      identity = { patientId: patient.id, healthCardId: patient.healthCardId, name: patient.name };
+      // Bind now if the deployment simply has no stored patient records yet
+      // (brand-new deployment) — otherwise this stays pending.
+      try {
+        const retry = await loginPatientSession({
+          email: emailValue,
+          healthCardId: patient.healthCardId,
+          fallback,
+        });
+        if (retry?.ok && 'token' in retry && retry.token) {
+          writeBackendToken(retry.token as string);
+          clearPendingLogin();
+        }
+      } catch {
+        /* still offline — the binding stays pending */
+      }
+    }
+
+    setLoading(false);
+    setFoundPatient({ name: identity.name, healthCardId: identity.healthCardId });
     justLoggedInRef.current = true;
-    loginPatient(emailValue, patient.id, patient.healthCardId, patient.name);
+    loginPatient(emailValue, identity.patientId, identity.healthCardId, identity.name);
 
     setTimeout(() => {
       navigate(returnTo, { replace: true });
     }, 800);
-  }, [emailValue, getPatientByEmail, loginPatient, navigate, returnTo]);
+  }, [emailValue, getPatientByEmail, loginPatient, loginPatientSession, navigate, returnTo]);
 
   // ── Staff Login: validate username against staffUsers ─────────
   const handleStaffLogin = useCallback(async (e: React.FormEvent) => {
@@ -133,61 +221,121 @@ export default function AuthPage() {
     setLoading(true);
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    // Find staff user by username (includes accounts created by District Admin / Hospital Admin)
-    const staffUser = staffUsers.find(u => u.username === username.trim());
-
-    if (!staffUser) {
-      setLoading(false);
-      setError('Invalid username or password. Please check your credentials or contact your Hospital Administrator.');
-      return;
+    // 1) Ask the backend to verify the credentials against STORED staff data.
+    //    On success the server also creates the session binding that authorizes
+    //    this device, and returns the role/hospital it found in the database.
+    let identity: StaffIdentity | null = null;
+    let disabled = false;
+    try {
+      const result = await loginStaffSession({ username: username.trim(), password });
+      if (result?.ok && result.user && result.user.id) {
+        if ('token' in result && result.token) {
+          writeBackendToken(result.token as string);
+          clearPendingLogin();
+        }
+        identity = {
+          id: result.user.id,
+          name: result.user.name || '',
+          email: result.user.email || '',
+          role: (result.user.role || '') as Role,
+          facilityId: result.user.facilityId ?? undefined,
+          departmentId: result.user.departmentId ?? undefined,
+          mustChangePassword: result.user.mustChangePassword,
+        };
+      } else if (result?.reason === 'disabled') {
+        disabled = true;
+      }
+      // reason === 'invalid' falls through to the local check below: the
+      // account may have been created on this device while offline and not
+      // reached the cloud yet.
+    } catch {
+      /* backend unreachable — verify against this device's cached records */
     }
 
-    // Validate password (demo mode — in production this would check password_hash)
-    if (staffUser.password && staffUser.password !== password) {
-      setLoading(false);
-      setError('Invalid username or password. Please try again.');
-      return;
+    // 2) Local fallback (offline-first): accounts this device knows about.
+    if (!identity && !disabled) {
+      const staffUser = staffUsers.find(u => u.username === username.trim());
+      const passwordOk = !!staffUser && (!staffUser.password || staffUser.password === password);
+      if (staffUser && passwordOk && staffUser.status !== 'disabled') {
+        identity = {
+          id: staffUser.id,
+          name: staffUser.name,
+          email: staffUser.email,
+          role: staffUser.role,
+          facilityId: staffUser.facilityId,
+          departmentId: staffUser.departmentId,
+          mustChangePassword: staffUser.mustChangePassword,
+        };
+        const fallback = {
+          role: staffUser.role,
+          facilityId: staffUser.facilityId,
+          staffUserId: staffUser.id,
+          name: staffUser.name,
+          email: staffUser.email,
+          departmentId: staffUser.departmentId,
+        };
+        rememberPendingLogin({ kind: 'staff', username: username.trim(), password, fallback });
+        // Bind now when the deployment stores no staff records yet (brand-new
+        // deployment); otherwise the pending login is bound once reachable.
+        try {
+          const retry = await loginStaffSession({ username: username.trim(), password, fallback });
+          if (retry?.ok && 'token' in retry && retry.token) {
+            writeBackendToken(retry.token as string);
+            clearPendingLogin();
+          }
+        } catch {
+          /* still offline — the binding stays pending */
+        }
+      } else if (staffUser?.status === 'disabled') {
+        disabled = true;
+      }
     }
 
-    if (staffUser.status === 'disabled') {
+    if (disabled) {
       setLoading(false);
       setError('Your account has been disabled. Please contact your Hospital Administrator.');
       return;
     }
 
-    if (staffUser.role !== currentRole) {
+    if (!identity) {
       setLoading(false);
-      setError(`This account is registered as ${ROLE_LABELS[staffUser.role]}, not ${ROLE_LABELS[currentRole]}.`);
+      setError('Invalid username or password. Please check your credentials or contact your Hospital Administrator.');
+      return;
+    }
+
+    if (identity.role !== currentRole) {
+      setLoading(false);
+      setError(`This account is registered as ${ROLE_LABELS[identity.role]}, not ${ROLE_LABELS[currentRole]}.`);
       return;
     }
 
     // Check if user must change password on first login
-    if (staffUser.mustChangePassword) {
-      setPendingPasswordChange({ userId: staffUser.id, newPassword: '', confirmPassword: '' });
+    if (identity.mustChangePassword) {
+      setPendingPasswordChange({ userId: identity.id, newPassword: '', confirmPassword: '' });
       setLoading(false);
       return;
     }
 
-    // Login with the actual staff user data from the database
+    // Login with the verified identity (server-derived whenever reachable)
     justLoggedInRef.current = true;
     // Look up facility name — check both facilities and hospitals (District Admin may have registered new hospitals)
-    const staffFacility = staffUser.facilityId
-      ? (facilities.find(f => f.id === staffUser.facilityId) || hospitals.find(h => h.id === staffUser.facilityId))
+    const staffFacility = identity.facilityId
+      ? (facilities.find(f => f.id === identity.facilityId) || hospitals.find(h => h.id === identity.facilityId))
       : undefined;
     loginStaff({
-      id: staffUser.id,
-      name: staffUser.name,
-      email: staffUser.email,
-      role: staffUser.role,
-      facilityId: staffUser.facilityId,
+      id: identity.id,
+      name: identity.name,
+      email: identity.email,
+      role: identity.role,
+      facilityId: identity.facilityId,
       facilityName: staffFacility?.name || 'Unknown Facility',
-      departmentName: staffUser.departmentId,
-      departmentId: staffUser.departmentId,
+      departmentName: identity.departmentId,
+      departmentId: identity.departmentId,
     });
     setLoading(false);
 
     navigate(returnTo, { replace: true });
-  }, [username, password, currentRole, staffUsers, loginStaff, navigate, returnTo, facilities, hospitals]);
+  }, [username, password, currentRole, staffUsers, loginStaff, loginStaffSession, navigate, returnTo, facilities, hospitals]);
 
   // Handle force password change submission
   const handlePasswordChange = useCallback(async (e: React.FormEvent) => {
@@ -225,6 +373,10 @@ export default function AuthPage() {
         departmentId: updatedUser.departmentId,
       });
       navigate(returnTo, { replace: true });
+    } else {
+      // The record exists in the cloud but has not been adopted on this device
+      // yet (just bound, first load). Ask for a retry instead of failing softly.
+      setPwError('Your account data is still loading — please try again in a moment.');
     }
   }, [pendingPasswordChange, staffUsers, updateStaffUser, facilities, hospitals, loginStaff, navigate, returnTo]);
 

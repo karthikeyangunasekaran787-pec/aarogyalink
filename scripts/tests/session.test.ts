@@ -11,12 +11,24 @@ import {
   writeStoredSession,
   type StoredSession,
 } from '../../src/lib/session';
+import {
+  BACKEND_TOKEN_KEY,
+  DISTRICT_ADMIN_USERNAME,
+  clearPendingLogin,
+  derivePendingLogin,
+  peekPendingLogin,
+  readBackendToken,
+  rememberPendingLogin,
+  writeBackendToken,
+} from '../../src/lib/backend-session';
 
 interface FakeUser {
   id: string;
   name: string;
   role: string;
   facilityId?: string;
+  email?: string;
+  healthCardId?: string;
 }
 
 const healthWorker: FakeUser = {
@@ -134,5 +146,58 @@ describe('persisted session (refresh restore)', () => {
       expect(session?.role).toBe(role);
       expect(session?.user.role).toBe(role);
     }
+  });
+});
+
+describe('backend session (server-verified binding)', () => {
+  beforeEach(() => {
+    installStorage();
+    clearPendingLogin();
+  });
+
+  test('the resume token survives a refresh and clears on logout', () => {
+    writeBackendToken('token-123');
+    expect(readBackendToken()).toBe('token-123');
+    writeBackendToken(null);
+    expect(readBackendToken()).toBeNull();
+  });
+
+  test('the token lives under its own key, separate from the app session', () => {
+    writeBackendToken('token-abc');
+    expect(globalThis.localStorage.getItem(BACKEND_TOKEN_KEY)).toBe('token-abc');
+    expect(globalThis.localStorage.getItem(AUTH_SESSION_KEY)).toBeNull();
+  });
+
+  test('pending login credentials are kept in memory only (never persisted)', () => {
+    rememberPendingLogin({ kind: 'staff', username: 'doc.pdk001', password: 'Secret@1' });
+    expect(peekPendingLogin()).toEqual({ kind: 'staff', username: 'doc.pdk001', password: 'Secret@1' });
+    // Nothing about the password may reach storage.
+    const dump = Object.entries(globalThis.localStorage)
+      .map(([k, v]) => `${k}=${String(v)}`)
+      .join('|');
+    expect(dump.includes('Secret@1')).toBe(false);
+    clearPendingLogin();
+    expect(peekPendingLogin()).toBeNull();
+  });
+
+  test('district and patient sessions self-heal without a password', () => {
+    expect(derivePendingLogin({ role: 'gov_admin' })).toEqual({
+      kind: 'district',
+      username: DISTRICT_ADMIN_USERNAME,
+    });
+    expect(
+      derivePendingLogin({ role: 'patient', email: 'kumar@example.com', healthCardId: 'AL-PT-2026-001' }),
+    ).toEqual({ kind: 'patient', email: 'kumar@example.com', healthCardId: 'AL-PT-2026-001' });
+  });
+
+  test('staff sessions are never bound without their password', () => {
+    expect(derivePendingLogin({ role: 'doctor', email: 'doc@example.com' })).toBeNull();
+    expect(derivePendingLogin({ role: 'health_worker' })).toBeNull();
+    expect(derivePendingLogin({ role: 'hospital_admin' })).toBeNull();
+    expect(derivePendingLogin(null)).toBeNull();
+  });
+
+  test('a patient session without an email cannot be re-derived', () => {
+    expect(derivePendingLogin({ role: 'patient' })).toBeNull();
   });
 });

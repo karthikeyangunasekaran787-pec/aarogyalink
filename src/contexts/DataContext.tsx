@@ -9,6 +9,7 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useApp } from '@/contexts/AppContext';
 import { useConvexSessionReady } from '@/hooks/use-convex-session';
+import { useBackendSession } from '@/hooks/use-backend-session';
 import { DATA_VERSION, wrapForCloud, unwrapFromCloud, mergeCollections, safePayload, mergeKeyOf, tombstoneEntry, tombstonesByCollection, filterTombstoned, maxIdNum, TOMBSTONES_KEY } from './cloudData';
 import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
@@ -255,6 +256,18 @@ try {
  * the District Administrator, so lookups and analytics must consider them in
  * addition to the seeded facility-finder list.
  */
+/**
+ * Merge the seeded facility finder list with hospitals created at runtime,
+ * deduplicated by id so nothing is listed twice and no seeded facility is lost.
+ */
+export function mergedFacilities(seed: Facility[], hospitals: Hospital[]): Facility[] {
+  const byId = new Map<string, Facility>(seed.map(f => [f.id, f]));
+  for (const hospital of hospitals) {
+    if (!byId.has(hospital.id)) byId.set(hospital.id, hospitalToFacility(hospital));
+  }
+  return [...byId.values()];
+}
+
 export function hospitalToFacility(h: Hospital): Facility {
   return {
     id: h.id,
@@ -344,6 +357,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // The query is skipped until that session is usable, so it can never fire
   // unauthenticated and throw; meanwhile the app runs on its offline cache.
   const convexSessionReady = useConvexSessionReady();
+  // The backend only shares data with a BOUND session (server-verified role /
+  // hospital / patient). Until then the app runs entirely on its offline cache.
+  const backendSession = useBackendSession();
+  const boundToBackend = backendSession !== undefined && backendSession !== null;
   const cloudRaw = useQuery(api.appData.getAll, convexSessionReady ? {} : 'skip');
   const saveCollection = useMutation(api.appData.saveCollection);
   const cloudReady = cloudRaw !== undefined;
@@ -430,6 +447,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ? hospitalsList.map(hospitalToFacility)
       : initFacilities;
   }, [hospitalsList]);
+
+  /**
+   * The facility list every component reads through `useData().facilities`:
+   * the seeded facility finder records PLUS hospitals created at runtime by the
+   * District Administrator (deduplicated by id, so a hospital already
+   * represented as a seeded facility is not listed twice).
+   */
+  const allFacilities = useMemo<Facility[]>(() => mergedFacilities(initFacilities, hospitalsList), [hospitalsList]);
 
   const computedAnalytics = useMemo<DistrictAnalytics>(() => {
     const totalReferrals = referrals.length;
@@ -979,7 +1004,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // 2) Seed the cloud with seed data when it has nothing for the current version
   useEffect(() => {
-    if (!cloudReady || didSyncRef.current) return;
+    if (!cloudReady || !boundToBackend || didSyncRef.current) return;
     const raw = cloudRaw as Record<string, unknown>;
     const hasValidData = collectionRegistry.some(({ key }) => unwrapFromCloud(raw[key]) !== null);
     if (!hasValidData) {
@@ -1005,7 +1030,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   //     always superseded by the post-adopt render before the debounce fires.
   const cloudTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   useEffect(() => {
-    if (!cloudReady) return;
+    // Never push without a backend binding: the write would be rejected and
+    // the user would silently lose the sync of that change.
+    if (!cloudReady || !boundToBackend) return;
     for (const { key, get } of collectionRegistry) {
       // Size guard: never push a payload Convex would reject (>1 MiB).
       const payload = safePayload(get());
@@ -1031,7 +1058,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
      referrals, appointments, followups, notifications, referralEvents,
      consultations, vitalsList, healthRecordsList, medicineStockList,
      diagnosticsList, villageScoresList, predictionsList,
-     cloudReady, saveCollection]);
+     cloudReady, boundToBackend, saveCollection]);
 
   // ── Persist changes to localStorage (offline cache) ─────────────
   useEffect(() => { saveToStorage('patients', patients); }, [patients]);
@@ -1079,7 +1106,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const getPredictionForReferral = useCallback((referralId: string) => predictionsList.find(p => p.referralId === referralId), [predictionsList]);
 
   const value: DataContextValue = {
-    patients, doctors: doctorsList, facilities: initFacilities, referrals, appointments, followups,
+    patients, doctors: doctorsList, facilities: allFacilities, referrals, appointments, followups,
     healthWorkers: healthWorkersList, vitals: vitalsList, healthRecords: healthRecordsList,
     medicineStock: medicineStockList, diagnostics: diagnosticsList,
     villageAccessScores: villageScoresList, notifications, referralEvents, consultations,

@@ -10,6 +10,7 @@ import type { Language } from '@/lib/i18n';
 // browser refresh restores the signed-in user instead of dropping them back to
 // role selection). localStorage is intentional: offline-first rural use.
 import { readStoredSession, writeStoredSession } from '@/lib/session';
+import { rememberPendingLogin, writeBackendToken } from '@/lib/backend-session';
 
 export interface AuthUser {
   id: string;
@@ -139,6 +140,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setCurrentUser(null);
     persist(null);
+    // Drop the backend session token too: the next sign-in binds its own
+    // server-verified role instead of resuming this one.
+    writeBackendToken(null);
+    rememberPendingLogin(null);
     try { sessionStorage.clear(); } catch { /* ok */ }
   }, [persist]);
 

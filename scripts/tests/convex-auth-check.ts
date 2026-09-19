@@ -6,7 +6,8 @@
  * Verifies:
  *   1. appData.getAll requires authentication (must fail when unauthenticated)
  *   2. an anonymous Convex Auth session can be created
- *   3. appData.getAll succeeds with that session
+ *   3. an authenticated-but-unbound session receives no healthcare data
+ *   4. after a district session binding, appData.getAll returns the district
  */
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../../src/convex/_generated/api';
@@ -45,9 +46,24 @@ try {
     authed.setAuth(token);
     try {
       const rows = await authed.query(api.appData.getAll, {});
-      console.log(`3) authenticated getAll: OK (${Object.keys(rows).length} collections)`);
+      console.log(`3) authenticated (unbound) getAll: OK (${Object.keys(rows).length} collections)`);
     } catch (err) {
       console.log(`3) authenticated getAll: FAILED (${(err as Error).message})`);
+    }
+
+    // 4) Bind a district session and read the shared collections.
+    try {
+      const bound = (await authed.mutation(api.appSession.loginDistrictSession, {
+        username: 'collector.dist',
+      })) as { ok?: boolean };
+      if (bound?.ok) {
+        const rows = await authed.query(api.appData.getAll, {});
+        console.log(`4) authenticated + district binding getAll: OK (${Object.keys(rows).length} collections)`);
+      } else {
+        console.log('4) district binding: FAILED (no gov_admin demo record in the cloud)');
+      }
+    } catch (err) {
+      console.log(`4) district binding: FAILED (${(err as Error).message})`);
     }
   } else {
     console.log('2) anonymous signIn: no token returned');

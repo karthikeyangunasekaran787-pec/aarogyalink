@@ -28,7 +28,11 @@ function check(name: string, ok: boolean, detail?: unknown) {
   }
 }
 
-/** Create an authenticated client the way the app does (anonymous session). */
+/**
+ * Create an authenticated client the way the app does: an anonymous Convex
+ * session, then a server-verified session binding (the backend refuses to share
+ * healthcare collections with an unbound session).
+ */
 async function device(label: string): Promise<ConvexHttpClient> {
   const client = new ConvexHttpClient(url);
   const result = (await client.action(api.auth.signIn as AnyApi, {
@@ -37,6 +41,16 @@ async function device(label: string): Promise<ConvexHttpClient> {
   const token = result?.tokens?.token;
   if (!token) throw new Error(`${label}: anonymous sign-in returned no token`);
   client.setAuth(token);
+
+  let bound = (await client.mutation(api.appSession.loginDistrictSession as AnyApi, {
+    username: 'collector.dist',
+  })) as { ok?: boolean };
+  if (!bound?.ok) {
+    bound = (await client.mutation(api.appSession.loginDistrictSession as AnyApi, {
+      username: 'district@demo.com',
+    })) as { ok?: boolean };
+  }
+  if (!bound?.ok) throw new Error(`${label}: could not bind a session`);
   return client;
 }
 

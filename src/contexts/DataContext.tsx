@@ -7,7 +7,7 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { DATA_VERSION, wrapForCloud, unwrapFromCloud } from './cloudData';
+import { DATA_VERSION, wrapForCloud, unwrapFromCloud, mergeCollections, safePayload } from './cloudData';
 import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
@@ -744,22 +744,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!cloudReady) return;
     const raw = cloudRaw as Record<string, unknown>;
     const adopted: Record<string, unknown[]> = {};
-    const idOf = (item: unknown): string | undefined =>
-      (item as { id?: string; villageId?: string }).id ?? (item as { villageId?: string }).villageId;
     for (const { key, get, set } of collectionRegistry) {
       const cloudItems = unwrapFromCloud(raw[key]);
       if (cloudItems) {
-        const localItems = get();
-        const merged = cloudItems.length === localItems.length && cloudItems.every((c, i) => c === localItems[i])
-          ? cloudItems // already identical — skip allocation
-          : [
-              ...cloudItems,
-              ...localItems.filter(l => {
-                const lid = idOf(l);
-                return lid === undefined || !cloudItems.some(c => idOf(c) === lid);
-              }),
-            ];
-        lastWrittenRef.current[key] = wrapForCloud(cloudItems); // pure cloud payload — merge gets pushed up if non-empty union
+        // mergeCollections dedupes by stable key (id / villageId / referralId),
+        // keeping cloud-wins semantics while preserving local-only records.
+        // This replaced an id-only check that treated id-less collections
+        // (referralPredictions) as always-local and duplicated them on every
+        // adopt cycle until the payload exceeded Convex's 1 MiB doc limit.
+        const merged = mergeCollections(cloudItems, get());
+        lastWrittenRef.current[key] = wrapForCloud(cloudItems); // pure cloud payload — the merge gets pushed up if non-empty union
         adopted[key] = merged;
         set(merged);
       }
@@ -798,7 +792,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!hasValidData) {
       didSyncRef.current = true;
       for (const { key, get } of collectionRegistry) {
-        const payload = wrapForCloud(get());
+        const payload = safePayload(get());
+        if (!payload) {
+          console.warn(`[sync] Seed payload for "${key}" exceeds the cloud size limit; skipped.`);
+          continue;
+        }
         lastWrittenRef.current[key] = payload;
         void saveCollection({ key, data: payload });
       }
@@ -816,7 +814,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!cloudReady) return;
     for (const { key, get } of collectionRegistry) {
-      const payload = wrapForCloud(get());
+      // Size guard: never push a payload Convex would reject (>1 MiB).
+      const payload = safePayload(get());
+      if (!payload) {
+        console.warn(
+          `[sync] Collection "${key}" exceeds the cloud payload limit (${get().length} records); ` +
+          'changes are kept locally but will not sync until reduced.'
+        );
+        continue;
+      }
       // Always cancel any pending write first — a render triggered by cloud
       // adoption can otherwise leave a stale debounced write that would
       // overwrite newer cloud data with pre-adoption local state.

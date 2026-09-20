@@ -15,6 +15,7 @@ import { useData } from '@/contexts/DataContext';
 import {
   clearPendingLogin,
   rememberPendingLogin,
+  isAnonymousSignInInFlight,
   setAnonymousAuthSuspended,
   writeBackendToken,
 } from '@/lib/backend-session';
@@ -67,7 +68,7 @@ export default function AuthPage() {
   const loginStaffSession = useMutation(api.appSession.loginStaffSession);
   const loginPatientSession = useMutation(api.appSession.loginPatientSession);
   const loginOverallSession = useMutation(api.appSession.loginOverallSession);
-  const { signIn } = useAuthActions();
+  const { signIn, signOut } = useAuthActions();
 
   // Overall Administrator: the master email is verified by an emailed one-time
   // code, and only THEN does the server open the master binding.
@@ -163,10 +164,28 @@ export default function AuthPage() {
     setAnonymousAuthSuspended(true);
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     try {
-      // Step 1 — verify the emailed code. Addresses are checked by Convex Auth
-      // against the code that was mailed, so this is the only place a bad or
-      // already-used code can be reported: say exactly what happened instead of
-      // a generic failure.
+      // Let any anonymous sign-in that was already running finish first: if one
+      // completed after the verified sign-in it would write its tokens over the
+      // session and the backend would see a caller with no email address.
+      for (let i = 0; i < 10 && isAnonymousSignInInFlight(); i++) await sleep(150);
+
+      // Start from a signed-OUT client.
+      //
+      // Convex Auth only asks the Convex client to re-read its token when the
+      // authenticated state FLIPS. Swapping the app's anonymous transport
+      // session for the emailed one keeps that state `true`, so the app would
+      // carry on sending the ANONYMOUS token — the backend would then see a
+      // caller with no email address. Signing out first makes the flip
+      // explicit, and the verified session is picked up straight away.
+      try { await signOut(); } catch { /* already signed out */ }
+      // Give React a moment to commit the signed-out state, so the Convex client
+      // really does drop the old token before the new one arrives.
+      await sleep(250);
+
+      // Step 1 — verify the emailed code. Convex Auth checks the code against
+      // the one that was mailed, so this is the only place a bad or already
+      // used code can be reported: say exactly what happened rather than
+      // failing generically.
       try {
         await signIn('email-otp', { email: masterEmail.trim(), code: masterCode.trim() });
       } catch (signInError) {
@@ -180,13 +199,15 @@ export default function AuthPage() {
         return;
       }
 
-      // Step 2 — open the master binding. The verified session can take a
-      // moment to become visible to backend calls, so a `Not authenticated`
-      // error here is retried rather than reported as a bad code.
+      // Step 2 — open the master binding. The verified session has to reach the
+      // Convex client's socket before this can see the email, so retry: a
+      // `Not authenticated`/`no_verified_email` answer here means the token is
+      // still propagating, not that the code was wrong.
+      await sleep(300);
       let observed = '';
       let bound: { token?: string; user?: { id: string; name?: string; email?: string } } | null = null;
       let lastError = '';
-      for (let attempt = 0; attempt < 5; attempt++) {
+      for (let attempt = 0; attempt < 10; attempt++) {
         try {
           const result = await loginOverallSession({});
           if (result?.ok && result.token) { bound = result; break; }
@@ -195,16 +216,19 @@ export default function AuthPage() {
         } catch (bindError) {
           lastError = bindError instanceof Error ? bindError.message : String(bindError);
         }
-        await sleep(400);
+        await sleep(500);
       }
 
       if (!bound?.token) {
+        // A wrong address leaves a real (unbound) session behind: drop it so
+        // the app falls back to its normal transport session.
+        if (observed) { try { await signOut(); } catch { /* ok */ } }
         setLoading(false);
         setError(observed
           ? `Signed in as ${observed}, but the Overall Administrator of AarogyaLink is another address.`
           : lastError
             ? `Signed in, but the backend could not confirm the session (${lastError.slice(0, 120)}). Try again.`
-            : 'Signed in, but the backend could not confirm the session. Try again.');
+            : 'Signed in, but the browser was still holding its background session, so the verified email was not attached. Reload the page, request a new code and verify again.');
         return;
       }
       writeBackendToken(bound.token);
@@ -229,7 +253,7 @@ export default function AuthPage() {
       // session, and on success the master session is already live.
       setAnonymousAuthSuspended(false);
     }
-  }, [masterEmail, masterCode, signIn, loginOverallSession, loginStaff, navigate]);
+  }, [masterEmail, masterCode, signIn, signOut, loginOverallSession, loginStaff, navigate]);
 
   // ── Patient Login: look up by email ───────────────────────────
   const handlePatientLogin = useCallback(async (e: React.FormEvent) => {

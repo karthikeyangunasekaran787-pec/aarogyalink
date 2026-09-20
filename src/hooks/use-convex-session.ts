@@ -1,7 +1,11 @@
 import { useEffect } from 'react';
 import { useConvexAuth } from 'convex/react';
 import { useAuthActions } from '@convex-dev/auth/react';
-import { isAnonymousAuthSuspended } from '@/lib/backend-session';
+import {
+  beginAnonymousSignIn,
+  endAnonymousSignIn,
+  isAnonymousAuthSuspended,
+} from '@/lib/backend-session';
 
 /**
  * Establishes a Convex Auth session so the backend functions (appData) can be
@@ -59,7 +63,11 @@ export function useConvexSessionReady(): boolean {
         timer = setTimeout(attempt, SUSPENDED_POLL_MS);
         return;
       }
-      signIn('anonymous')
+      // Flag the attempt as in flight, so a real sign-in starting now can wait
+      // for it instead of having its verified session overwritten by anonymous
+      // tokens landing a moment later.
+      beginAnonymousSignIn();
+      void signIn('anonymous')
         .catch((error: unknown) => {
           if (cancelled) return;
           attempts += 1;
@@ -71,7 +79,8 @@ export function useConvexSessionReady(): boolean {
           }
           const delay = Math.min(RETRY_BASE_MS * attempts, RETRY_MAX_MS);
           timer = setTimeout(attempt, delay);
-        });
+        })
+        .finally(endAnonymousSignIn);
     };
 
     attempt();

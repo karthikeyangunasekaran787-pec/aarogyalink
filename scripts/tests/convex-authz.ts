@@ -398,7 +398,26 @@ try {
     // A hospital may only see its own registered patients (plus shared
     // unattributed demo records). We create one patient as hospital A, check
     // hospital B can neither see nor steal it, then remove it again.
-    const testPatientId = 'p-authtest-isolation';
+    //
+    // Test hygiene: runs from before the hospital ids were renamed left rows
+    // behind that belong to a facility no current session can edit — which IS
+    // the protection under test, so such a row would also block this run's write
+    // to the same id. Purge leftovers through the district client (it can see
+    // every facility in its district) and use a unique id per run.
+    const districtPatients = (await read(district)).patients ?? [];
+    const isStaleTestRow = (p: unknown) => String((p as { id?: unknown }).id).startsWith('p-authtest');
+    const staleTestRows = districtPatients.filter(isStaleTestRow);
+    if (staleTestRows.length > 0) {
+      await district.mutation(api.appData.saveCollection as AnyApi, {
+        key: 'patients',
+        data: payloadOf(districtPatients.filter(p => !isStaleTestRow(p))),
+      });
+      check(
+        'stale isolation fixtures are cleaned up',
+        !(await read(district)).patients?.some(isStaleTestRow),
+      );
+    }
+    const testPatientId = `p-authtest-${Date.now()}`;
     const testPatient = {
       id: testPatientId,
       userId: 'u-authtest',
@@ -530,6 +549,9 @@ try {
       // …and no other patient's record may be edited or removed.
       const otherPatient = patients.find(x => s(x.id) !== patientId);
       if (otherPatient) {
+        // Baseline immediately before the attempt: the isolation fixtures above
+        // add and remove rows, so an earlier snapshot would compare across them.
+        const patientsBefore = (await read(district)).patients ?? [];
         await patientClient.mutation(api.appData.saveCollection as AnyApi, {
           key: 'patients',
           data: payloadOf([...(p.patients ?? []), { ...otherPatient, name: 'TAMPERED-BY-PATIENT' }]),
@@ -542,8 +564,8 @@ try {
         );
         check(
           "other patients are not deleted by a patient's payload",
-          (patientsAfter.patients ?? []).length === patients.length,
-          { after: patientsAfter.patients?.length, before: patients.length },
+          (patientsAfter.patients ?? []).length === patientsBefore.length,
+          { after: patientsAfter.patients?.length, before: patientsBefore.length },
         );
       }
     } else {

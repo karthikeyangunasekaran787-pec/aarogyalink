@@ -24,6 +24,7 @@
 // ----------------------------------------------------------------------------
 
 let anonymousAuthSuspended = false;
+let anonymousSignInsInFlight = 0;
 
 /** Pause automatic anonymous sign-in while a real sign-in is in progress. */
 export function setAnonymousAuthSuspended(value: boolean): void {
@@ -32,6 +33,24 @@ export function setAnonymousAuthSuspended(value: boolean): void {
 
 export function isAnonymousAuthSuspended(): boolean {
   return anonymousAuthSuspended;
+}
+
+/**
+ * Count an anonymous sign-in that has started but not yet finished. A real
+ * sign-in must wait for these to settle: one completing mid-flow would write
+ * anonymous tokens over the freshly verified session, and the backend would
+ * then see a caller with no email address.
+ */
+export function beginAnonymousSignIn(): void {
+  anonymousSignInsInFlight += 1;
+}
+
+export function endAnonymousSignIn(): void {
+  anonymousSignInsInFlight = Math.max(0, anonymousSignInsInFlight - 1);
+}
+
+export function isAnonymousSignInInFlight(): boolean {
+  return anonymousSignInsInFlight > 0;
 }
 
 export const BACKEND_TOKEN_KEY = 'aal_backend_token';

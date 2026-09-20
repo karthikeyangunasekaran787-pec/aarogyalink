@@ -5,7 +5,20 @@
 export type Role = 'patient' | 'health_worker' | 'doctor' | 'hospital_admin' | 'gov_admin' | 'overall_admin';
 export type Language = 'en' | 'ta' | 'hi';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'emergency';
-export type ReferralStatus = 'created' | 'accepted' | 'scheduled' | 'patient_arrived' | 'consultation' | 'treatment' | 'followup' | 'closed';
+// Referral workflow statuses. The canonical model (order, labels, allowed
+// transitions) lives in `src/convex/referralStatus.ts`, which the backend
+// enforces — these values are the stored ones and must stay in step with it.
+export type ReferralStatus =
+  | 'created'          // CREATED
+  | 'accepted'         // ACCEPTED
+  | 'doctor_assigned'  // DOCTOR_ASSIGNED
+  | 'scheduled'        // SCHEDULED
+  | 'patient_arrived'  // ARRIVAL_VERIFIED
+  | 'consultation'     // CONSULTATION_COMPLETED
+  | 'treatment'        // TREATMENT_STARTED
+  | 'followup'         // FOLLOW_UP
+  | 'closed'           // CLOSED
+  | 'cancelled';       // CANCELLED (terminal, explicit)
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'missed';
 export type FollowupStatus = 'scheduled' | 'completed' | 'missed' | 'overdue' | 'rescheduled';
 
@@ -224,6 +237,8 @@ export interface Referral {
   referralId: string; // unique human-readable ID like "REF-2026-001"
   patientId: string;
   patientName: string;
+  /** Health card id of the patient (printed on the referral QR for scanning). */
+  healthCardId?: string;
   sourceFacilityId: string;
   sourceFacilityName: string;
   destinationFacilityId: string;
@@ -260,6 +275,20 @@ export interface ReferralEvent {
   description: string;
   performedBy: string;
   timestamp: string;
+  /** Canonical taxonomy + the transition this event recorded (segments the
+   *  timeline and lets the UI show the real status change). */
+  eventType?: string;
+  canonicalStatus?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  actorId?: string;
+  actorName?: string;
+  actorRole?: string;
+  hospitalId?: string;
+  notes?: string;
+  metadata?: { doctorId?: string; doctorName?: string };
+  // Structured actor identity (Convex records both namings).
+  performedByName?: string;
   // Audit attribution — who actually performed the transition, in which role
   // and at which facility. Optional so existing records stay valid.
   performedByUserId?: string;

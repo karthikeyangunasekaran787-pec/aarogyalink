@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
+import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import {
   Calendar, Users, FileText, Clock, Stethoscope, Activity,
@@ -57,12 +58,12 @@ export default function DoctorDashboard() {
 function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
   const { language } = useApp();
   const {
-    patients, referrals, followups, facilities,
+    patients, referrals, referralEvents, followups, facilities,
     getAppointmentsForDoctor, getReferralsForPatient, getVitalsForPatient,
     getConsultationsForPatient,
     startConsultation, completeConsultation, scheduleFollowup, closeReferral,
     addConsultation: addConsultationToData, createReferral, addNotification,
-    completeAppointment, cancelAppointment
+    completeAppointment
   } = useData();
 
   const doctorFacility = facilities.find(f => f.id === doctor.facilityId);
@@ -118,15 +119,26 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
   const patientReferrals = patient ? getReferralsForPatient(patient.id) : [];
   const patientConsultations = patient ? getConsultationsForPatient(patient.id) : [];
 
-  const handleStartConsultation = (refId: string) => {
-    startConsultation(refId);
-    setConsultingReferral(refId);
-    showFeedback('Consultation started');
+  // The Referral Closure Engine validates every step server-side, so the
+  // doctor's screen shows exactly why a step was accepted or refused.
+  const handleStartConsultation = async (refId: string) => {
+    const result = await startConsultation(refId);
+    showFeedback(result.message);
+    if (result.ok) setConsultingReferral(refId);
   };
 
-  const handleCompleteConsultation = (refId: string) => {
+  const handleCloseReferral = async (refId: string) => {
+    const result = await closeReferral(refId, consultationNotes || undefined);
+    showFeedback(result.message);
+  };
+
+  const handleCompleteConsultation = async (refId: string) => {
     if (consultingReferral === refId) {
-      completeConsultation(refId);
+      const result = await completeConsultation(refId, consultationNotes || undefined, prescription.split('\n').filter(Boolean)[0]);
+      showFeedback(result.ok
+        ? 'Consultation completed and treatment recorded'
+        : result.message);
+      if (!result.ok) return;
       setConsultingReferral(null);
 
       // Add consultation record
@@ -157,15 +169,14 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
       setConsultationNotes('');
       setPrescription('');
       setFollowupDate('');
-      showFeedback('Consultation completed and treatment recorded');
     }
   };
 
-  const handleScheduleFollowup = (refId: string) => {
+  const handleScheduleFollowup = async (refId: string) => {
     if (!followupDate) return;
-    scheduleFollowup(refId, followupDate, '10:00');
-    setFollowupDate('');
-    showFeedback('Follow-up scheduled');
+    const result = await scheduleFollowup(refId, followupDate, '10:00');
+    if (result.ok) setFollowupDate('');
+    showFeedback(result.message);
   };
 
   const handleCreateReferral = () => {
@@ -485,6 +496,13 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
             </CardContent>
           </Card>
 
+          {/* Referral Closure Engine metrics (this doctor's authorised referrals) */}
+          <ReferralClosureStats
+            referrals={referrals.filter(r => r.doctorId === doctor.id || r.destinationFacilityId === doctor.facilityId)}
+            events={referralEvents}
+            title="Referral Closure Engine"
+          />
+
           {/* Active Referrals */}
           <Card>
             <CardHeader className="pb-3">
@@ -515,12 +533,17 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                   <div className="flex flex-wrap gap-2 mt-3">
                     {ref.status === 'patient_arrived' && (
                       <Button size="sm" className="h-7 text-xs gap-1" onClick={() => {
-                        handleStartConsultation(ref.id);
                         setSelectedPatient(ref.patientId);
+                        void handleStartConsultation(ref.id);
                       }}>
                         <PlayCircle className="h-3 w-3" /> Start Consultation
                       </Button>
                     )}
+                    {ref.status === 'doctor_assigned' || ref.status === 'scheduled' ? (
+                      <Badge className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                        {ref.status === 'scheduled' ? `Scheduled ${ref.appointmentDate ?? ''}` : 'Awaiting arrival'}
+                      </Badge>
+                    ) : null}
                     {ref.status === 'consultation' && (
                       <Button size="sm" className="h-7 text-xs gap-1" onClick={() => {
                         setConsultingReferral(ref.id);
@@ -530,10 +553,29 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                       </Button>
                     )}
                     {ref.status === 'treatment' && (
-                      <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">Treatment in Progress</Badge>
+                      <>
+                        <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">Treatment in Progress</Badge>
+                        {/* No follow-up needed → the doctor closes the loop. */}
+                        {ref.doctorId === doctor.id && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => handleCloseReferral(ref.id)}>
+                            <CheckCircle2 className="h-3 w-3" /> Close Referral (no follow-up)
+                          </Button>
+                        )}
+                      </>
                     )}
                     {ref.status === 'followup' && (
-                      <Badge className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">Follow-up Scheduled</Badge>
+                      <>
+                        <Badge className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                          Follow-up {ref.appointmentDate ? `on ${ref.appointmentDate}` : 'scheduled'}
+                        </Badge>
+                        {/* FOLLOW_UP → CLOSED: the only permanent closure. */}
+                        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handleCloseReferral(ref.id)}>
+                          <CheckCircle2 className="h-3 w-3" /> Close Referral
+                        </Button>
+                      </>
+                    )}
+                    {ref.status === 'closed' && (
+                      <Badge className="text-[10px] bg-muted text-muted-foreground">Referral Closed</Badge>
                     )}
                   </div>
                 </div>
@@ -619,7 +661,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {patientVitals.slice().reverse().map((v, idx) => (
+                    {patientVitals.slice().reverse().map((v) => (
                       <div key={v.id} className="p-3 rounded-lg bg-muted/30">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-xs font-medium text-foreground">{v.date}</p>

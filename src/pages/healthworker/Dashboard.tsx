@@ -962,9 +962,11 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                   <div className="flex gap-2 mt-3">
                     <Button size="sm" className="h-7 text-xs gap-1" onClick={() => {
                       completeFollowupById(f.id);
-                      // Also close the associated referral if it exists
-                      if (f.referralId) completeFollowup(f.referralId);
-                      showFeedback(`Follow-up completed for ${f.patientName}`);
+                      // Mark the referral's follow-up step complete. The referral
+                      // itself stays open — only the doctor closes it, once the
+                      // care for that patient is finished.
+                      if (f.referralId) void completeFollowup(f.referralId);
+                      showFeedback(`Follow-up completed for ${f.patientName}. The doctor closes the referral.`);
                     }}>
                       <CheckCircle2 className="h-3 w-3" /> Mark Complete
                     </Button>

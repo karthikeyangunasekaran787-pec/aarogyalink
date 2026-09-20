@@ -483,6 +483,8 @@ export function scopeItemsForRead(
   // Patient scope: only their own health information plus the reference data
   // the patient app needs (facilities, medicines, diagnostics, doctors).
   if (key === 'staffUsers') return null; // contains staff credentials
+  // A patient never needs the health-worker roster (names, phones, work areas).
+  if (key === 'healthWorkers') return null;
   if (DISTRICT_ONLY.has(key)) return null;
   if (key === 'referralEvents') {
     const visible = new Set(
@@ -671,13 +673,25 @@ function mergeReferralsScoped(
   for (const record of stored) storedByKey.set(mergeKeyOf(record), record);
 
   const out: unknown[] = [];
-  for (const record of stored) if (!belongs(record)) out.push(record);
+  // A referral exists exactly once: emitting the same record twice (e.g. a
+  // payload that both updates and re-appends it) would create two copies of one
+  // referral, which every role would then see twice.
+  const emitted = new Set<string>();
+  for (const record of stored) {
+    if (!belongs(record)) {
+      out.push(record);
+      emitted.add(mergeKeyOf(record));
+    }
+  }
   for (const record of incoming) {
-    const storedRecord = storedByKey.get(mergeKeyOf(record));
+    const key = mergeKeyOf(record);
+    if (emitted.has(key)) continue;
+    const storedRecord = storedByKey.get(key);
     if (!storedRecord) {
       // A referral always STARTS at CREATED: a client cannot insert one that is
       // already in flight or closed, and the creator is the server-side actor.
       if (canCreate(record) && isRecord(record)) {
+        emitted.add(key);
         out.push({
           ...record,
           status: REFERRAL_STATUS.CREATED,
@@ -691,6 +705,7 @@ function mergeReferralsScoped(
       continue;
     }
     if (!belongs(storedRecord)) continue; // another scope's referral
+    emitted.add(key);
     if (!isRecord(record) || !isRecord(storedRecord)) {
       out.push(record);
       continue;

@@ -1,5 +1,5 @@
 // ============================================================================
-// AarogyaLink - Centralized Data Store
+// AarogyaLink - Centralized Data Store (single source of truth)
 // All dashboards read/write from this single source of truth.
 // Analytics are computed dynamically from actual data.
 // ============================================================================
@@ -11,6 +11,15 @@ import { useApp } from '@/contexts/AppContext';
 import { useConvexSessionReady } from '@/hooks/use-convex-session';
 import { useBackendSession } from '@/hooks/use-backend-session';
 import { DATA_VERSION, wrapForCloud, unwrapFromCloud, mergeCollections, safePayload, mergeKeyOf, tombstoneEntry, tombstonesByCollection, filterTombstoned, maxIdNum, TOMBSTONES_KEY } from './cloudData';
+// The canonical Referral Closure Engine model — shared with the Convex backend
+// so the client, the UI and the server can never disagree about a status.
+import {
+  REFERRAL_STATUS,
+  REFERRAL_STEPS,
+  REFERRAL_TOTAL_STEPS,
+  referralStepOf,
+  type ReferralAction,
+} from '@/convex/referralStatus';
 import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
@@ -43,17 +52,25 @@ import {
   seedDistricts as initDistricts,
 } from '@/lib/seed-multidistrict';
 
-// Valid referral status transitions
-const REFERRAL_STEP_MAP: Record<ReferralStatus, number> = {
-  created: 1,
-  accepted: 2,
-  scheduled: 3,
-  patient_arrived: 4,
-  consultation: 5,
-  treatment: 6,
-  followup: 7,
-  closed: 8,
-};
+// Step numbers come from the canonical model (never hand-maintained here).
+const REFERRAL_STEP_MAP: Record<ReferralStatus, number> = Object.fromEntries(
+  REFERRAL_STEPS.map(s => [s.status, referralStepOf(s.status)]),
+) as Record<ReferralStatus, number>;
+// Cancelled is terminal and sits outside the ordered chain.
+REFERRAL_STEP_MAP.cancelled = REFERRAL_STEP_MAP.closed;
+
+/**
+ * What a referral action returns. `ok:false` carries the SERVER's reason (the
+ * backend owns transition validation), so the UI can show exactly why a step
+ * was refused. `offline:true` means the change was applied locally and will be
+ * synchronised when connectivity returns.
+ */
+export interface ReferralActionResult {
+  ok: boolean;
+  message: string;
+  duplicate?: boolean;
+  offline?: boolean;
+}
 
 interface DataContextValue {
   // Data
@@ -85,20 +102,20 @@ interface DataContextValue {
   /** Dynamic facility list (includes hospitals added at runtime). */
   currentFacilities: Facility[];
 
-  // Referral actions
-  acceptReferral: (referralId: string) => void;
-  rejectReferral: (referralId: string) => void;
-  scheduleReferral: (referralId: string, date: string, time: string) => void;
-  confirmArrival: (referralId: string) => void;
-  startConsultation: (referralId: string) => void;
-  completeConsultation: (referralId: string) => void;
-  addTreatment: (referralId: string) => void;
-  scheduleFollowup: (referralId: string, date: string, time: string) => void;
+  // Referral actions (all server-validated when a backend session exists)
+  acceptReferral: (referralId: string) => Promise<ReferralActionResult>;
+  rejectReferral: (referralId: string) => Promise<ReferralActionResult>;
+  scheduleReferral: (referralId: string, date: string, time: string) => Promise<ReferralActionResult>;
+  confirmArrival: (referralId: string) => Promise<ReferralActionResult>;
+  startConsultation: (referralId: string) => Promise<ReferralActionResult>;
+  completeConsultation: (referralId: string, notes?: string, diagnosis?: string) => Promise<ReferralActionResult>;
+  addTreatment: (referralId: string, notes?: string) => Promise<ReferralActionResult>;
+  scheduleFollowup: (referralId: string, date: string, time: string, instructions?: string) => Promise<ReferralActionResult>;
   createFollowup: (data: Omit<Followup, 'id' | 'createdAt'>) => void;
-  completeFollowup: (referralId: string) => void;
+  completeFollowup: (referralId: string) => Promise<ReferralActionResult>;
   completeFollowupById: (followupId: string) => void;
   markFollowupMissed: (followupId: string) => void;
-  closeReferral: (referralId: string) => void;
+  closeReferral: (referralId: string, notes?: string) => Promise<ReferralActionResult>;
   createReferral: (data: Omit<Referral, 'id' | 'referralId' | 'status' | 'currentStep' | 'totalSteps' | 'createdAt' | 'updatedAt' | 'isOverdue'>) => void;
 
   // Appointment actions
@@ -235,8 +252,8 @@ export function patientIdentifiers(num: number) {
     userId: `u-${id}`,
   };
 }
-export function generateReferralId(num: number) {
-  return `REF-PDK-${String(num).padStart(4, '0')}`;
+export function generateReferralId(num: number, prefix = 'PDK') {
+  return `REF-${prefix}-${String(num).padStart(4, '0')}`;
 }
 
 /**
@@ -397,6 +414,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const boundToBackend = backendSession !== undefined && backendSession !== null;
   const cloudRaw = useQuery(api.appData.getAll, convexSessionReady ? {} : 'skip');
   const saveCollection = useMutation(api.appData.saveCollection);
+  // Referral Closure Engine (server-authoritative): status transitions and the
+  // QR arrival check are validated and recorded by the backend.
+  const transitionReferralMutation = useMutation(api.appReferral.transitionReferral);
+  const verifyArrivalMutation = useMutation(api.appReferral.verifyArrival);
   const cloudReady = cloudRaw !== undefined;
 
   /** Push the FULL tombstone set (local + cloud) to the cloud, debounced. */
@@ -577,116 +598,258 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   }, [referrals]);
 
-  // ── Referral actions ──────────────────────────────────────────
-  const acceptReferral = useCallback((referralId: string) => {
+  // ── Referral actions (Referral Closure Engine) ────────────────
+  /** Adopt the server's authoritative referral record and audit events. */
+  const applyServerReferral = useCallback((referral: Referral, events: ReferralEvent[]) => {
+    setReferrals(prev => prev.some(r => r.id === referral.id)
+      ? prev.map(r => (r.id === referral.id ? { ...r, ...referral } : r))
+      : [...prev, referral]);
+    if (events.length > 0) {
+      setReferralEvents(prev => {
+        const have = new Set(prev.map(e => e.id));
+        return [...prev, ...events.filter(e => !have.has(e.id))];
+      });
+    }
+  }, []);
+
+  /**
+   * Run one workflow action.
+   *
+   * With a backend session the Convex engine is authoritative: it validates the
+   * transition against the canonical model, checks that the actor really is the
+   * receiving hospital / assigned doctor, writes the record and the audit event
+   * together and returns the stored result — this client only adopts it. Without
+   * connectivity (or before a binding exists) the local transition runs, so the
+   * offline-first workflow keeps working and syncs once back online.
+   */
+  const runReferralAction = useCallback(async (
+    action: ReferralAction,
+    referralId: string,
+    extra: Record<string, unknown>,
+    localFallback: () => void,
+  ): Promise<ReferralActionResult> => {
+    if (!boundToBackend) {
+      localFallback();
+      return { ok: true, offline: true, message: 'Saved on this device — it will synchronise when you are back online.' };
+    }
+    try {
+      const result = await transitionReferralMutation({ referralId, action, ...extra } as never) as unknown as {
+        ok: boolean;
+        duplicate?: boolean;
+        message: string;
+        referral?: Referral;
+        events?: ReferralEvent[];
+      };
+      if (!result.ok) return { ok: false, message: result.message };
+      if (result.referral) applyServerReferral(result.referral, result.events ?? []);
+      return { ok: true, duplicate: result.duplicate, message: result.message };
+    } catch {
+      // Backend unreachable — never block care in a rural setting.
+      localFallback();
+      return { ok: true, offline: true, message: 'Network unavailable — saved on this device; it will synchronise when you are back online.' };
+    }
+  }, [boundToBackend, transitionReferralMutation, applyServerReferral]);
+
+  const acceptReferral = useCallback((referralId: string) => runReferralAction('accept', referralId, {}, () => {
+    const ref = referrals.find(r => r.id === referralId);
     setReferrals(prev => prev.map(r => {
-      if (r.id !== referralId) return r;
-      if (r.status !== 'created') return r; // prevent invalid transition
+      if (r.id !== referralId || r.status !== REFERRAL_STATUS.CREATED) return r;
       return {
         ...r,
-        status: 'accepted' as ReferralStatus,
-        currentStep: 2,
+        status: REFERRAL_STATUS.ACCEPTED,
+        currentStep: referralStepOf(REFERRAL_STATUS.ACCEPTED),
+        totalSteps: REFERRAL_TOTAL_STEPS,
         updatedAt: now(),
         // Audit attribution for the accepting user.
         acceptedByUserId: currentUser?.id ?? r.acceptedByUserId,
         acceptedByName: currentUser?.name ?? r.acceptedByName,
       };
     }));
-    const ref = referrals.find(r => r.id === referralId);
-    if (ref) addReferralEvent(referralId, 'accepted', `Referral accepted by ${ref.destinationFacilityName}`);
-  }, [referrals, addReferralEvent, currentUser]);
+    if (ref) addReferralEvent(referralId, REFERRAL_STATUS.ACCEPTED, `Referral accepted by ${ref.destinationFacilityName}`);
+  }), [runReferralAction, referrals, addReferralEvent, currentUser]);
 
-  const rejectReferral = useCallback((referralId: string) => {
+  const rejectReferral = useCallback((referralId: string) => runReferralAction('reject', referralId, {}, () => {
     const ref = referrals.find(r => r.id === referralId);
-    if (ref && ref.status === 'created') {
-      addReferralEvent(referralId, 'created', 'Referral rejected by hospital');
+    if (ref && ref.status === REFERRAL_STATUS.CREATED) {
+      addReferralEvent(referralId, REFERRAL_STATUS.CANCELLED, 'Referral rejected by the receiving hospital');
+      setReferrals(prev => prev.map(r => (r.id === referralId
+        ? { ...r, status: REFERRAL_STATUS.CANCELLED, updatedAt: now() }
+        : r)));
     }
-  }, [referrals, addReferralEvent]);
+  }), [runReferralAction, referrals, addReferralEvent]);
 
-  const scheduleReferral = useCallback((referralId: string, date: string, time: string) => {
-    setReferrals(prev => prev.map(r => {
-      if (r.id !== referralId) return r;
-      if (r.status !== 'accepted') return r;
-      return { ...r, status: 'scheduled' as ReferralStatus, currentStep: 3, appointmentDate: date, appointmentTime: time, updatedAt: now() };
-    }));
-    addReferralEvent(referralId, 'scheduled', `Appointment scheduled for ${date} at ${time}`);
-  }, [addReferralEvent]);
+  /** Destination hospital assigns one of ITS doctors (the backend re-checks). */
+  const assignDoctor = useCallback((referralId: string, doctorId: string, department?: string) =>
+    runReferralAction('assign_doctor', referralId, { doctorId, department }, () => {
+      const doctor = doctorsList.find(d => d.id === doctorId);
+      setReferrals(prev => prev.map(r => {
+        if (r.id !== referralId || r.status !== REFERRAL_STATUS.ACCEPTED) return r;
+        return {
+          ...r,
+          status: REFERRAL_STATUS.DOCTOR_ASSIGNED,
+          currentStep: referralStepOf(REFERRAL_STATUS.DOCTOR_ASSIGNED),
+          totalSteps: REFERRAL_TOTAL_STEPS,
+          doctorId,
+          doctorName: doctor?.name,
+          assignedDoctorId: doctorId,
+          assignedDoctorName: doctor?.name,
+          department: department ?? r.department,
+          updatedAt: now(),
+        };
+      }));
+      addReferralEvent(referralId, REFERRAL_STATUS.DOCTOR_ASSIGNED,
+        `Doctor assigned: ${doctor?.name ?? doctorId}`);
+    }), [runReferralAction, doctorsList, addReferralEvent]);
 
-  const confirmArrival = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => {
-      if (r.id !== referralId) return r;
-      if (r.status !== 'scheduled') return r;
-      return { ...r, status: 'patient_arrived' as ReferralStatus, currentStep: 4, updatedAt: now() };
-    }));
-    addReferralEvent(referralId, 'patient_arrived', 'Patient arrived at hospital. QR code scanned at reception.');
-  }, [addReferralEvent]);
+  const scheduleReferral = useCallback((referralId: string, date: string, time: string) =>
+    runReferralAction('schedule', referralId, { date, time }, () => {
+      setReferrals(prev => prev.map(r => {
+        if (r.id !== referralId || r.status !== REFERRAL_STATUS.DOCTOR_ASSIGNED) return r;
+        return {
+          ...r,
+          status: REFERRAL_STATUS.SCHEDULED,
+          currentStep: referralStepOf(REFERRAL_STATUS.SCHEDULED),
+          totalSteps: REFERRAL_TOTAL_STEPS,
+          appointmentDate: date,
+          appointmentTime: time,
+          updatedAt: now(),
+        };
+      }));
+      addReferralEvent(referralId, REFERRAL_STATUS.SCHEDULED, `Appointment scheduled for ${date} at ${time}`);
+    }), [runReferralAction, addReferralEvent]);
 
-  const startConsultation = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => {
-      if (r.id !== referralId) return r;
-      if (r.status !== 'patient_arrived') return r;
-      return { ...r, status: 'consultation' as ReferralStatus, currentStep: 5, updatedAt: now() };
-    }));
-    addReferralEvent(referralId, 'consultation', 'Consultation started');
-  }, [addReferralEvent]);
+  const confirmArrival = useCallback((referralId: string) =>
+    runReferralAction('verify_arrival', referralId, {}, () => {
+      setReferrals(prev => prev.map(r => {
+        if (r.id !== referralId || r.status !== REFERRAL_STATUS.SCHEDULED) return r;
+        return {
+          ...r,
+          status: REFERRAL_STATUS.ARRIVAL_VERIFIED,
+          currentStep: referralStepOf(REFERRAL_STATUS.ARRIVAL_VERIFIED),
+          totalSteps: REFERRAL_TOTAL_STEPS,
+          updatedAt: now(),
+        };
+      }));
+      addReferralEvent(referralId, REFERRAL_STATUS.ARRIVAL_VERIFIED, 'Patient arrived at hospital. QR code scanned at reception.');
+    }), [runReferralAction, addReferralEvent]);
 
-  const completeConsultation = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => {
-      if (r.id !== referralId) return r;
-      if (r.status !== 'consultation') return r;
-      return { ...r, status: 'treatment' as ReferralStatus, currentStep: 6, updatedAt: now() };
-    }));
-    addReferralEvent(referralId, 'treatment', 'Consultation completed. Treatment initiated.');
-  }, [addReferralEvent]);
-
-  const addTreatment = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, updatedAt: now() } : r));
-    addReferralEvent(referralId, 'treatment', 'Treatment plan documented and medication prescribed.');
-  }, [addReferralEvent]);
-
-  const scheduleFollowup = useCallback((referralId: string, date: string, time: string) => {
-    setReferrals(prev => prev.map(r => {
-      if (r.id !== referralId) return r;
-      if (r.status !== 'treatment') return r;
-      return { ...r, status: 'followup' as ReferralStatus, currentStep: 7, updatedAt: now() };
-    }));
-    addReferralEvent(referralId, 'followup', `Follow-up scheduled for ${date} at ${time}`);
-    // Also create a Followup record so it appears in the follow-ups tab
-    const ref = referrals.find(r => r.id === referralId);
-    if (ref) {
-      const fu: Followup = {
-        id: `fu-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        referralId: ref.id,
-        patientId: ref.patientId,
-        patientName: ref.patientName,
-        doctorId: ref.doctorId || '',
-        doctorName: ref.doctorName || 'Doctor',
-        facilityName: ref.destinationFacilityName,
-        scheduledDate: date,
-        scheduledTime: time,
-        status: 'scheduled',
-        reason: ref.reason || 'Follow-up consultation',
-        createdAt: now().split('T')[0],
+  /**
+   * QR arrival verification. The scanned value (referral id, health card id or
+   * internal id) is resolved and validated by the backend, which rejects a code
+   * for another hospital, an already verified arrival, and a closed referral.
+   */
+  const verifyArrivalByQr = useCallback(async (scanned: string): Promise<ReferralActionResult> => {
+    const code = scanned.trim();
+    if (!code) return { ok: false, message: 'Scan or type the referral QR code first.' };
+    if (!boundToBackend) {
+      const ref = referrals.find(r =>
+        [r.referralId, r.id, r.healthCardId].some(v => !!v && v.toUpperCase() === code.toUpperCase()));
+      if (!ref) return { ok: false, message: 'No referral matches that code on this device (offline).' };
+      const result = await confirmArrival(ref.id);
+      return result;
+    }
+    try {
+      const result = await verifyArrivalMutation({ scanned: code }) as unknown as {
+        ok: boolean; message: string; referral?: Referral; event?: ReferralEvent;
       };
-      setFollowups(prev => [...prev, fu]);
+      if (!result.ok) return { ok: false, message: result.message };
+      if (result.referral) applyServerReferral(result.referral, result.event ? [result.event] : []);
+      return { ok: true, message: result.message };
+    } catch {
+      return { ok: false, message: 'Network unavailable — arrival could not be verified. Reconnect and scan again.' };
     }
-  }, [referrals, addReferralEvent]);
+  }, [boundToBackend, referrals, confirmArrival, verifyArrivalMutation, applyServerReferral]);
 
-  const completeFollowup = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => {
-      if (r.id !== referralId) return r;
-      if (r.status !== 'followup') return r;
-      return { ...r, status: 'closed' as ReferralStatus, currentStep: 8, closedAt: now(), updatedAt: now() };
-    }));
-    // Mark all followups for this referral as completed
-    setFollowups(prev => prev.map(f => f.referralId === referralId ? { ...f, status: 'completed' as FollowupStatus } : f));
-    addReferralEvent(referralId, 'closed', 'Follow-up completed. Referral closed.');
+  const startConsultation = useCallback((referralId: string) =>
+    runReferralAction('start_consultation', referralId, {}, () => {
+      setReferrals(prev => prev.map(r => {
+        if (r.id !== referralId || r.status !== REFERRAL_STATUS.ARRIVAL_VERIFIED) return r;
+        return {
+          ...r,
+          status: REFERRAL_STATUS.CONSULTATION_COMPLETED,
+          currentStep: referralStepOf(REFERRAL_STATUS.CONSULTATION_COMPLETED),
+          totalSteps: REFERRAL_TOTAL_STEPS,
+          updatedAt: now(),
+        };
+      }));
+      addReferralEvent(referralId, REFERRAL_STATUS.CONSULTATION_COMPLETED, 'Consultation started');
+    }), [runReferralAction, addReferralEvent]);
+
+  const completeConsultation = useCallback((referralId: string, notes?: string, diagnosis?: string) =>
+    runReferralAction('complete_consultation', referralId, { notes, diagnosis }, () => {
+      setReferrals(prev => prev.map(r => {
+        if (r.id !== referralId || r.status !== REFERRAL_STATUS.CONSULTATION_COMPLETED) return r;
+        return {
+          ...r,
+          status: REFERRAL_STATUS.TREATMENT_STARTED,
+          currentStep: referralStepOf(REFERRAL_STATUS.TREATMENT_STARTED),
+          totalSteps: REFERRAL_TOTAL_STEPS,
+          updatedAt: now(),
+        };
+      }));
+      addReferralEvent(referralId, REFERRAL_STATUS.TREATMENT_STARTED, 'Consultation completed. Treatment initiated.');
+    }), [runReferralAction, addReferralEvent]);
+
+  const addTreatment = useCallback((referralId: string, notes?: string) =>
+    runReferralAction('record_treatment', referralId, { notes }, () => {
+      setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, updatedAt: now() } : r));
+      addReferralEvent(referralId, REFERRAL_STATUS.TREATMENT_STARTED, notes ?? 'Treatment plan documented and medication prescribed.');
+    }), [runReferralAction, addReferralEvent]);
+
+  const scheduleFollowup = useCallback((referralId: string, date: string, time: string, instructions?: string) =>
+    runReferralAction('schedule_followup', referralId, { followUpDate: date, followUpType: time, instructions }, () => {
+      setReferrals(prev => prev.map(r => {
+        if (r.id !== referralId || r.status !== REFERRAL_STATUS.TREATMENT_STARTED) return r;
+        return {
+          ...r,
+          status: REFERRAL_STATUS.FOLLOW_UP,
+          currentStep: referralStepOf(REFERRAL_STATUS.FOLLOW_UP),
+          totalSteps: REFERRAL_TOTAL_STEPS,
+          updatedAt: now(),
+        };
+      }));
+      addReferralEvent(referralId, REFERRAL_STATUS.FOLLOW_UP, `Follow-up scheduled for ${date} at ${time}`);
+    }).then(result => {
+      if (!result.ok) return result;
+      // Also create the Followup record so it appears in the follow-up tabs.
+      const ref = referrals.find(r => r.id === referralId);
+      if (ref) {
+        const fu: Followup = {
+          id: uniqueRecordId('fu-'),
+          referralId: ref.id,
+          patientId: ref.patientId,
+          patientName: ref.patientName,
+          doctorId: ref.doctorId || '',
+          doctorName: ref.doctorName || 'Doctor',
+          facilityName: ref.destinationFacilityName,
+          scheduledDate: date,
+          scheduledTime: time,
+          status: 'scheduled',
+          reason: ref.reason || 'Follow-up consultation',
+          createdAt: now().split('T')[0],
+        };
+        setFollowups(prev => prev.some(f => f.id === fu.id) ? prev : [...prev, fu]);
+      }
+      return result;
+    }), [runReferralAction, referrals, addReferralEvent]);
+
+  /**
+   * Follow-up completion marks the FOLLOW-UP record complete. It deliberately
+   * does NOT close the referral: closure is an explicit clinical decision taken
+   * by the doctor (see closeReferral).
+   */
+  const completeFollowup = useCallback(async (referralId: string): Promise<ReferralActionResult> => {
+    setFollowups(prev => prev.map(f =>
+      f.referralId === referralId ? { ...f, status: 'completed' as FollowupStatus } : f));
+    addReferralEvent(referralId, REFERRAL_STATUS.FOLLOW_UP,
+      'Follow-up completed. The referral stays open until the doctor closes it.');
+    return { ok: true, message: 'Follow-up marked complete. The doctor closes the referral once care is finished.' };
   }, [addReferralEvent]);
 
   const createFollowup = useCallback((data: Omit<Followup, 'id' | 'createdAt'>) => {
     const fu: Followup = {
       ...data,
-      id: `fu-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: uniqueRecordId('fu-'),
       createdAt: now().split('T')[0],
     };
     setFollowups(prev => [...prev, fu]);
@@ -700,23 +863,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setFollowups(prev => prev.map(f => f.id === followupId ? { ...f, status: 'missed' as FollowupStatus } : f));
   }, []);
 
-  const closeReferral = useCallback((referralId: string) => {
-    setReferrals(prev => prev.map(r => {
-      if (r.id !== referralId) return r;
-      return { ...r, status: 'closed' as ReferralStatus, currentStep: 8, closedAt: now(), updatedAt: now() };
-    }));
-    addReferralEvent(referralId, 'closed', 'Referral closed.');
-  }, [addReferralEvent]);
+  /** Permanent closure — the backend refuses anything but the final steps. */
+  const closeReferral = useCallback((referralId: string, notes?: string) =>
+    runReferralAction('close', referralId, { notes }, () => {
+      setReferrals(prev => prev.map(r => {
+        if (r.id !== referralId) return r;
+        return {
+          ...r,
+          status: REFERRAL_STATUS.CLOSED,
+          currentStep: referralStepOf(REFERRAL_STATUS.CLOSED),
+          totalSteps: REFERRAL_TOTAL_STEPS,
+          closedAt: now(),
+          updatedAt: now(),
+        };
+      }));
+      setFollowups(prev => prev.map(f => f.referralId === referralId ? { ...f, status: 'completed' as FollowupStatus } : f));
+      addReferralEvent(referralId, REFERRAL_STATUS.CLOSED, 'Referral closed.');
+    }), [runReferralAction, addReferralEvent]);
 
   const createReferral = useCallback((data: Omit<Referral, 'id' | 'referralId' | 'status' | 'currentStep' | 'totalSteps' | 'createdAt' | 'updatedAt' | 'isOverdue'>) => {
     const num = nextReferralNum++;
     const newRef: Referral = {
       ...data,
       id: `r${num}`,
-      referralId: `REF-2026-${String(num).padStart(3, '0')}`,
-      status: 'created',
-      currentStep: 1,
-      totalSteps: 8,
+      // Ids are district-prefixed, matching the hospital/staff id scheme.
+      referralId: generateReferralId(num, idPrefixForDistrict(currentUser?.districtId)),
+      status: REFERRAL_STATUS.CREATED,
+      currentStep: referralStepOf(REFERRAL_STATUS.CREATED),
+      totalSteps: REFERRAL_TOTAL_STEPS,
       createdAt: now(),
       updatedAt: now(),
       isOverdue: false,
@@ -726,7 +900,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       createdByRole: data.createdByRole ?? currentUser?.role,
     };
     setReferrals(prev => [...prev, newRef]);
-    addReferralEvent(newRef.id, 'created', `Referral created. Priority: ${data.priority}. Destination: ${data.destinationFacilityName}`);
+    addReferralEvent(newRef.id, REFERRAL_STATUS.CREATED, `Referral created. Priority: ${data.priority}. Destination: ${data.destinationFacilityName}`);
     return newRef;
   }, [addReferralEvent, currentUser]);
 

@@ -68,9 +68,14 @@ async function readItems(ctx: Ctx, key: string): Promise<unknown[]> {
   return parseEnvelope(row?.data)?.items ?? [];
 }
 
-async function writeItems(ctx: Ctx, key: string, version: string, items: unknown[]) {
-  const data = serializeEnvelope(version, items);
+async function writeItems(ctx: Ctx, key: string, items: unknown[]) {
   const row = await ctx.db.query('collections').withIndex('by_key', q => q.eq('key', key)).unique();
+  // The engine MUST keep the dataset version the app is using. appData.ts treats
+  // a version change as "first write of a new dataset" and accepts the payload
+  // unscoped, so stamping a different version here would make the next client
+  // write bypass authorization entirely.
+  const version = parseEnvelope(row?.data)?.v ?? '1';
+  const data = serializeEnvelope(version, items);
   if (row) await ctx.db.patch(row._id, { data, updatedAt: Date.now() });
   else await ctx.db.insert('collections', { key, data, updatedAt: Date.now() });
 }
@@ -149,25 +154,24 @@ function permissionError(action: ReferralAction, binding: Binding, referral: Rec
       : 'Unauthorized: this referral does not belong to your hospital.';
   }
 
-  // assigned_doctor: the assigned doctor, or their hospital's administration.
-  const assignedDoctorUserId = str(referral.assignedDoctorId);
-  const assignedByStaffId = str(referral.assignedDoctorStaffUserId);
+  // assigned_doctor: strictly the doctor the receiving hospital assigned.
+  // The hospital's administration may still close a referral (an authorised
+  // clinical decision), but it must not run the consultation itself.
+  const assignedDoctorUserId = str(referral.assignedDoctorStaffUserId);
+  const assignedDoctorRecordId = str(referral.assignedDoctorId);
   const isAssignedDoctor =
     !!binding.staffUserId &&
-    (binding.staffUserId === assignedDoctorUserId || binding.staffUserId === assignedByStaffId);
+    (binding.staffUserId === assignedDoctorRecordId || binding.staffUserId === assignedDoctorUserId);
   if (isAssignedDoctor) return null;
-  if (isDestination && binding.role === 'hospital_admin') return null;
-  if (!assignedDoctorUserId) {
+  if (action === 'close' && isDestination && binding.role === 'hospital_admin') return null;
+  if (!assignedDoctorRecordId) {
     return 'Unauthorized: no doctor is assigned to this referral yet.';
   }
   if (isSource || isDestination) {
-    return 'Unauthorized: only the assigned doctor can complete this step.';
+    return 'Unauthorized: only the doctor assigned to this referral can perform this step.';
   }
   return 'Unauthorized: this referral does not belong to your hospital.';
 }
-
-/** Actions whose status the actor may cancel from either side. */
-const CANCELLABLE: ReferralAction[] = ['cancel', 'reject'];
 
 export const transitionReferral = mutation({
   args: {
@@ -400,9 +404,9 @@ export const transitionReferral = mutation({
       });
     }
 
-    const version = '1';
     const nextReferrals = referrals.map(r => (isRecord(r) && str(r.id) === args.referralId ? updated : r));
     const nextEvents = [...events, ...appended];
+    const version = '1'; // only used for the size estimate below
 
     // Size guard: never attempt a write Convex would reject.
     if (!payloadFits(version, nextReferrals) || !payloadFits(version, nextEvents)) {
@@ -413,8 +417,8 @@ export const transitionReferral = mutation({
       };
     }
 
-    await writeItems(ctx, 'referrals', version, nextReferrals);
-    if (appended.length > 0) await writeItems(ctx, 'referralEvents', version, nextEvents);
+    await writeItems(ctx, 'referrals', nextReferrals);
+    if (appended.length > 0) await writeItems(ctx, 'referralEvents', nextEvents);
 
     return {
       ok: true as const,
@@ -528,13 +532,13 @@ export const verifyArrival = mutation({
       timestamp: now,
     };
 
-    const version = '1';
+    const version = '1'; // only used for the size estimate below
     const nextReferrals = referrals.map(r => (isRecord(r) && str(r.id) === referralId ? updated : r));
     if (!payloadFits(version, nextReferrals) || !payloadFits(version, [...events, event])) {
       return { ok: false as const, reason: 'payload_too_large' as const, message: 'The referral store is too large to update.' };
     }
-    await writeItems(ctx, 'referrals', version, nextReferrals);
-    await writeItems(ctx, 'referralEvents', version, [...events, event]);
+    await writeItems(ctx, 'referrals', nextReferrals);
+    await writeItems(ctx, 'referralEvents', [...events, event]);
 
     return {
       ok: true as const,

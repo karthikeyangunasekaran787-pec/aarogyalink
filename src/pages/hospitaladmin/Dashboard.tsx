@@ -6,25 +6,30 @@ import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
+import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
+import { useReferralEngine } from '@/hooks/use-referral-engine';
 import {
   Inbox, CheckCircle2, ScanLine, Package, XCircle, Trash2, Plus,
-  Users, Building2, Clock, Calendar, Search, ChevronDown, Pill
+  Users, Building2, Clock, Calendar, Search, Stethoscope
 } from 'lucide-react';
 
 export default function HospitalAdminDashboard() {
   const { language, currentUser } = useApp();
   const {
-    referrals, facilities, hospitals, medicineStock, diagnostics,
-    acceptReferral, rejectReferral, scheduleReferral, confirmArrival,
+    referrals, referralEvents, facilities, hospitals, medicineStock, diagnostics, doctors,
+    acceptReferral, rejectReferral, scheduleReferral,
     addMedicineStock, removeMedicineStock
   } = useData();
+  // Referral Closure Engine: doctor assignment + QR arrival verification are
+  // validated against the stored record by the backend.
+  const { assignDoctor, verifyArrivalByQr } = useReferralEngine();
 
   // Resolve the hospital from the logged-in user's facilityId — check both facilities and hospitals
   const facility = facilities.find(f => f.id === currentUser?.facilityId)
@@ -32,8 +37,6 @@ export default function HospitalAdminDashboard() {
     || facilities[0];
   const facilityReferrals = referrals.filter(r => r.destinationFacilityId === facility.id);
   const pendingReferrals = facilityReferrals.filter(r => r.status === 'created');
-  const acceptedReferrals = facilityReferrals.filter(r => r.status === 'accepted');
-  const activeReferrals = facilityReferrals.filter(r => !['closed', 'created'].includes(r.status));
   const closedReferrals = facilityReferrals.filter(r => r.status === 'closed');
   const facilityMeds = medicineStock.filter(m => m.facilityId === facility.id);
   const facilityDiags = diagnostics.filter(d => d.facilityId === facility.id);
@@ -43,6 +46,8 @@ export default function HospitalAdminDashboard() {
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [scannedRef, setScannedRef] = useState('');
+  const [assigningDoctor, setAssigningDoctor] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [showMedForm, setShowMedForm] = useState(false);
   const [medForm, setMedForm] = useState({ medicineName: '', quantity: 0, unit: 'tablets', expiryDate: '' });
@@ -53,35 +58,53 @@ export default function HospitalAdminDashboard() {
     setTimeout(() => setActionFeedback(null), 3000);
   };
 
-  const handleAccept = (refId: string) => {
-    acceptReferral(refId);
-    showFeedback('Referral accepted successfully');
+  // Doctors who actually belong to THIS hospital (the engine re-checks this).
+  const facilityDoctors = doctors.filter(d => d.facilityId === facility.id);
+
+  /**
+   * Every workflow step reports the SERVER's verdict: the engine owns the state
+   * machine, so an out-of-order click, a double click or an attempt on another
+   * hospital's referral comes back as an explicit message instead of a silent
+   * failure. Buttons are disabled while a step is in flight (no duplicates).
+   */
+  const runStep = async (key: string, action: () => Promise<{ ok: boolean; message: string }>, onSuccess?: () => void) => {
+    if (busy) return;
+    setBusy(key);
+    try {
+      const result = await action();
+      showFeedback(result.message);
+      if (result.ok) onSuccess?.();
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const handleReject = (refId: string) => {
-    rejectReferral(refId);
-    showFeedback('Referral rejected');
+  const handleAccept = (refId: string) => runStep(`accept-${refId}`, () => acceptReferral(refId));
+
+  const handleReject = (refId: string) => runStep(`reject-${refId}`, () => rejectReferral(refId));
+
+  const handleAssignDoctor = (refId: string) => {
+    const doctorId = assigningDoctor[refId];
+    return runStep(`assign-${refId}`, () => assignDoctor(refId, doctorId), () => {
+      setAssigningDoctor(prev => { const next = { ...prev }; delete next[refId]; return next; });
+    });
   };
 
   const handleSchedule = (refId: string) => {
     if (!scheduleDate || !scheduleTime) return;
-    scheduleReferral(refId, scheduleDate, scheduleTime);
-    setSchedulingRef(null);
-    setScheduleDate('');
-    setScheduleTime('');
-    showFeedback('Appointment scheduled successfully');
+    return runStep(`schedule-${refId}`, () => scheduleReferral(refId, scheduleDate, scheduleTime), () => {
+      setSchedulingRef(null);
+      setScheduleDate('');
+      setScheduleTime('');
+    });
   };
 
-  const handleConfirmArrival = () => {
-    const ref = facilityReferrals.find(r => r.referralId === scannedRef || r.id === scannedRef);
-    if (ref) {
-      confirmArrival(ref.id);
-      setScannedRef('');
-      showFeedback(`Patient arrival confirmed for ${ref.patientName}`);
-    } else {
-      showFeedback('Referral not found. Please check the referral ID.');
-    }
-  };
+  const handleConfirmArrival = () => runStep('qr', () => verifyArrivalByQr(scannedRef), () => setScannedRef(''));
+
+  /** The referral in the scanned field, if it is one this hospital can see. */
+  const scannedReferral = facilityReferrals.find(
+    r => r.referralId === scannedRef.trim() || r.id === scannedRef.trim(),
+  );
 
   const filteredReferrals = facilityReferrals.filter(r => {
     if (!searchQuery) return true;
@@ -174,6 +197,9 @@ export default function HospitalAdminDashboard() {
 
         {/* ── Referrals Tab ──────────────────────────────── */}
         <TabsContent value="referrals" className="mt-4 space-y-4">
+          {/* Closure engine metrics for this hospital — computed from stored data */}
+          <ReferralClosureStats referrals={facilityReferrals} events={referralEvents} />
+
           <div className="flex gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -210,25 +236,58 @@ export default function HospitalAdminDashboard() {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
+                {/* Action Buttons — one step of the closure engine at a time */}
                 <div className="flex flex-wrap gap-2 mt-3">
                   {ref.status === 'created' && (
                     <>
-                      <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handleAccept(ref.id)}>
+                      <Button size="sm" className="h-7 text-xs gap-1" disabled={busy === `accept-${ref.id}`} onClick={() => handleAccept(ref.id)}>
                         <CheckCircle2 className="h-3 w-3" /> Accept Referral
                       </Button>
-                      <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={() => handleReject(ref.id)}>
+                      <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" disabled={busy === `reject-${ref.id}`} onClick={() => handleReject(ref.id)}>
                         <XCircle className="h-3 w-3" /> Reject
                       </Button>
                     </>
                   )}
+
+                  {/* ACCEPTED → DOCTOR_ASSIGNED: only this hospital's doctors */}
                   {ref.status === 'accepted' && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <select
+                        value={assigningDoctor[ref.id] ?? ''}
+                        onChange={e => setAssigningDoctor(prev => ({ ...prev, [ref.id]: e.target.value }))}
+                        className="h-7 rounded-lg border border-border bg-background px-2 text-xs"
+                      >
+                        <option value="">
+                          {facilityDoctors.length > 0 ? 'Assign doctor…' : 'No doctors at this hospital'}
+                        </option>
+                        {facilityDoctors.map(d => (
+                          <option key={d.id} value={d.id}>{d.name} — {d.specialization}</option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                        disabled={!assigningDoctor[ref.id] || busy === `assign-${ref.id}`}
+                        onClick={() => handleAssignDoctor(ref.id)}
+                      >
+                        <Stethoscope className="h-3 w-3" /> Assign Doctor
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* DOCTOR_ASSIGNED → SCHEDULED */}
+                  {ref.status === 'doctor_assigned' && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {ref.doctorName && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Stethoscope className="h-3 w-3" /> {ref.doctorName}
+                        </span>
+                      )}
                       {schedulingRef === ref.id ? (
                         <div className="flex items-center gap-2">
                           <Input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="h-7 text-xs w-36" />
                           <Input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="h-7 text-xs w-24" />
-                          <Button size="sm" className="h-7 text-xs" onClick={() => handleSchedule(ref.id)}>Confirm</Button>
+                          <Button size="sm" className="h-7 text-xs" disabled={busy === `schedule-${ref.id}`} onClick={() => handleSchedule(ref.id)}>Confirm</Button>
                           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSchedulingRef(null)}>Cancel</Button>
                         </div>
                       ) : (
@@ -238,10 +297,29 @@ export default function HospitalAdminDashboard() {
                       )}
                     </div>
                   )}
-                  {(ref.status === 'scheduled') && (
-                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setScannedRef(ref.referralId)}>
-                      <ScanLine className="h-3 w-3" /> Confirm Arrival (QR)
+
+                  {/* SCHEDULED → ARRIVAL_VERIFIED (QR, verified by the backend) */}
+                  {ref.status === 'scheduled' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1"
+                      disabled={busy === 'qr'}
+                      onClick={() => setScannedRef(ref.referralId)}
+                    >
+                      <ScanLine className="h-3 w-3" /> Verify Arrival (QR)
                     </Button>
+                  )}
+
+                  {(ref.status === 'patient_arrived' || ref.status === 'consultation') && (
+                    <span className="text-xs text-muted-foreground">
+                      Waiting for {ref.doctorName ?? 'the assigned doctor'} to complete the consultation.
+                    </span>
+                  )}
+                  {ref.status === 'followup' && (
+                    <span className="text-xs text-muted-foreground">
+                      Follow-up scheduled for {ref.appointmentDate ?? 'the follow-up date'} — closes after the follow-up.
+                    </span>
                   )}
                 </div>
 
@@ -264,13 +342,23 @@ export default function HospitalAdminDashboard() {
                 <Input
                   value={scannedRef}
                   onChange={(e) => setScannedRef(e.target.value)}
-                  placeholder="Enter referral ID (e.g. REF-2026-006)"
+                  placeholder="Enter referral ID or health card (e.g. REF-PDK-0006)"
                   className="flex-1"
                 />
-                <Button onClick={handleConfirmArrival} disabled={!scannedRef}>
-                  <CheckCircle2 className="h-4 w-4 mr-1" /> Confirm Arrival
+                <Button onClick={handleConfirmArrival} disabled={!scannedRef || busy === 'qr'}>
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> Verify Arrival
                 </Button>
               </div>
+              {/* The engine reports WHY a code was refused: another hospital's
+                  referral, an arrival that was already verified, or one that
+                  is not scheduled yet. */}
+              {scannedRef && (
+                <p className="text-xs text-muted-foreground mt-4 max-w-md mx-auto">
+                  {scannedReferral
+                    ? `${scannedReferral.patientName} • ${scannedReferral.referralId} • ${scannedReferral.status.replace(/_/g, ' ')}`
+                    : 'Checking this code against your hospital\u2019s referrals…'}
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

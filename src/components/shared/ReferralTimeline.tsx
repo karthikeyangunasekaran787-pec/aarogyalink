@@ -1,22 +1,18 @@
 // ============================================================================
 // Referral Timeline - The signature visual component
-// Shows the 8-step referral closure engine progress
+// Renders the canonical Referral Closure Engine steps (src/convex/referralStatus.ts),
+// so the timeline can never disagree with what the backend enforces.
 // ============================================================================
 
 import { cn } from '@/lib/utils';
 import { Check, Clock, Circle, AlertTriangle } from 'lucide-react';
 import type { ReferralStatus } from '@/types';
+import { REFERRAL_STEPS, referralStepOf } from '@/convex/referralStatus';
 
-const STEPS: { status: ReferralStatus; label: string }[] = [
-  { status: 'created', label: 'Created' },
-  { status: 'accepted', label: 'Hospital Accepted' },
-  { status: 'scheduled', label: 'Appointment Scheduled' },
-  { status: 'patient_arrived', label: 'Patient Arrived' },
-  { status: 'consultation', label: 'Consultation' },
-  { status: 'treatment', label: 'Treatment' },
-  { status: 'followup', label: 'Follow-up' },
-  { status: 'closed', label: 'Referral Closed' },
-];
+const STEPS: { status: ReferralStatus; label: string }[] = REFERRAL_STEPS.map(s => ({
+  status: s.status as ReferralStatus,
+  label: s.label,
+}));
 
 const STATUS_ORDER: ReferralStatus[] = STEPS.map(s => s.status);
 
@@ -37,7 +33,11 @@ export function ReferralTimeline({
   compact = false,
   showLabels = true,
 }: ReferralTimelineProps) {
-  const currentIdx = STATUS_ORDER.indexOf(currentStatus);
+  // Derive the position from the canonical model so a caller can never pass a
+  // step value that disagrees with the status it is showing.
+  const currentIdx = STATUS_ORDER.indexOf(currentStatus) !== -1
+    ? STATUS_ORDER.indexOf(currentStatus)
+    : referralStepOf(currentStatus) - 1;
 
   return (
     <div className={cn('w-full', compact ? 'py-2' : 'py-4')}>

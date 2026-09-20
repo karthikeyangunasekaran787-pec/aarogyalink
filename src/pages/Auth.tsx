@@ -67,7 +67,7 @@ export default function AuthPage() {
   const loginStaffSession = useMutation(api.appSession.loginStaffSession);
   const loginPatientSession = useMutation(api.appSession.loginPatientSession);
   const loginOverallSession = useMutation(api.appSession.loginOverallSession);
-  const { signIn, signOut } = useAuthActions();
+  const { signIn } = useAuthActions();
 
   // Overall Administrator: the master email is verified by an emailed one-time
   // code, and only THEN does the server open the master binding.
@@ -123,9 +123,27 @@ export default function AuthPage() {
     try {
       await signIn('email-otp', { email: masterEmail.trim() });
       setMasterStage('code');
-      setMasterInfo(`A one-time verification code was sent to ${masterEmail.trim()}.`);
+      setMasterCode('');
+      setMasterInfo(`A one-time verification code was sent to ${masterEmail.trim()}. Each code works once and expires in 15 minutes, so enter the newest one.`);
     } catch {
       setError('Could not send the verification code. Check the address and your connection, then retry.');
+    }
+    setLoading(false);
+  }, [masterEmail, signIn]);
+
+  /**
+   * Ask for a fresh code without leaving the code step. A code is single-use,
+   * so this is the path to take whenever a previous attempt was rejected.
+   */
+  const handleMasterResendCode = useCallback(async () => {
+    setError('');
+    setLoading(true);
+    try {
+      await signIn('email-otp', { email: masterEmail.trim() });
+      setMasterCode('');
+      setMasterInfo(`A new code was sent to ${masterEmail.trim()}. Use only the newest code.`);
+    } catch {
+      setError('Could not send a new code. Check your connection and try again.');
     }
     setLoading(false);
   }, [masterEmail, signIn]);
@@ -145,29 +163,48 @@ export default function AuthPage() {
     setAnonymousAuthSuspended(true);
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     try {
-      // Start from a clean slate so the emailed code opens a session for the
-      // MASTER address instead of upgrading whatever session is already there.
-      try { await signOut(); } catch { /* no session to drop */ }
-      await signIn('email-otp', { email: masterEmail.trim(), code: masterCode.trim() });
+      // Step 1 — verify the emailed code. Addresses are checked by Convex Auth
+      // against the code that was mailed, so this is the only place a bad or
+      // already-used code can be reported: say exactly what happened instead of
+      // a generic failure.
+      try {
+        await signIn('email-otp', { email: masterEmail.trim(), code: masterCode.trim() });
+      } catch (signInError) {
+        const raw = signInError instanceof Error ? signInError.message : String(signInError);
+        setLoading(false);
+        setError(/too many|rate/i.test(raw)
+          ? 'Too many verification attempts for this address. Wait a few minutes, then request a new code.'
+          : /expire|invalid|verify code/i.test(raw)
+            ? 'That code has expired or was already used. Request a new code and enter the newest one.'
+            : `Could not verify the code (${raw.slice(0, 120)}). Request a new code and try again.`);
+        return;
+      }
 
-      // The verified session has to be live before the binding call; the
-      // backend reports an empty `observedEmail` until it is.
+      // Step 2 — open the master binding. The verified session can take a
+      // moment to become visible to backend calls, so a `Not authenticated`
+      // error here is retried rather than reported as a bad code.
       let observed = '';
       let bound: { token?: string; user?: { id: string; name?: string; email?: string } } | null = null;
-      for (let attempt = 0; attempt < 4; attempt++) {
-        const result = await loginOverallSession({});
-        if (result?.ok && result.token) { bound = result; break; }
-        observed = (result as { observedEmail?: string | null })?.observedEmail ?? '';
-        if (observed) break; // a real answer: this address is not the master
+      let lastError = '';
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const result = await loginOverallSession({});
+          if (result?.ok && result.token) { bound = result; break; }
+          observed = (result as { observedEmail?: string | null })?.observedEmail ?? '';
+          if (observed) break; // a real answer: this address is not the master
+        } catch (bindError) {
+          lastError = bindError instanceof Error ? bindError.message : String(bindError);
+        }
         await sleep(400);
       }
 
       if (!bound?.token) {
-        try { await signOut(); } catch { /* ok */ }
         setLoading(false);
         setError(observed
-          ? `Signed in as ${observed}, but the Overall Administrator of AarogyaLink is another address. Sign in with the master email.`
-          : 'Could not verify this session with the backend. Please request a new code and try again.');
+          ? `Signed in as ${observed}, but the Overall Administrator of AarogyaLink is another address.`
+          : lastError
+            ? `Signed in, but the backend could not confirm the session (${lastError.slice(0, 120)}). Try again.`
+            : 'Signed in, but the backend could not confirm the session. Try again.');
         return;
       }
       writeBackendToken(bound.token);
@@ -181,15 +218,18 @@ export default function AuthPage() {
       });
       setLoading(false);
       navigate(ROLE_ROUTES.overall_admin, { replace: true });
-    } catch {
+    } catch (error) {
       setLoading(false);
-      setError('Verification failed. Check the code and try again.');
+      setError(error instanceof Error
+        ? `Sign-in failed: ${error.message.slice(0, 140)}`
+        : 'Sign-in failed. Please try again.');
     } finally {
-      // Release the anonymous transport session once this flow is over (the
-      // successful branch no longer needs it: the master session is live).
+      // Release the anonymous transport session once this flow is over: on a
+      // failure the app must be able to fall back to its usual transport
+      // session, and on success the master session is already live.
       setAnonymousAuthSuspended(false);
     }
-  }, [masterEmail, masterCode, signIn, signOut, loginOverallSession, loginStaff, navigate]);
+  }, [masterEmail, masterCode, signIn, loginOverallSession, loginStaff, navigate]);
 
   // ── Patient Login: look up by email ───────────────────────────
   const handlePatientLogin = useCallback(async (e: React.FormEvent) => {
@@ -701,13 +741,23 @@ export default function AuthPage() {
               </Button>
 
               {masterStage === 'code' && (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center"
-                  onClick={() => { setMasterStage('email'); setMasterCode(''); setMasterInfo(''); setError(''); }}
-                >
-                  ← Use a different email
-                </button>
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-primary hover:underline"
+                    disabled={loading}
+                    onClick={() => { void handleMasterResendCode(); }}
+                  >
+                    Send a new code
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => { setMasterStage('email'); setMasterCode(''); setMasterInfo(''); setError(''); }}
+                  >
+                    ← Use a different email
+                  </button>
+                </div>
               )}
 
               <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg p-3 space-y-1">

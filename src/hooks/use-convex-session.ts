@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useConvexAuth } from 'convex/react';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { isAnonymousAuthSuspended } from '@/lib/backend-session';
@@ -18,6 +18,15 @@ import { isAnonymousAuthSuspended } from '@/lib/backend-session';
  * it stays `false` (offline / auth unavailable) the app keeps working on its
  * localStorage cache.
  *
+ * Two things it deliberately does NOT do:
+ *   • it never creates an anonymous session while a real sign-in is in flight
+ *     (Overall Administrator, master email + emailed code) — that would replace
+ *     the freshly verified session and leave the backend looking at a caller
+ *     with no email address;
+ *   • it never reports ready without a session, so a failed sign-in or a logout
+ *     drops the app back to its offline cache instead of firing queries it is
+ *     not authorized to make.
+ *
  * Failure is retried with backoff (capped) so a start made offline does not
  * disable cloud sync for the rest of the session: once connectivity returns,
  * the session is established and queued offline changes sync up.
@@ -32,25 +41,11 @@ const SUSPENDED_POLL_MS = 400;
 export function useConvexSessionReady(): boolean {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const { signIn } = useAuthActions();
-  // Set from the sign-in promise (asynchronously, never during the effect
-  // body) so readiness does not depend solely on the auth flag re-rendering.
-  const [signInComplete, setSignInComplete] = useState(false);
-
-  // Readiness is about the SESSION, so drop it when the session goes away
-  // (logout, failed sign-in) — otherwise the cloud query would fire
-  // unauthenticated and the app would keep asking for data it cannot get.
-  useEffect(() => {
-    if (!isAuthenticated) setSignInComplete(false);
-  }, [isAuthenticated]);
 
   useEffect(() => {
-    // Wait for the stored-session check to settle before deciding.
-    if (isLoading) return;
-    // A real session already exists: nothing to do.
-    if (isAuthenticated) {
-      setSignInComplete(true);
-      return;
-    }
+    // Wait for the stored-session check to settle before deciding, and do
+    // nothing when a session already exists.
+    if (isLoading || isAuthenticated) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -59,16 +54,12 @@ export function useConvexSessionReady(): boolean {
     const attempt = () => {
       if (cancelled) return;
       // A real sign-in (master email + emailed code) is in progress: creating
-      // an anonymous session now would REPLACE it and leave the backend with a
-      // caller that has no email address. Wait for the sign-in to finish.
+      // an anonymous session now would REPLACE it. Wait for it to finish.
       if (isAnonymousAuthSuspended()) {
         timer = setTimeout(attempt, SUSPENDED_POLL_MS);
         return;
       }
       signIn('anonymous')
-        .then(() => {
-          if (!cancelled) setSignInComplete(true);
-        })
         .catch((error: unknown) => {
           if (cancelled) return;
           attempts += 1;
@@ -91,7 +82,7 @@ export function useConvexSessionReady(): boolean {
     };
   }, [isLoading, isAuthenticated, signIn]);
 
-  // Ready when a Convex session exists; until then the cloud query is skipped
-  // and the app runs from its offline cache.
-  return isAuthenticated && signInComplete;
+  // Ready exactly when a Convex Auth session is live; until then the cloud query
+  // is skipped and the app runs from its offline cache.
+  return isAuthenticated;
 }

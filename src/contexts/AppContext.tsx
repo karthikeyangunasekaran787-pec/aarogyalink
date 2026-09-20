@@ -4,6 +4,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useConvexAuth } from 'convex/react';
+import { useAuthActions } from '@convex-dev/auth/react';
 import type { Role } from '@/types';
 import type { Language } from '@/lib/i18n';
 // Persisted application session (kept separate from temporary React state, so a
@@ -48,6 +49,7 @@ interface AppState {
 const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { signOut: signOutAuth } = useAuthActions();
   // Restore the session synchronously so a refresh keeps the user signed in.
   const [restored] = useState(() => readStoredSession<AuthUser>());
   const [currentRole, setCurrentRole] = useState<Role>(() => (restored?.role as Role) ?? 'patient');
@@ -127,12 +129,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setCurrentUser(null);
     persist(null);
+    // End the Convex Auth session as well, so logging out really destroys the
+    // session (a master sign-in leaves a real email session behind otherwise).
+    // The anonymous transport session is re-established automatically.
+    void signOutAuth().catch(() => { /* offline or already signed out */ });
     // Drop the backend session token too: the next sign-in binds its own
     // server-verified role instead of resuming this one.
     writeBackendToken(null);
     rememberPendingLogin(null);
     try { sessionStorage.clear(); } catch { /* ok */ }
-  }, [persist]);
+  }, [persist, signOutAuth]);
 
   const handleSetRole = useCallback((role: Role) => {
     setCurrentRole(role);

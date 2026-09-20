@@ -8,20 +8,45 @@
  */
 import { describe, expect, test } from 'bun:test';
 import {
+  hospitalInDistrict,
   mergeAuthorizedWrite,
   payloadFits,
   scopeCollectionsForRead,
+  scopeFromBinding,
   scopeItemsForRead,
   serializeEnvelope,
   writablePatientIdsForHospital,
   type SessionScope,
 } from '../../src/convex/authz';
 import { hospitalToFacility, mergedFacilities } from '../../src/contexts/DataContext';
+import { seedDistricts } from '../../src/lib/seed-multidistrict';
 import type { Facility, Hospital } from '../../src/types';
 
-const district: SessionScope = { kind: 'district' };
+const overall: SessionScope = { kind: 'overall' };
+const districtPdk: SessionScope = { kind: 'district', districtId: 'DIST-PDK', districtName: 'Pudukkottai' };
+const districtTry: SessionScope = { kind: 'district', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli' };
 const hospitalA: SessionScope = { kind: 'hospital', hospitalId: 'h1', staffUserId: 'ustaff-1' };
 const patientX: SessionScope = { kind: 'patient', patientId: 'p1' };
+
+// Two districts, one hospital each (hospitals carry their district id).
+const districtHospitals = [
+  { id: 'h1', hospitalId: 'HOS-PDK-001', name: 'Pudukkottai Government Hospital', district: 'Pudukkottai', districtId: 'DIST-PDK' },
+  { id: 'h6', hospitalId: 'HOS-TRY-001', name: 'Tiruchirappalli Government Hospital', district: 'Tiruchirappalli', districtId: 'DIST-TRY' },
+];
+const districtStaff = [
+  { id: 'ustaff-1', name: 'PDK Doctor', facilityId: 'h1', role: 'doctor' },
+  { id: 'ustaff-6', name: 'TRY Doctor', facilityId: 'h6', role: 'doctor' },
+  { id: 'ustaff-da1', name: 'PDK District Administrator', role: 'gov_admin', districtId: 'DIST-PDK' },
+  { id: 'ustaff-da2', name: 'TRY District Administrator', role: 'gov_admin', districtId: 'DIST-TRY' },
+];
+const districtPatients = [
+  { id: 'p1', name: 'PDK Patient', registeredByFacilityId: 'h1' },
+  { id: 'p9', name: 'TRY Patient', registeredByFacilityId: 'h6' },
+];
+const districtReferrals = [
+  { id: 'r1', patientId: 'p1', sourceFacilityId: 'h1', destinationFacilityId: 'h1' },
+  { id: 'r9', patientId: 'p9', sourceFacilityId: 'h6', destinationFacilityId: 'h6' },
+];
 
 const staff = [
   { id: 'ustaff-1', name: 'Staff A', facilityId: 'h1', role: 'doctor', username: 'a', password: 'x' },
@@ -45,8 +70,50 @@ describe('READ scoping', () => {
     expect(scopeItemsForRead('doctors', doctors, null)).toBeNull();
   });
 
-  test('district scope is unfiltered', () => {
-    expect(scopeItemsForRead('doctors', doctors, district)).toHaveLength(2);
+  test('overall scope is unfiltered (master administrator)', () => {
+    expect(scopeItemsForRead('doctors', doctors, overall)).toHaveLength(2);
+    expect(scopeItemsForRead('referrals', districtReferrals, overall)).toHaveLength(2);
+  });
+
+  test('district scope keeps only its own district facilities and staff', () => {
+    const ctx = { hospitals: districtHospitals };
+    expect(
+      (scopeItemsForRead('hospitals', districtHospitals, districtPdk, ctx) as { id: string }[]).map(h => h.id),
+    ).toEqual(['h1']);
+    expect(
+      (scopeItemsForRead('staffUsers', districtStaff, districtTry, ctx) as { id: string }[]).map(u => u.id),
+    ).toEqual(['ustaff-6', 'ustaff-da2']);
+  });
+
+  test('district scope keeps only its own district patients and clinical records', () => {
+    const ctx = { hospitals: districtHospitals };
+    const visiblePatients = scopeItemsForRead('patients', districtPatients, districtPdk, ctx) as { id: string }[];
+    expect(visiblePatients.map(p => p.id)).toEqual(['p1']);
+    // Clinical records follow the visible patients (p9 belongs to Tiruchirappalli).
+    const clinicalCtx = { ...ctx, patients: visiblePatients };
+    expect(
+      (scopeItemsForRead('vitals', vitals, districtPdk, clinicalCtx) as { id: string }[]).map(v => v.id),
+    ).toEqual(['v1']);
+    // Referrals are filtered by their source/destination facility.
+    expect(
+      (scopeItemsForRead('referrals', districtReferrals, districtTry, ctx) as { id: string }[]).map(r => r.id),
+    ).toEqual(['r9']);
+  });
+
+  test('district scope sees only its own district record (and its analytics)', () => {
+    const ctx = { hospitals: districtHospitals };
+    const districts = [
+      { id: 'dist-pdk', districtId: 'DIST-PDK', name: 'Pudukkottai' },
+      { id: 'dist-try', districtId: 'DIST-TRY', name: 'Tiruchirappalli' },
+    ];
+    const seen = scopeItemsForRead('districts', districts, districtPdk, ctx) as { districtId: string }[];
+    expect(seen.map(d => d.districtId)).toEqual(['DIST-PDK']);
+  });
+
+  test('legacy hospitals with no district id match by district NAME', () => {
+    expect(hospitalInDistrict({ district: 'Pudukkottai' }, 'DIST-PDK', 'Pudukkottai')).toBe(true);
+    expect(hospitalInDistrict({ district: 'Pudukkottai' }, 'DIST-TRY', 'Tiruchirappalli')).toBe(false);
+    expect(hospitalInDistrict({ districtId: 'DIST-TRY' }, 'DIST-PDK', 'Pudukkottai')).toBe(false);
   });
 
   test('hospital scope keeps only records carrying its facility id', () => {
@@ -103,8 +170,8 @@ describe('WRITE scoping', () => {
     expect(mergeAuthorizedWrite('doctors', doctors, [], null)).toEqual(doctors);
   });
 
-  test('district scope replaces the payload (full control)', () => {
-    expect(mergeAuthorizedWrite('doctors', doctors, [doctors[0]], district)).toEqual([doctors[0]]);
+  test('overall scope replaces the payload (full control)', () => {
+    expect(mergeAuthorizedWrite('doctors', doctors, [doctors[0]], overall)).toEqual([doctors[0]]);
   });
 
   test("hospital cannot modify another hospital's record", () => {
@@ -153,10 +220,71 @@ describe('WRITE scoping', () => {
     expect(merged.find(u => u.id === 'ustaff-evil')).toBeUndefined();
   });
 
-  test('records with no hospital link stay writable (registration & clinical capture)', () => {
+  test('clinical records are scoped through the writable-patient set', () => {
     const newVitals = { id: 'v3', patientId: 'p9', spO2: 95 };
-    const merged = mergeAuthorizedWrite('vitals', vitals, [...vitals, newVitals], hospitalA);
-    expect(merged).toHaveLength(3);
+    // A hospital may only record vitals for patients inside its scope…
+    const scoped = mergeAuthorizedWrite('vitals', vitals, [...vitals, newVitals], hospitalA, {
+      writablePatientIds: new Set(['p1', 'p2']),
+    }) as { id: string }[];
+    expect(scoped.map(v => v.id).sort()).toEqual(['v1', 'v2']);
+    // …including patients it can see through a referral or appointment.
+    const withReferralScope = mergeAuthorizedWrite('vitals', vitals, [...vitals, newVitals], hospitalA, {
+      writablePatientIds: new Set(['p1', 'p2', 'p9']),
+    }) as { id: string }[];
+    expect(withReferralScope).toHaveLength(3);
+  });
+
+  test('unknown collections are NOT writable by a hospital (deny by default)', () => {
+    const tampered = [{ villageId: 'v1', overallScore: 100 }];
+    const merged = mergeAuthorizedWrite('villageAccessScores', [{ villageId: 'v1', overallScore: 10 }], tampered, hospitalA);
+    expect((merged as { overallScore: number }[])[0].overallScore).toBe(10);
+  });
+
+  test('district admin writes only its own district and never mints an administrator', () => {
+    const write = { facilityIds: new Set(['h1']), foreignReferralIds: new Set<string>() };
+    // Own-district hospital change is applied…
+    const mine = { ...districtHospitals[0], name: 'Renamed PDK Hospital' };
+    const other = { ...districtHospitals[1], name: 'Hijacked TRY Hospital' };
+    const merged = mergeAuthorizedWrite('hospitals', districtHospitals, [mine, other], districtPdk, write) as {
+      id: string;
+      name: string;
+    }[];
+    expect(merged.find(h => h.id === 'h1')?.name).toBe('Renamed PDK Hospital');
+    expect(merged.find(h => h.id === 'h6')?.name).toBe('Tiruchirappalli Government Hospital');
+
+    // …the other district's staff is preserved…
+    const newAdmin = { id: 'ustaff-da9', name: 'Rogue', role: 'gov_admin', districtId: 'DIST-TRY', username: 'rogue' };
+    const staffMerged = mergeAuthorizedWrite(
+      'staffUsers',
+      districtStaff,
+      [...districtStaff, newAdmin],
+      districtPdk,
+      write,
+    ) as { id: string }[];
+    expect(staffMerged.find(u => u.id === 'ustaff-da9')).toBeUndefined();
+
+    // …and a district admin cannot create a district either.
+    const districtsMerged = mergeAuthorizedWrite(
+      'districts',
+      seedDistricts,
+      [{ id: 'dist-9', districtId: 'DIST-XXX', name: 'Rogue' }],
+      districtPdk,
+      write,
+    ) as { districtId: string }[];
+    expect(districtsMerged.map(d => d.districtId)).toEqual(seedDistricts.map(d => d.districtId));
+  });
+
+  test('an overall administrator binding is derived server-side, never from the client', () => {
+    expect(scopeFromBinding({ role: 'overall_admin' })).toEqual({ kind: 'overall' });
+    expect(scopeFromBinding({ role: 'gov_admin', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli' })).toEqual({
+      kind: 'district',
+      districtId: 'DIST-TRY',
+      districtName: 'Tiruchirappalli',
+      staffUserId: undefined,
+    });
+    // A district binding without a district cannot be authorized at all.
+    expect(scopeFromBinding({ role: 'gov_admin' })).toBeNull();
+    expect(scopeFromBinding(null)).toBeNull();
   });
 
   test('patient can only write their own records', () => {

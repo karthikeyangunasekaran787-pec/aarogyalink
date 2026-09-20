@@ -13,6 +13,8 @@ import {
 export interface BackendSession {
   role: string;
   hospitalId: string | null;
+  districtId: string | null;
+  districtName: string | null;
   patientId: string | null;
   staffUserId: string | null;
   name: string | null;
@@ -38,7 +40,7 @@ export function useBackendSession(): BackendSession | null | undefined {
   const session = useQuery(api.appSession.getMySession, isAuthenticated ? {} : 'skip');
   const resume = useMutation(api.appSession.resumeSession);
   const loginStaff = useMutation(api.appSession.loginStaffSession);
-  const loginDistrict = useMutation(api.appSession.loginDistrictSession);
+  const loginOverall = useMutation(api.appSession.loginOverallSession);
   const loginPatient = useMutation(api.appSession.loginPatientSession);
 
   useEffect(() => {
@@ -57,15 +59,15 @@ export function useBackendSession(): BackendSession | null | undefined {
       }
 
       // 2) Bind a login that was completed while the backend was unreachable,
-      //    or a session restored from before a binding existed (district and
+      //    or a session restored from before a binding existed (the master and
       //    patient sessions can be re-derived without a password).
       const pending = peekPendingLogin() ?? derivePendingLogin(currentUser);
       if (!pending) return;
       const result =
         pending.kind === 'staff'
           ? await loginStaff({ username: pending.username, password: pending.password, fallback: pending.fallback })
-          : pending.kind === 'district'
-            ? await loginDistrict({ username: pending.username })
+          : pending.kind === 'overall'
+            ? await loginOverall({})
             : await loginPatient({
                 email: pending.email,
                 healthCardId: pending.healthCardId,
@@ -85,7 +87,7 @@ export function useBackendSession(): BackendSession | null | undefined {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, session, resume, loginStaff, loginDistrict, loginPatient, currentUser]);
+  }, [isAuthenticated, session, resume, loginStaff, loginOverall, loginPatient, currentUser]);
 
   return session as BackendSession | null | undefined;
 }

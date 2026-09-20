@@ -2,7 +2,7 @@
 // AarogyaLink - Type Definitions
 // ============================================================================
 
-export type Role = 'patient' | 'health_worker' | 'doctor' | 'hospital_admin' | 'gov_admin';
+export type Role = 'patient' | 'health_worker' | 'doctor' | 'hospital_admin' | 'gov_admin' | 'overall_admin';
 export type Language = 'en' | 'ta' | 'hi';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'emergency';
 export type ReferralStatus = 'created' | 'accepted' | 'scheduled' | 'patient_arrived' | 'consultation' | 'treatment' | 'followup' | 'closed';
@@ -23,11 +23,30 @@ export interface User {
   language?: Language;
   facilityId?: string;
   departmentId?: string;
+  /** District this account belongs to (District Administrators and everyone in
+   *  that district's hospitals). Used by the backend to scope district data. */
+  districtId?: string;
+  districtName?: string;
   status: StaffStatus;
   createdBy?: string; // user_id of who created this account
   createdAt: string;
   lastLogin?: string;
   mustChangePassword?: boolean;
+}
+
+/**
+ * A district. District Administrators belong to exactly one district and the
+ * backend scopes their hospitals, staff and analytics to it.
+ */
+export interface District {
+  id: string;
+  districtId: string; // human-readable id, e.g. "DIST-PDK"
+  name: string; // e.g. "Pudukkottai"
+  displayName: string; // e.g. "Pudukkottai District"
+  state: string;
+  headquarters?: string;
+  createdByUserId?: string;
+  createdAt: string;
 }
 
 export interface Patient {
@@ -123,6 +142,10 @@ export interface Hospital {
   status: 'active' | 'inactive' | 'suspended';
   adminUserId: string; // the hospital_admin user who manages this hospital
   createdByUserId: string; // district admin who created it
+  /** District this hospital belongs to. Set from the creating District
+   *  Administrator's own district — the backend rejects a mismatch. */
+  districtId?: string;
+  districtName?: string;
   // Admin credentials (used during creation, stored for display)
   adminName?: string;
   adminUsername?: string;

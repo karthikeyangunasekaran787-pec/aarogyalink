@@ -13,7 +13,6 @@ import {
 } from '../../src/lib/session';
 import {
   BACKEND_TOKEN_KEY,
-  DISTRICT_ADMIN_USERNAME,
   clearPendingLogin,
   derivePendingLogin,
   peekPendingLogin,
@@ -180,20 +179,20 @@ describe('backend session (server-verified binding)', () => {
     expect(peekPendingLogin()).toBeNull();
   });
 
-  test('district and patient sessions self-heal without a password', () => {
-    expect(derivePendingLogin({ role: 'gov_admin' })).toEqual({
-      kind: 'district',
-      username: DISTRICT_ADMIN_USERNAME,
-    });
+  test('the overall administrator session self-heals (identity comes from the master email)', () => {
+    expect(derivePendingLogin({ role: 'overall_admin' })).toEqual({ kind: 'overall' });
     expect(
       derivePendingLogin({ role: 'patient', email: 'kumar@example.com', healthCardId: 'AL-PT-2026-001' }),
     ).toEqual({ kind: 'patient', email: 'kumar@example.com', healthCardId: 'AL-PT-2026-001' });
   });
 
-  test('staff sessions are never bound without their password', () => {
+  test('username-based sessions are never bound without their password', () => {
     expect(derivePendingLogin({ role: 'doctor', email: 'doc@example.com' })).toBeNull();
     expect(derivePendingLogin({ role: 'health_worker' })).toBeNull();
     expect(derivePendingLogin({ role: 'hospital_admin' })).toBeNull();
+    // District administrators are username-based too: re-deriving one would mean
+    // guessing which district to bind, so they sign in again instead.
+    expect(derivePendingLogin({ role: 'gov_admin' })).toBeNull();
     expect(derivePendingLogin(null)).toBeNull();
   });
 

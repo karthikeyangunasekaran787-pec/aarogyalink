@@ -19,9 +19,31 @@ import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { getAuthUserId } from '@convex-dev/auth/server';
 import { v } from 'convex/values';
-import { parseEnvelope } from './authz';
+import { parseEnvelope, scopeFromBinding } from './authz';
 
-const STAFF_ROLES = ['health_worker', 'doctor', 'hospital_admin'] as const;
+/** Roles that sign in with a username + password (District Administrators too). */
+const LOGIN_ROLES = ['health_worker', 'doctor', 'hospital_admin', 'gov_admin'] as const;
+
+/**
+ * Master (Overall Administrator) email. Configurable per deployment; the
+ * Overall Administrator also has to prove ownership of this address with the
+ * emailed one-time code, so no password is stored for the master account.
+ * Never exposed to the client.
+ */
+function overallAdminEmail(): string {
+  return (process.env.OVERALL_ADMIN_EMAIL ?? 'karthikeyangunasekaran787@gmail.com').trim().toLowerCase();
+}
+
+/** Email of the currently authenticated Convex user, or undefined. */
+async function callerEmail(ctx: Ctx): Promise<string | undefined> {
+  const identity = await ctx.auth.getUserIdentity();
+  const fromIdentity = str(identity?.email);
+  if (fromIdentity) return fromIdentity.toLowerCase();
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) return undefined;
+  const user = await ctx.db.get(userId);
+  return str(user?.email)?.toLowerCase();
+}
 
 type Ctx = QueryCtx | MutationCtx;
 
@@ -64,6 +86,8 @@ function randomToken(): string {
 interface BindingInput {
   role: string;
   hospitalId?: string;
+  districtId?: string;
+  districtName?: string;
   staffUserId?: string;
   patientId?: string;
   username?: string;
@@ -93,6 +117,8 @@ function sanitizeStaff(user: Record<string, unknown>) {
     email: str(user.email),
     role: str(user.role),
     facilityId: str(user.facilityId),
+    districtId: str(user.districtId),
+    districtName: str(user.districtName),
     departmentId: str(user.departmentId),
     phone: str(user.phone),
     status: str(user.status),
@@ -115,6 +141,8 @@ export const loginStaffSession = mutation({
       v.object({
         role: v.string(),
         facilityId: v.optional(v.string()),
+        districtId: v.optional(v.string()),
+        districtName: v.optional(v.string()),
         staffUserId: v.optional(v.string()),
         name: v.optional(v.string()),
         email: v.optional(v.string()),
@@ -128,10 +156,12 @@ export const loginStaffSession = mutation({
     const wanted = username.trim().toLowerCase();
     const user = staff.find(u => str(u.username)?.toLowerCase() === wanted);
 
-    if (!user && staff.length === 0 && fallback && (STAFF_ROLES as readonly string[]).includes(fallback.role)) {
+    if (!user && staff.length === 0 && fallback && (LOGIN_ROLES as readonly string[]).includes(fallback.role)) {
       const token = await upsertBinding(ctx, userId, {
         role: fallback.role,
         hospitalId: fallback.facilityId,
+        districtId: fallback.districtId,
+        districtName: fallback.districtName,
         staffUserId: fallback.staffUserId,
         username,
         name: fallback.name,
@@ -145,6 +175,8 @@ export const loginStaffSession = mutation({
           email: fallback.email,
           role: fallback.role,
           facilityId: fallback.facilityId,
+          districtId: fallback.districtId,
+          districtName: fallback.districtName,
           departmentId: fallback.departmentId,
           phone: undefined,
           status: 'active',
@@ -160,13 +192,21 @@ export const loginStaffSession = mutation({
       return { ok: false as const, reason: 'disabled' };
     }
     const role = str(user.role);
-    if (!role || !(STAFF_ROLES as readonly string[]).includes(role)) {
+    if (!role || !(LOGIN_ROLES as readonly string[]).includes(role)) {
+      return { ok: false as const, reason: 'invalid' };
+    }
+    const districtId = str(user.districtId);
+    if (role === 'gov_admin' && !districtId) {
+      // District Administrators are scoped to exactly one district; without one
+      // there is nothing to authorize, so refuse rather than bind them broadly.
       return { ok: false as const, reason: 'invalid' };
     }
 
     const token = await upsertBinding(ctx, userId, {
       role,
       hospitalId: str(user.facilityId),
+      districtId,
+      districtName: str(user.districtName),
       staffUserId: str(user.id),
       username: str(user.username),
       name: str(user.name),
@@ -176,49 +216,80 @@ export const loginStaffSession = mutation({
 });
 
 /**
- * District Administrator login.
+ * District Administrator binding by username.
  *
- * The prototype auto-logs the district admin without a password, so this
- * binding is the weakest one: it requires a stored `gov_admin` staff record
- * with the given username (or, on a brand-new deployment, allows the demo
- * account so the district console can run at all).
+ * The console uses the same username + password login as every other staff
+ * role (loginStaffSession), so this exists only for sessions restored on a
+ * device that already knows which district administrator signed in. The
+ * district ALWAYS comes from the stored record — never from the request — and
+ * a record without a district refuses to bind, so this cannot be used to reach
+ * a district the account does not own.
  */
 export const loginDistrictSession = mutation({
   args: { username: v.string() },
   handler: async (ctx, { username }) => {
     const userId = await requireUserId(ctx);
     const staff = await readCollectionRecords(ctx, 'staffUsers');
-    const districtRecords = staff.filter(u => u.role === 'gov_admin');
     const wanted = username.trim().toLowerCase();
-    const user = districtRecords.find(
-      u => str(u.username)?.toLowerCase() === wanted || str(u.email)?.toLowerCase() === wanted,
+    const user = staff.find(
+      u =>
+        u.role === 'gov_admin' &&
+        (str(u.username)?.toLowerCase() === wanted || str(u.email)?.toLowerCase() === wanted),
     );
-
-    if (!user && districtRecords.length > 0) {
+    const districtId = user ? str(user.districtId) : undefined;
+    if (!user || !districtId) {
       return { ok: false as const, reason: 'invalid' };
     }
-
     const token = await upsertBinding(ctx, userId, {
       role: 'gov_admin',
-      staffUserId: user ? str(user.id) : undefined,
-      username: user ? str(user.username) : username,
-      name: user ? str(user.name) : 'District Collector',
+      districtId,
+      districtName: str(user.districtName),
+      staffUserId: str(user.id),
+      username: str(user.username),
+      name: str(user.name),
+    });
+    return { ok: true as const, token, user: sanitizeStaff(user) };
+  },
+});
+
+/**
+ * Overall Administrator (master) login.
+ *
+ * The master account has no stored password: identity is proven by the mailed
+ * one-time code that signs the caller into Convex Auth with the master email,
+ * and this mutation only confirms that the authenticated identity IS the
+ * configured master address (`OVERALL_ADMIN_EMAIL`). Nothing the client sends
+ * is trusted — there is deliberately no email argument.
+ */
+export const loginOverallSession = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
+    const email = await callerEmail(ctx);
+    if (!email || email !== overallAdminEmail()) {
+      return { ok: false as const, reason: 'not_master' };
+    }
+    const token = await upsertBinding(ctx, userId, {
+      role: 'overall_admin',
+      username: email,
+      name: 'Overall Administrator',
     });
     return {
       ok: true as const,
-      token,          user: user
-        ? sanitizeStaff(user)
-        : {
-            id: 'uga1',
-            name: 'District Collector',
-            email: 'district@demo.com',
-            role: 'gov_admin',
-            facilityId: undefined,
-            departmentId: undefined,
-            phone: undefined,
-            status: 'active',
-            mustChangePassword: false,
-          },
+      token,
+      user: {
+        id: `overall-${userId}`,
+        name: 'Overall Administrator',
+        email,
+        role: 'overall_admin',
+        facilityId: undefined,
+        districtId: undefined,
+        districtName: undefined,
+        departmentId: undefined,
+        phone: undefined,
+        status: 'active',
+        mustChangePassword: false,
+      },
     };
   },
 });
@@ -299,6 +370,12 @@ export const resumeSession = mutation({
       .withIndex('by_token', q => q.eq('token', token))
       .unique();
     if (!row) return { ok: false as const };
+    // A binding that cannot produce a scope (e.g. an older district binding
+    // stored without a district) is unusable: drop it so the client re-binds.
+    if (!scopeFromBinding(row)) {
+      await ctx.db.delete(row._id);
+      return { ok: false as const };
+    }
     if (row.convexUserId !== userId) {
       await ctx.db.patch(row._id, { convexUserId: userId, updatedAt: Date.now() });
     }
@@ -307,6 +384,8 @@ export const resumeSession = mutation({
       session: {
         role: row.role,
         hospitalId: row.hospitalId,
+        districtId: row.districtId,
+        districtName: row.districtName,
         patientId: row.patientId,
         staffUserId: row.staffUserId,
         name: row.name,
@@ -326,9 +405,14 @@ export const getMySession = query({
       .withIndex('by_user', q => q.eq('convexUserId', userId))
       .first();
     if (!row) return null;
+    // Report an unusable binding as "not bound": the client then stays on its
+    // offline cache instead of assuming its writes will be accepted.
+    if (!scopeFromBinding(row)) return null;
     return {
       role: row.role,
       hospitalId: row.hospitalId ?? null,
+      districtId: row.districtId ?? null,
+      districtName: row.districtName ?? null,
       patientId: row.patientId ?? null,
       staffUserId: row.staffUserId ?? null,
       name: row.name ?? null,

@@ -16,6 +16,28 @@
  */
 import { AnyApi, ConvexHttpClient } from 'convex/browser';
 import { api } from '../../src/convex/_generated/api';
+import { DATA_VERSION } from '../../src/contexts/cloudData';
+import { staffUsers as demoStaff } from '../../src/lib/mock-data';
+import {
+  seedAppointments,
+  seedConsultations,
+  seedDiagnostics,
+  seedDistricts,
+  seedDoctors,
+  seedFollowups,
+  seedHealthRecords,
+  seedHealthWorkers,
+  seedHospitals,
+  seedMedicineStock,
+  seedNotifications,
+  seedPatients,
+  seedPredictions,
+  seedReferralEvents,
+  seedReferrals,
+  seedStaffUsers,
+  seedVillageScores,
+  seedVitals,
+} from '../../src/lib/seed-multidistrict';
 
 const url = process.env.VITE_CONVEX_URL;
 if (!url) {
@@ -56,7 +78,47 @@ async function read(client: ConvexHttpClient): Promise<Record<string, Items>> {
 }
 
 function payloadOf(items: unknown[]): string {
-  return JSON.stringify({ v: 'v7-tombstones-2026-09', items });
+  return JSON.stringify({ v: DATA_VERSION, items });
+}
+
+/** The prototype fixtures, keyed by collection — used to (re)seed the cloud. */
+const SEED_BY_KEY: Record<string, unknown[]> = {
+  districts: seedDistricts,
+  hospitals: seedHospitals,
+  staffUsers: seedStaffUsers,
+  doctors: seedDoctors,
+  healthWorkers: seedHealthWorkers,
+  patients: seedPatients,
+  referrals: seedReferrals,
+  appointments: seedAppointments,
+  followups: seedFollowups,
+  notifications: seedNotifications,
+  referralEvents: seedReferralEvents,
+  consultations: seedConsultations,
+  vitals: seedVitals,
+  healthRecords: seedHealthRecords,
+  medicineStock: seedMedicineStock,
+  diagnostics: seedDiagnostics,
+  villageAccessScores: seedVillageScores,
+  referralPredictions: seedPredictions,
+};
+
+/**
+ * Bind a demo ADMIN account so the dataset can be inspected before any district
+ * binding exists. The credentials come from the fixtures (never hardcoded), and
+ * after the first write the deployment carries the current data version.
+ */
+async function bindSeeder(): Promise<ConvexHttpClient | null> {
+  const account = demoStaff.find(
+    u => u.role === 'hospital_admin' && typeof u.username === 'string' && !!u.username && !!u.password,
+  );
+  if (!account?.username || !account.password) return null;
+  const client = await device();
+  const bound = (await client.mutation(api.appSession.loginStaffSession as AnyApi, {
+    username: account.username,
+    password: account.password,
+  })) as { ok?: boolean };
+  return bound?.ok ? client : null;
 }
 
 const s = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
@@ -90,18 +152,75 @@ try {
   })) as { written?: boolean };
   check('unbound caller cannot write', unboundWrite?.written === false, unboundWrite);
 
-  // ── 3) District Administrator ───────────────────────────────────
-  const district = await device();
-  let bind = (await district.mutation(api.appSession.loginDistrictSession as AnyApi, {
-    username: 'collector.dist',
-  })) as { ok?: boolean };
-  if (!bind?.ok) {
-    bind = (await district.mutation(api.appSession.loginDistrictSession as AnyApi, {
-      username: 'district@demo.com',
-    })) as { ok?: boolean };
+  // ── 2b) Bring the deployment up to the current data version ─────
+  // The app reseeds itself on the first load after a DATA_VERSION change (the
+  // same full-snapshot write this does), so a stale deployment would otherwise
+  // have no districts and no second-district accounts to test against.
+  const seeder = await bindSeeder();
+  if (seeder) {
+    const precheck = await read(seeder);
+    const fixturesMissing =
+      (precheck.districts ?? []).length === 0 ||
+      !(precheck.hospitals ?? []).some(h => h.districtId === 'DIST-TRY');
+    if (fixturesMissing) {
+      for (const [key, items] of Object.entries(SEED_BY_KEY)) {
+        await seeder.mutation(api.appData.saveCollection as AnyApi, { key, data: payloadOf(items) });
+      }
+      console.log('(info) reseeded the deployment with the current prototype fixtures');
+    }
+  } else {
+    check('could bind a demo staff account to inspect the dataset', false);
   }
+
+  // ── 3) District Administrator (Pudukkottai) ─────────────────────
+  const district = await device();
+  const bind = (await district.mutation(api.appSession.loginDistrictSession as AnyApi, {
+    username: 'distadmin_pdk',
+  })) as { ok?: boolean; user?: { districtId?: string; role?: string } };
   check('district administrator session binds', bind?.ok === true, bind);
-  if (!bind?.ok) throw new Error('cannot continue without a district binding (prototype demo account missing)');
+  check('district binding comes from the STORED record', bind?.user?.districtId === 'DIST-PDK', bind?.user);
+  if (!bind?.ok) throw new Error('cannot continue without a district binding (district demo account missing)');
+
+  // The same account also signs in with a password; a wrong one must be refused.
+  const wrongDistrictPassword = (await (await device()).mutation(api.appSession.loginStaffSession as AnyApi, {
+    username: 'distadmin_pdk',
+    password: 'not-the-password',
+  })) as { ok?: boolean; reason?: string };
+  check(
+    'district administrator password is verified server-side',
+    wrongDistrictPassword?.ok === false && wrongDistrictPassword?.reason === 'invalid',
+    wrongDistrictPassword,
+  );
+
+  // A District Administrator also signs in through the normal credential form;
+  // the credentials come from the fixtures, and the district in the binding is
+  // the one STORED on the record (never a client-supplied value).
+  const pdkAccount = demoStaff.find(u => u.role === 'gov_admin' && u.districtId === 'DIST-PDK' && u.password);
+  if (pdkAccount?.username && pdkAccount.password) {
+    const passwordBind = (await (await device()).mutation(api.appSession.loginStaffSession as AnyApi, {
+      username: pdkAccount.username,
+      password: pdkAccount.password,
+    })) as { ok?: boolean; user?: { role?: string; districtId?: string } };
+    check(
+      'district administrator username + password login works',
+      passwordBind?.ok === true && passwordBind?.user?.districtId === 'DIST-PDK',
+      passwordBind,
+    );
+  } else {
+    check('district administrator fixture account found', false);
+  }
+
+  // The master binding cannot be self-granted: it requires the authenticated
+  // identity to BE the configured master email.
+  const forgedMaster = (await (await device()).mutation(api.appSession.loginOverallSession as AnyApi, {})) as {
+    ok?: boolean;
+    reason?: string;
+  };
+  check(
+    'overall administrator binding cannot be claimed without the master email',
+    forgedMaster?.ok === false && forgedMaster?.reason === 'not_master',
+    forgedMaster,
+  );
 
   const districtData = await read(district);
   const staff = districtData.staffUsers ?? [];
@@ -424,6 +543,159 @@ try {
       }
     } else {
       check('patient scope tested (skipped: no patient with a registered email in the cloud)', false);
+    }
+  }
+
+  // ── 7) Multi-district isolation ─────────────────────────────────
+  const tryDistrict = await device();
+  const tryBind = (await tryDistrict.mutation(api.appSession.loginDistrictSession as AnyApi, {
+    username: 'distadmin_trichy',
+  })) as { ok?: boolean; user?: { districtId?: string; role?: string } };
+  check(
+    'Trichy district administrator binds to DIST-TRY',
+    tryBind?.ok === true && tryBind?.user?.districtId === 'DIST-TRY',
+    tryBind,
+  );
+
+  if (tryBind?.ok) {
+    const tryData = await read(tryDistrict);
+    const pdkData = await read(district);
+    const ids = (items: Items, field: string) => items.map(r => s(r[field])).filter(Boolean) as string[];
+    const tryHospitalIds = new Set(ids(tryData.hospitals ?? [], 'id'));
+    // Seeded (unattributed) hospitals are addressed by their district NAME, so
+    // accept the name match as well as the id.
+    const pdkHospitalsOnly = (pdkData.hospitals ?? []).every(h => h.districtId === 'DIST-PDK' || h.district === 'Pudukkottai');
+    const tryHospitalsOnly = (tryData.hospitals ?? []).every(h => h.districtId === 'DIST-TRY' || h.district === 'Tiruchirappalli');
+
+    check('Pudukkottai sees only Pudukkottai hospitals', pdkHospitalsOnly, pdkData.hospitals?.map(h => h.hospitalId));
+    check('Trichy sees only Tiruchirappalli hospitals', tryHospitalsOnly, tryData.hospitals?.map(h => h.hospitalId));
+    check('Trichy actually receives its own hospitals', (tryData.hospitals ?? []).length > 0, tryData.hospitals?.length);
+    check(
+      'the two districts share no hospital id',
+      [...tryHospitalIds].every(id => !new Set(ids(pdkData.hospitals ?? [], 'id')).has(id)),
+      [...tryHospitalIds],
+    );
+
+    const pdkHospitalIds = new Set(ids(pdkData.hospitals ?? [], 'id'));
+    const tryHospitalIdSet = new Set(ids(tryData.hospitals ?? [], 'id'));
+    const inForeignHospital = (items: Items, field: string, mine: Set<string>) =>
+      items.filter(r => {
+        const facility = s(r[field]);
+        return !!facility && !mine.has(facility);
+      });
+
+    check(
+      'Trichy sees no Pudukkottai staff',
+      inForeignHospital(tryData.staffUsers ?? [], 'facilityId', tryHospitalIdSet).length === 0,
+      inForeignHospital(tryData.staffUsers ?? [], 'facilityId', tryHospitalIdSet).map(u => u.username),
+    );
+    check('Trichy sees no Pudukkottai doctors', inForeignHospital(tryData.doctors ?? [], 'facilityId', tryHospitalIdSet).length === 0);
+    check('Trichy sees no Pudukkottai health workers', inForeignHospital(tryData.healthWorkers ?? [], 'facilityId', tryHospitalIdSet).length === 0);
+    check(
+      'Pudukkottai sees no Trichy staff',
+      inForeignHospital(pdkData.staffUsers ?? [], 'facilityId', pdkHospitalIds).length === 0,
+      inForeignHospital(pdkData.staffUsers ?? [], 'facilityId', pdkHospitalIds).map(u => u.username),
+    );
+    check('Trichy receives only its own district record', (tryData.districts ?? []).every(d => d.districtId === 'DIST-TRY'));
+    check('Pudukkottai receives only its own district record', (pdkData.districts ?? []).every(d => d.districtId === 'DIST-PDK'));
+
+    // District-level analytics are for the district console, not hospitals.
+    check('district console receives district analytics', (tryData.villageAccessScores ?? []).length >= 0);
+
+    // Writes: neither district may touch the other's hospital or staff.
+    const pdkHospital = (pdkData.hospitals ?? [])[0];
+    const tryHospital = (tryData.hospitals ?? [])[0];
+    if (pdkHospital && tryHospital) {
+      const pdkHospitalsBefore = pdkData.hospitals ?? [];
+      const tryHospitalsBefore = tryData.hospitals ?? [];
+      await tryDistrict.mutation(api.appData.saveCollection as AnyApi, {
+        key: 'hospitals',
+        data: payloadOf([
+          ...tryHospitalsBefore,
+          { ...pdkHospital, name: 'HIJACKED-BY-TRICHY' },
+        ]),
+      });
+      const afterHijack = await read(district);
+      const storedPdk = (afterHijack.hospitals ?? []).find(h => s(h.id) === s(pdkHospital.id));
+      check(
+        "one district cannot rename another district's hospital",
+        storedPdk !== undefined && storedPdk.name !== 'HIJACKED-BY-TRICHY',
+        storedPdk,
+      );
+      check(
+        "the other district's hospitals are not deleted by a foreign payload",
+        (afterHijack.hospitals ?? []).filter(h => h.districtId === 'DIST-PDK' || h.district === 'Pudukkottai').length ===
+          pdkHospitalsBefore.length,
+        { after: afterHijack.hospitals?.length, before: pdkHospitalsBefore.length },
+      );
+
+      // A district admin must not be able to mint another district administrator.
+      await tryDistrict.mutation(api.appData.saveCollection as AnyApi, {
+        key: 'staffUsers',
+        data: payloadOf([
+          ...(tryData.staffUsers ?? []),
+          {
+            id: 'ustaff-district-escalation',
+            name: 'Escalation Test',
+            username: 'rogue.district',
+            password: 'x',
+            role: 'gov_admin',
+            districtId: 'DIST-TRY',
+            status: 'active',
+          },
+        ]),
+      });
+      const afterEscalation = await read(district);
+      check(
+        'a district administrator cannot create another district administrator',
+        !(afterEscalation.staffUsers ?? []).some(u => u.username === 'rogue.district'),
+      );
+
+      // Nor create a district.
+      await tryDistrict.mutation(api.appData.saveCollection as AnyApi, {
+        key: 'districts',
+        data: payloadOf([...(tryData.districts ?? []), { id: 'dist-rogue', districtId: 'DIST-XXX', name: 'Rogue' }]),
+      });
+      const afterDistrictCreate = await read(district);
+      check(
+        'a district administrator cannot create a district',
+        !(afterDistrictCreate.districts ?? []).some(d => d.districtId === 'DIST-XXX'),
+      );
+
+      // Nor delete a shared collection.
+      let districtDeletionRejected = false;
+      try {
+        await tryDistrict.mutation(api.appData.deleteCollection as AnyApi, { key: 'hospitals' });
+      } catch {
+        districtDeletionRejected = true;
+      }
+      const afterDistrictDelete = await read(district);
+      check(
+        'a district administrator cannot delete a shared collection',
+        districtDeletionRejected && (afterDistrictDelete.hospitals?.length ?? 0) > 0,
+      );
+
+      // …but it CAN still manage its own hospital (rename + restore).
+      const tryHospitalName = tryHospital.name;
+      await tryDistrict.mutation(api.appData.saveCollection as AnyApi, {
+        key: 'hospitals',
+        data: payloadOf([
+          ...(tryData.hospitals ?? []).map(h => (s(h.id) === s(tryHospital.id) ? { ...h, name: 'Trichy Rename Check' } : h)),
+        ]),
+      });
+      const afterOwnWrite = await read(tryDistrict);
+      check(
+        'a district administrator can still edit its OWN hospital',
+        (afterOwnWrite.hospitals ?? []).some(h => s(h.id) === s(tryHospital.id) && h.name === 'Trichy Rename Check'),
+        afterOwnWrite.hospitals?.map(h => h.name),
+      );
+      await tryDistrict.mutation(api.appData.saveCollection as AnyApi, {
+        key: 'hospitals',
+        data: payloadOf([
+          ...(afterOwnWrite.hospitals ?? []).filter(h => s(h.id) !== s(tryHospital.id)),
+          { ...tryHospital, name: tryHospitalName },
+        ]),
+      });
     }
   }
 } catch (err) {

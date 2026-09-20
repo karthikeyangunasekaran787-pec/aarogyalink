@@ -18,6 +18,7 @@ const ROLE_DASHBOARDS: Record<string, string> = {
   doctor: '/doctor/dashboard',
   hospital_admin: '/hospital-admin/dashboard',
   gov_admin: '/district-admin/dashboard',
+  overall_admin: '/master-admin/dashboard',
 };
 
 export function RequireAuth({ children, allowedRoles }: RequireAuthProps) {

@@ -5,7 +5,7 @@
 import { useNavigate } from 'react-router';
 
 import { Button } from '@/components/ui/button';
-import { Heart, Users, Stethoscope, Building2, Shield } from 'lucide-react';
+import { Heart, Users, Stethoscope, Building2, Shield, ShieldCheck } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import type { Role } from '@/types';
 
@@ -15,6 +15,7 @@ const ROLES: { role: Role; icon: typeof Heart; label: string; description: strin
   { role: 'doctor', icon: Stethoscope, label: 'Doctor', description: 'Manage consultations, patients, referrals and follow-ups.' },
   { role: 'hospital_admin', icon: Building2, label: 'Hospital Administrator', description: 'Manage incoming referrals, appointments, capacity and resources.' },
   { role: 'gov_admin', icon: Shield, label: 'District Administrator', description: 'Monitor healthcare access, referrals and district-level performance.' },
+  { role: 'overall_admin', icon: ShieldCheck, label: 'Overall Administrator', description: 'Master account: every district, all hospitals and district administrators.' },
 ];
 
 export default function RoleSelect() {
@@ -47,7 +48,7 @@ export default function RoleSelect() {
       </div>
 
       {/* Role cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl w-full mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl w-full mb-8">
         {ROLES.map(({ role, icon: Icon, label, description }) => (
           <button
             key={role}
@@ -76,7 +77,7 @@ export default function RoleSelect() {
         onClick={() => navigate('/auth')}
         disabled={!currentRole}
       >
-        {currentRole === 'gov_admin' ? 'Continue to Dashboard' : 'Continue to Login'}
+        {currentRole === 'overall_admin' ? 'Continue to Master Login' : 'Continue to Login'}
       </Button>
 
       {/* Footer */}

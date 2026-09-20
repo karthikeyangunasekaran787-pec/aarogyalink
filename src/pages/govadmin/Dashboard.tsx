@@ -14,17 +14,24 @@ import {
 } from 'lucide-react';
 
 export default function GovDashboard() {
-  const { language } = useApp();
+  const { language, currentUser } = useApp();
   const {
     patients, referrals, followups, currentFacilities, villageAccessScores,
     medicineStock, diagnostics,
     districtAnalytics: liveAnalytics, referralFunnel, aiInsights,
   } = useData();
 
+  // This console covers exactly ONE district: the backend scopes the data it
+  // hands over (convex/authz.ts) and `currentFacilities` is scoped to the
+  // signed-in district administrator's district as well.
+  const districtId = currentUser?.districtId;
+  const districtName = currentUser?.districtName;
+  const scopedFacilities = currentFacilities;
+
   // Compute facility performance from actual referrals. Uses the dynamic
   // facility list so hospitals added by the District Administrator appear here.
   const facilityPerformance = useMemo(() => {
-    return currentFacilities.map(f => {
+    return scopedFacilities.map(f => {
       const fReferrals = referrals.filter(r => r.destinationFacilityId === f.id);
       const closed = fReferrals.filter(r => r.status === 'closed').length;
       const closureRate = fReferrals.length > 0 ? Math.round((closed / fReferrals.length) * 100) : 0;
@@ -36,7 +43,7 @@ export default function GovDashboard() {
         totalReferrals: fReferrals.length,
       };
     });
-  }, [currentFacilities, referrals]);
+  }, [scopedFacilities, referrals]);
 
   // Compute monthly trends from actual referral dates
   const monthlyTrends = useMemo(() => {
@@ -72,7 +79,7 @@ export default function GovDashboard() {
           {language === 'ta' ? 'மாவட்ட கட்டுப்பாட்டு மையம்' : language === 'hi' ? 'जिला कमांड सेंटर' : 'District Command Center'}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Madurai District • {currentFacilities.length} Facilities • {patients.length} Registered Patients
+          {districtName ? `${districtName} District` : 'District'} • {districtId || '—'} • {scopedFacilities.length} Facilities • {patients.length} Registered Patients
         </p>
       </div>
 

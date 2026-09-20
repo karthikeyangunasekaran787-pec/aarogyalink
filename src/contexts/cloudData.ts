@@ -6,7 +6,14 @@
 // the cloud records on every device, forcing a reload of fresh mock data.
 // v7: shared deletion tombstones — deletes now propagate to every device and
 // can no longer be resurrected by the cloud-merge adopt cycle.
-export const DATA_VERSION = 'v7-tombstones-2026-09';
+// v8: multi-district architecture — districts, district attribution on
+// hospitals/staff/patients and the overall (master) administrator. Bumping the
+// version also clears older caches, which could still hold unrestricted
+// cross-district data from before the backend started scoping reads.
+// v9: includes the Tiruchirappalli hospitals in the composed seed (v8 shipped
+// them only in the client seed, so a deployment seeded by an earlier device had
+// none) — the bump makes every device reseed the complete dataset.
+export const DATA_VERSION = 'v9-multidistrict-2026-09';
 
 /** Cloud collection key that stores deletion tombstones. */
 export const TOMBSTONES_KEY = 'tombstones';

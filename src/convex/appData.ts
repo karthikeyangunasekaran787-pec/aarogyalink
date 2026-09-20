@@ -4,11 +4,15 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import {
   CLINICAL_COLLECTIONS,
+  districtFacilityIds,
   mergeAuthorizedWrite,
   parseEnvelope,
   payloadFits,
+  referralInScope,
   scopeCollectionsForRead,
+  scopeFromBinding,
   serializeEnvelope,
+  writablePatientIdsForFacilities,
   writablePatientIdsForHospital,
   type SessionScope,
   type WriteScope,
@@ -43,18 +47,8 @@ async function resolveScope(ctx: Ctx): Promise<{ userId: string; scope: SessionS
     .query("authSessions")
     .withIndex("by_user", q => q.eq("convexUserId", userId))
     .first();
-  if (!binding) return { userId, scope: null };
-  if (binding.role === "gov_admin") return { userId, scope: { kind: "district" } };
-  if (binding.role === "patient" && binding.patientId) {
-    return { userId, scope: { kind: "patient", patientId: binding.patientId } };
-  }
-  if (binding.hospitalId) {
-    return {
-      userId,
-      scope: { kind: "hospital", hospitalId: binding.hospitalId, staffUserId: binding.staffUserId },
-    };
-  }
-  return { userId, scope: null };
+  // The scope always comes from the STORED binding, never from the request.
+  return { userId, scope: scopeFromBinding(binding) };
 }
 
 /** Read the raw items of one stored collection (never throws on bad payloads). */
@@ -64,18 +58,56 @@ async function readItems(ctx: Ctx, key: string): Promise<unknown[]> {
 }
 
 /**
- * Work out which patients a hospital may record clinical data for. Derived from
- * the STORED patients/referrals/appointments, so a hospital cannot widen its
- * own scope by sending a crafted payload.
+ * Work out what a hospital/district caller may write. Everything is derived
+ * from the STORED collections, so a caller cannot widen its own scope by
+ * sending a crafted payload.
  */
 async function writeScopeFor(ctx: Ctx, key: string, scope: SessionScope | null): Promise<WriteScope | undefined> {
-  if (!scope || scope.kind !== "hospital" || !CLINICAL_COLLECTIONS.has(key)) return undefined;
-  const [patients, referrals, appointments] = await Promise.all([
-    readItems(ctx, "patients"),
+  if (!scope || (scope.kind !== "hospital" && scope.kind !== "district")) return undefined;
+
+  const needsPatients = CLINICAL_COLLECTIONS.has(key) || key === "patients";
+  const needsReferrals = key === "referralEvents";
+  if (!needsPatients && !needsReferrals && scope.kind !== "district") return undefined;
+
+  const [referrals, patients, appointments] = await Promise.all([
     readItems(ctx, "referrals"),
-    readItems(ctx, "appointments"),
+    needsPatients ? readItems(ctx, "patients") : Promise.resolve<unknown[]>([]),
+    needsPatients ? readItems(ctx, "appointments") : Promise.resolve<unknown[]>([]),
   ]);
-  return { writablePatientIds: writablePatientIdsForHospital(patients, referrals, appointments, scope.hospitalId) };
+
+  const write: WriteScope = {};
+
+  if (scope.kind === "district") {
+    // A district admin may only write records tied to their own hospitals.
+    write.facilityIds = districtFacilityIds(await readItems(ctx, "hospitals"), scope.districtId, scope.districtName);
+    if (needsPatients) {
+      write.writablePatientIds = writablePatientIdsForFacilities(
+        patients,
+        referrals,
+        appointments,
+        facilityId => write.facilityIds?.has(facilityId) === true,
+      );
+    }
+  } else if (needsPatients) {
+    write.writablePatientIds = writablePatientIdsForHospital(
+      patients,
+      referrals,
+      appointments,
+      scope.hospitalId,
+    );
+  }
+
+  if (needsReferrals) {
+    // Referral events may be appended unless the referral belongs elsewhere.
+    write.foreignReferralIds = new Set(
+      referrals
+        .filter(r => !referralInScope(r, scope, write.facilityIds))
+        .map(r => (r as { id?: unknown }).id)
+        .filter((id): id is string => typeof id === "string"),
+    );
+  }
+
+  return write;
 }
 
 export const getAll = query({
@@ -118,8 +150,19 @@ export const saveCollection = mutation({
 
     const storedEnvelope = existing ? parseEnvelope(existing.data) : null;
     const storedItems = storedEnvelope?.items ?? [];
-    const write = await writeScopeFor(ctx, key, scope);
-    const mergedItems = mergeAuthorizedWrite(key, storedItems, incoming.items, scope, write);
+
+    // FRESH SEED: the row is absent or was written with a DIFFERENT data
+    // version, so this is the first write of a new dataset. The whole snapshot
+    // is accepted (by any bound role) so the demo fixtures land completely no
+    // matter which role happens to load first — a scoped write would only ever
+    // seed its own slice. Every write AFTER this is strictly scoped to the
+    // caller's binding, which is where cross-district protection matters.
+    const freshSeed = !storedEnvelope || storedEnvelope.v !== incoming.v;
+
+    const write = freshSeed ? undefined : await writeScopeFor(ctx, key, scope);
+    const mergedItems = freshSeed
+      ? incoming.items
+      : mergeAuthorizedWrite(key, storedItems, incoming.items, scope, write);
 
     // Keep the client's data version so version checks stay client-side.
     if (!payloadFits(incoming.v, mergedItems)) {
@@ -140,9 +183,10 @@ export const deleteCollection = mutation({
   args: { key: v.string() },
   handler: async (ctx, { key }) => {
     const { scope } = await resolveScope(ctx);
-    // Deleting a whole shared collection is a district-level operation.
-    if (!scope || scope.kind !== "district") {
-      throw new Error("Only the District Administrator can delete a shared collection.");
+    // Deleting a whole shared collection is an Overall Administrator operation
+    // (a district admin must never wipe another district's data).
+    if (!scope || scope.kind !== "overall") {
+      throw new Error("Only the Overall Administrator can delete a shared collection.");
     }
     const existing = await ctx.db
       .query("collections")

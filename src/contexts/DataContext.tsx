@@ -16,31 +16,32 @@ import type {
   HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
   VillageAccessScore, Notification, ReferralEvent, Consultation,
   ReferralPrediction, ReferralStatus, AppointmentStatus, FollowupStatus,
-  DistrictAnalytics, ReferralFunnelStage, Role, User, Hospital
+  DistrictAnalytics, ReferralFunnelStage, Role, User, Hospital, District
 } from '@/types';
 
-// Initial data from mock-data
+// Initial data: base demo fixtures + the second district (Tiruchirappalli).
 import {
-  patients as initPatients,
-  doctors as initDoctors,
-  facilities as initFacilities,
-  referrals as initReferrals,
-  appointments as initAppointments,
-  followups as initFollowups,
-  healthWorkers as initHealthWorkers,
-  vitals as initVitals,
-  healthRecords as initHealthRecords,
-  medicineStock as initMedicineStock,
-  diagnostics as initDiagnostics,
-  villageAccessScores as initVillageScores,
-  notifications as initNotifications,
-  referralEvents as initReferralEvents,
-  consultations as initConsultations,
-  referralPredictions as initPredictions,
-  aiInsights as initInsights,
-  staffUsers as initStaffUsers,
-  hospitals as initHospitals,
-} from '@/lib/mock-data';
+  seedPatients as initPatients,
+  seedDoctors as initDoctors,
+  seedFacilities as initFacilities,
+  seedReferrals as initReferrals,
+  seedAppointments as initAppointments,
+  seedFollowups as initFollowups,
+  seedHealthWorkers as initHealthWorkers,
+  seedVitals as initVitals,
+  seedHealthRecords as initHealthRecords,
+  seedMedicineStock as initMedicineStock,
+  seedDiagnostics as initDiagnostics,
+  seedVillageScores as initVillageScores,
+  seedNotifications as initNotifications,
+  seedReferralEvents as initReferralEvents,
+  seedConsultations as initConsultations,
+  seedPredictions as initPredictions,
+  seedInsights as initInsights,
+  seedStaffUsers as initStaffUsers,
+  seedHospitals as initHospitals,
+  seedDistricts as initDistricts,
+} from '@/lib/seed-multidistrict';
 
 // Valid referral status transitions
 const REFERRAL_STEP_MAP: Record<ReferralStatus, number> = {
@@ -75,6 +76,8 @@ interface DataContextValue {
   consultations: Consultation[];
   referralPredictions: ReferralPrediction[];
   aiInsights: typeof initInsights;
+  /** Districts of the platform (created by the Overall Administrator). */
+  districts: District[];
 
   // Computed analytics (dynamically derived from actual data)
   districtAnalytics: DistrictAnalytics;
@@ -154,30 +157,58 @@ interface DataContextValue {
   getHealthRecordsForPatient: (patientId: string) => HealthRecord[];
   getConsultationsForPatient: (patientId: string) => Consultation[];
   getPredictionForReferral: (referralId: string) => ReferralPrediction | undefined;
+  // District administration (Overall Administrator)
+  addDistrict: (data: { name: string; code: string; state?: string; headquarters?: string }) => District;
+  /** Hospitals belonging to one district (used by district dashboards). */
+  getHospitalsForDistrict: (districtId: string) => Hospital[];
+  /** Re-push the pristine prototype fixtures (Overall Administrator only). */
+  resetDemoData: () => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
 
-let nextReferralNum = 11;
-let nextPatientId = 11;
+// Counters continue AFTER the seed data so a new record can never collide with
+// a seeded one (the seed now spans two districts).
+let nextReferralNum = maxIdNum(initReferrals, /^r(\d+)$/) + 1;
+let nextPatientId = maxIdNum(initPatients, /^p(\d+)$/) + 1;
+let nextDistrictNum = maxIdNum(initDistricts, /^dist-(\d+)$/) + 1;
 let nextNotifId = 7;
-let nextHospitalNum = 6; // starts at 6 to avoid collision with h1-h5 mock data
-let nextHANum = 6; // starts at 6 (hospitals 1-5 already have admins)
-let nextDoctorNum = 11; // starts at 11 (d1-d10 already exist)
-let nextHWNum = 6; // starts at 6 (hw1-hw5 already exist)
+let nextHospitalNum = maxIdNum(initHospitals, /^h(\d+)$/) + 1;
+let nextHANum = nextHospitalNum; // hospitals 1-5 already have admins
+let nextDoctorNum = maxIdNum(initDoctors, /^d(\d+)$/) + 1;
+let nextHWNum = maxIdNum(initHealthWorkers, /^hw(\d+)$/) + 1;
 
 // ── ID Generation (PDK format) ─────────────────────────────────
-export function generateHospitalId(num: number) {
-  return `HOS-PDK-${String(num).padStart(3, '0')}`;
+/**
+ * District prefix used in human-readable ids (HOS-TRY-001, DOC-TRY-002, …).
+ * District ids look like "DIST-PDK", so the trailing segment is the prefix.
+ */
+export function idPrefixForDistrict(districtId?: string): string {
+  const suffix = districtId?.split('-').pop();
+  return suffix && /^[A-Z]{2,4}$/.test(suffix) ? suffix : 'PDK';
 }
-export function generateAdminId(num: number) {
-  return `HA-PDK-${String(num).padStart(3, '0')}`;
+
+/** Next sequence number for a district's hospital ids (HOS-<prefix>-<seq>). */
+export function nextHospitalSequence(hospitals: Hospital[], prefix: string): number {
+  const used = hospitals
+    .map(h => new RegExp(`^HOS-${prefix}-(\\d+)$`).exec(h.hospitalId)?.[1])
+    .filter((n): n is string => !!n)
+    .map(n => parseInt(n, 10));
+  return (used.length > 0 ? Math.max(...used) : 0) + 1;
 }
-export function generateDoctorId(num: number) {
-  return `DOC-PDK-${String(num).padStart(3, '0')}`;
+
+/** Human-readable ids are district-prefixed, continuing that district's numbering. */
+export function generateHospitalId(num: number, prefix = idPrefixForDistrict(undefined as string | undefined)) {
+  return `HOS-${prefix}-${String(num).padStart(3, '0')}`;
 }
-export function generateHWId(num: number) {
-  return `HW-PDK-${String(num).padStart(3, '0')}`;
+export function generateAdminId(num: number, prefix = 'PDK') {
+  return `HA-${prefix}-${String(num).padStart(3, '0')}`;
+}
+export function generateDoctorId(num: number, prefix = 'PDK') {
+  return `DOC-${prefix}-${String(num).padStart(3, '0')}`;
+}
+export function generateHWId(num: number, prefix = 'PDK') {
+  return `HW-${prefix}-${String(num).padStart(3, '0')}`;
 }
 export function generatePatientId(num: number) {
   return `PAT-PDK-${String(num).padStart(4, '0')}`;
@@ -310,7 +341,7 @@ function saveToStorage<T>(key: string, data: T) {
 
 // Keys of collections shared through Convex (see collectionRegistry below)
 type CloudCollectionKey =
-  | 'patients' | 'doctors' | 'healthWorkers' | 'staffUsers' | 'hospitals'
+  | 'patients' | 'doctors' | 'healthWorkers' | 'staffUsers' | 'hospitals' | 'districts'
   | 'referrals' | 'appointments' | 'followups' | 'notifications' | 'referralEvents'
   | 'consultations' | 'vitals' | 'healthRecords' | 'medicineStock'
   | 'diagnostics' | 'villageAccessScores' | 'referralPredictions';
@@ -346,6 +377,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       : 1;
     return loaded;
   });
+
+  // Districts (Overall Administrator). Synced like every other collection.
+  const [districtsList, setDistrictsList] = useState<District[]>(() => loadFromStorage('districts', initDistricts));
 
   const now = () => new Date().toISOString();
 
@@ -443,10 +477,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Administrator take precedence, falling back to the seeded list. Used so
   // analytics and lookups include hospitals added at runtime.
   const currentFacilities = useMemo<Facility[]>(() => {
-    return hospitalsList.length > 0
+    const all = hospitalsList.length > 0
       ? hospitalsList.map(hospitalToFacility)
       : initFacilities;
-  }, [hospitalsList]);
+    // A District Administrator's console covers ONLY their own district, so the
+    // facility list and everything derived from it (district analytics) are
+    // scoped here as well. The backend scopes the underlying rows regardless.
+    if (currentUser?.role !== 'gov_admin' || !currentUser.districtName) return all;
+    return all.filter(f => f.district === currentUser.districtName);
+  }, [hospitalsList, currentUser]);
 
   /**
    * The facility list every component reads through `useData().facilities`:
@@ -851,10 +890,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // ── Hospital management ────────────────────────────────────────
   const addHospital = useCallback((data: Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'>) => {
     const num = nextHospitalNum++;
+    // A District Administrator's hospital ALWAYS belongs to their own district:
+    // the district comes from the signed-in admin (and the backend refuses a
+    // payload that claims another district).
+    const districtId = data.districtId ?? currentUser?.districtId;
+    const districtName = data.districtName ?? currentUser?.districtName;
+    const prefix = idPrefixForDistrict(districtId);
     const hospital: Hospital = {
       ...data,
       id: `h${num}`,
-      hospitalId: generateHospitalId(num),
+      // Human-readable ids continue that district's numbering (HOS-TRY-004).
+      hospitalId: generateHospitalId(nextHospitalSequence(hospitalsList, prefix), prefix),
+      districtId,
+      districtName,
       createdAt: now().split('T')[0],
     };
     setHospitalsList(prev => [...prev, hospital]);
@@ -862,7 +910,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Auto-generate admin credentials
     const haNum = nextHANum++;
     const adminUserId = `ustaff-ha-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const username = data.adminUsername || `hosadmin.pdk${String(haNum).padStart(3, '0')}`;
+    const username = data.adminUsername || `hosadmin.${prefix.toLowerCase()}${String(haNum).padStart(3, '0')}`;
     const tempPassword = data.adminTempPassword || generateTempPassword();
 
     const adminUser: User = {
@@ -874,6 +922,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       password: tempPassword,
       phone: data.adminPhone || '',
       facilityId: hospital.id,
+      // Stamped so the backend accepts the account even when this push reaches
+      // it before the hospital row does (the district owns it either way).
+      districtId,
+      districtName,
       status: 'active',
       createdBy: data.createdByUserId,
       createdAt: now().split('T')[0],
@@ -894,9 +946,49 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     return {
       hospital: { ...hospital, adminUserId, adminName: data.adminName, adminUsername: username, adminTempPassword: tempPassword },
-      adminCredentials: { adminUserId, adminId: generateAdminId(haNum), username, tempPassword },
+      adminCredentials: { adminUserId, adminId: generateAdminId(haNum, prefix), username, tempPassword },
     };
-  }, []);
+  }, [currentUser, hospitalsList]);
+
+  // ── District management (Overall Administrator) ─────────────────
+  const addDistrict = useCallback((data: { name: string; code: string; state?: string; headquarters?: string }) => {
+    const num = nextDistrictNum++;
+    const name = data.name.trim();
+    const district: District = {
+      id: `dist-${num}`,
+      districtId: `DIST-${data.code.trim().toUpperCase()}`,
+      name,
+      displayName: `${name} District`,
+      state: data.state?.trim() || 'Tamil Nadu',
+      headquarters: data.headquarters?.trim() || name,
+      createdByUserId: currentUser?.id,
+      createdAt: now().split('T')[0],
+    };
+    setDistrictsList(prev => [...prev, district]);
+    return district;
+  }, [currentUser]);
+
+  const getHospitalsForDistrict = useCallback((districtId: string) => {
+    const name = districtsList.find(d => d.districtId === districtId)?.name;
+    return hospitalsList.filter(h => (h.districtId ? h.districtId === districtId : h.district === name));
+  }, [hospitalsList, districtsList]);
+
+  // Re-push the pristine prototype fixtures. Used by the Overall Administrator
+  // to restore the demo dataset (e.g. after a presentation) on every device.
+  const resetDemoData = useCallback(() => {
+    setPatients(initPatients); setDoctorsList(initDoctors); setHealthWorkersList(initHealthWorkers);
+    setStaffUsersList(initStaffUsers); setHospitalsList(initHospitals); setDistrictsList(initDistricts);
+    setReferrals(initReferrals); setAppointments(initAppointments); setFollowups(initFollowups);
+    setNotifications(initNotifications); setReferralEvents(initReferralEvents);
+    setConsultations(initConsultations); setVitalsList(initVitals); setHealthRecordsList(initHealthRecords);
+    setMedicineStockList(initMedicineStock); setDiagnosticsList(initDiagnostics);
+    setVillageScoresList(initVillageScores); setPredictionsList(initPredictions);
+    deletedIdsRef.current = new Map();
+    tombstonesFromCloudRef.current = [];
+    lastWrittenRef.current = {};
+    didSyncRef.current = true;
+    void saveCollection({ key: TOMBSTONES_KEY, data: wrapForCloud([]) });
+  }, [saveCollection]);
 
   const updateHospital = useCallback((hospitalId: string, data: Partial<Hospital>) => {
     setHospitalsList(prev => prev.map(h => h.id === hospitalId ? { ...h, ...data } : h));
@@ -934,6 +1026,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     { key: 'healthWorkers', get: () => healthWorkersList, set: (xs) => setHealthWorkersList(xs as HealthWorker[]) },
     { key: 'staffUsers', get: () => staffUsersList, set: (xs) => setStaffUsersList(xs as User[]) },
     { key: 'hospitals', get: () => hospitalsList, set: (xs) => setHospitalsList(xs as Hospital[]) },
+    { key: 'districts', get: () => districtsList, set: (xs) => setDistrictsList(xs as District[]) },
     { key: 'referrals', get: () => referrals, set: (xs) => setReferrals(xs as Referral[]) },
     { key: 'appointments', get: () => appointments, set: (xs) => setAppointments(xs as Appointment[]) },
     { key: 'followups', get: () => followups, set: (xs) => setFollowups(xs as Followup[]) },
@@ -1058,7 +1151,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }, 300);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patients, doctorsList, healthWorkersList, staffUsersList, hospitalsList,
+  }, [patients, doctorsList, healthWorkersList, staffUsersList, hospitalsList, districtsList,
      referrals, appointments, followups, notifications, referralEvents,
      consultations, vitalsList, healthRecordsList, medicineStockList,
      diagnosticsList, villageScoresList, predictionsList,
@@ -1070,6 +1163,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage('healthWorkers', healthWorkersList); }, [healthWorkersList]);
   useEffect(() => { saveToStorage('staffUsers', staffUsersList); }, [staffUsersList]);
   useEffect(() => { saveToStorage('hospitals', hospitalsList); }, [hospitalsList]);
+  useEffect(() => { saveToStorage('districts', districtsList); }, [districtsList]);
   useEffect(() => { saveToStorage('referrals', referrals); }, [referrals]);
   useEffect(() => { saveToStorage('appointments', appointments); }, [appointments]);
   useEffect(() => { saveToStorage('followups', followups); }, [followups]);
@@ -1115,6 +1209,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     medicineStock: medicineStockList, diagnostics: diagnosticsList,
     villageAccessScores: villageScoresList, notifications, referralEvents, consultations,
     referralPredictions: predictionsList, aiInsights: initInsights,
+    districts: districtsList, addDistrict, getHospitalsForDistrict, resetDemoData,
     districtAnalytics: computedAnalytics,
     referralFunnel: computedReferralFunnel,
     currentFacilities,

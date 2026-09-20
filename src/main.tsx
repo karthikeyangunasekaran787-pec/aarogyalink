@@ -47,6 +47,9 @@ const StaffManagement = lazy(() => import("./pages/hospitaladmin/StaffManagement
 const GovDashboard = lazy(() => import("./pages/govadmin/Dashboard.tsx"));
 const HospitalManagement = lazy(() => import("./pages/govadmin/HospitalManagement.tsx"));
 
+// Overall (master) Administrator pages
+const MasterAdminDashboard = lazy(() => import("./pages/masteradmin/Dashboard.tsx"));
+
 // Loading fallback
 function RouteLoading() {
   return (
@@ -164,6 +167,11 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="/district-admin/hospitals" element={<RequireAuth allowedRoles={['gov_admin']}><App><HospitalManagement /></App></RequireAuth>} />
                   <Route path="/district-admin/facilities" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
                   <Route path="/district-admin/reports" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
+
+                  {/* Overall Administrator Routes */}
+                  <Route path="/master-admin/dashboard" element={<RequireAuth allowedRoles={['overall_admin']}><App><MasterAdminDashboard /></App></RequireAuth>} />
+                  <Route path="/master-admin/districts" element={<RequireAuth allowedRoles={['overall_admin']}><App><MasterAdminDashboard /></App></RequireAuth>} />
+                  <Route path="/master-admin/admins" element={<RequireAuth allowedRoles={['overall_admin']}><App><MasterAdminDashboard /></App></RequireAuth>} />
 
                   {/* 404 */}
                   <Route path="*" element={<NotFound />} />

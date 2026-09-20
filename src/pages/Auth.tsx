@@ -1,18 +1,18 @@
 // ============================================================================
 // AarogyaLink - Authentication Page
-// District Admin: auto-login (no credentials needed for prototype)
-// Patients: login via registered email lookup
-// Staff (Doctor, HW, Hospital Admin): login via username/password
+// Overall Admin : master email + emailed one-time code
+// Patients      : login via registered email lookup
+// Staff (Doctor, Health Worker, Hospital Admin, District Admin): username/password
 // ============================================================================
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router';
 import { useMutation } from 'convex/react';
+import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '@/convex/_generated/api';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import {
-  DISTRICT_ADMIN_USERNAME,
   clearPendingLogin,
   rememberPendingLogin,
   writeBackendToken,
@@ -21,7 +21,7 @@ import type { Role } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Heart, Mail, LogIn, AlertCircle, CheckCircle2, User, Lock, KeyRound } from 'lucide-react';
+import { Heart, Mail, LogIn, AlertCircle, CheckCircle2, User, Lock, KeyRound, ShieldCheck } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   patient: 'Patient',
@@ -29,6 +29,7 @@ const ROLE_LABELS: Record<string, string> = {
   doctor: 'Doctor',
   hospital_admin: 'Hospital Administrator',
   gov_admin: 'District Administrator',
+  overall_admin: 'Overall Administrator',
 };
 
 const ROLE_ROUTES: Record<string, string> = {
@@ -37,14 +38,7 @@ const ROLE_ROUTES: Record<string, string> = {
   doctor: '/doctor/dashboard',
   hospital_admin: '/hospital-admin/dashboard',
   gov_admin: '/district-admin/dashboard',
-};
-
-// Demo account for District Admin (auto-login, no credentials required)
-const DISTRICT_ADMIN_DEMO = {
-  id: 'uga1',
-  name: 'District Collector',
-  email: 'district@demo.com',
-  role: 'gov_admin' as const,
+  overall_admin: '/master-admin/dashboard',
 };
 
 /** Identity resolved for a staff login (server-verified when reachable). */
@@ -54,12 +48,14 @@ interface StaffIdentity {
   email: string;
   role: Role;
   facilityId?: string;
+  districtId?: string;
+  districtName?: string;
   departmentId?: string;
   mustChangePassword?: boolean;
 }
 
 export default function AuthPage() {
-  const { currentRole, login, loginPatient, loginStaff, currentUser, isAuthenticated, isAuthLoading } = useApp();
+  const { currentRole, loginPatient, loginStaff, currentUser, isAuthenticated, isAuthLoading } = useApp();
   const { getPatientByEmail, staffUsers, facilities, hospitals, updateStaffUser } = useData();
   const navigate = useNavigate();
   const location = useLocation();
@@ -69,8 +65,15 @@ export default function AuthPage() {
   // finds there — the client never declares its own authorization.
   const loginStaffSession = useMutation(api.appSession.loginStaffSession);
   const loginPatientSession = useMutation(api.appSession.loginPatientSession);
-  const loginDistrictSession = useMutation(api.appSession.loginDistrictSession);
-  const districtBoundRef = useRef(false);
+  const loginOverallSession = useMutation(api.appSession.loginOverallSession);
+  const { signIn, signOut } = useAuthActions();
+
+  // Overall Administrator: the master email is verified by an emailed one-time
+  // code, and only THEN does the server open the master binding.
+  const [masterStage, setMasterStage] = useState<'email' | 'code'>('email');
+  const [masterEmail, setMasterEmail] = useState('');
+  const [masterCode, setMasterCode] = useState('');
+  const [masterInfo, setMasterInfo] = useState('');
 
   // Set once a login happens on this page so the auto-redirect below never
   // overrides the intended return path after an explicit sign-in.
@@ -91,7 +94,7 @@ export default function AuthPage() {
 
   const returnTo = (location.state as { from?: { pathname: string } })?.from?.pathname || ROLE_ROUTES[currentRole] || '/patient/dashboard';
   const isPatient = currentRole === 'patient';
-  const isDistrictAdmin = currentRole === 'gov_admin';
+  const isOverallAdmin = currentRole === 'overall_admin';
 
   // ── Already signed in: return to the correct dashboard ──────────
   // Keeps a restored session usable (e.g. reopening /auth after a refresh)
@@ -103,31 +106,65 @@ export default function AuthPage() {
     navigate(ROLE_ROUTES[currentUser.role] || '/', { replace: true });
   }, [isAuthLoading, isAuthenticated, currentUser, pendingPasswordChange, navigate]);
 
-  // ── District Admin: auto-login — no credentials needed ──────────
-  useEffect(() => {
-    if (!isDistrictAdmin) return;
-    justLoggedInRef.current = true;
-    login(DISTRICT_ADMIN_DEMO.email);
-    // Bind the backend session once so district-wide data is shared with this
-    // device. If the backend is unreachable the login still works offline and
-    // the binding is retried from memory once it can be verified.
-    if (!districtBoundRef.current) {
-      districtBoundRef.current = true;
-      void loginDistrictSession({ username: DISTRICT_ADMIN_USERNAME })
-        .then(result => {
-          if (result?.ok && 'token' in result && result.token) {
-            writeBackendToken(result.token as string);
-            clearPendingLogin();
-          } else {
-            rememberPendingLogin({ kind: 'district', username: DISTRICT_ADMIN_USERNAME });
-          }
-        })
-        .catch(() => {
-          rememberPendingLogin({ kind: 'district', username: DISTRICT_ADMIN_USERNAME });
-        });
+  // ── Overall Administrator: master email + emailed one-time code ──
+  // Step 1 sends the code to the address the operator typed; the backend never
+  // learns about it until step 2, and it only opens the master binding when the
+  // authenticated identity actually IS the configured master address.
+  const handleMasterRequestCode = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setMasterInfo('');
+    if (!masterEmail.includes('@')) {
+      setError('Enter the master administrator email address.');
+      return;
     }
-    navigate(ROLE_ROUTES.gov_admin, { replace: true });
-  }, [isDistrictAdmin, login, navigate, loginDistrictSession]);
+    setLoading(true);
+    try {
+      await signIn('email-otp', { email: masterEmail.trim() });
+      setMasterStage('code');
+      setMasterInfo(`A one-time verification code was sent to ${masterEmail.trim()}.`);
+    } catch {
+      setError('Could not send the verification code. Check the address and your connection, then retry.');
+    }
+    setLoading(false);
+  }, [masterEmail, signIn]);
+
+  // Step 2 verifies the code and asks the server to open the master binding.
+  const handleMasterVerify = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (masterCode.trim().length < 4) {
+      setError('Enter the verification code from the email.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await signIn('email-otp', { email: masterEmail.trim(), code: masterCode.trim() });
+      const result = await loginOverallSession({});
+      if (!result?.ok || !result.token) {
+        // Not the master account: drop the Convex session we just opened so the
+        // visitor is not left authenticated but unbound.
+        try { await signOut(); } catch { /* ok */ }
+        setLoading(false);
+        setError('This email is not the Overall Administrator account for AarogyaLink.');
+        return;
+      }
+      writeBackendToken(result.token);
+      clearPendingLogin();
+      justLoggedInRef.current = true;
+      loginStaff({
+        id: result.user.id,
+        name: result.user.name || 'Overall Administrator',
+        email: result.user.email || masterEmail.trim(),
+        role: 'overall_admin',
+      });
+      setLoading(false);
+      navigate(ROLE_ROUTES.overall_admin, { replace: true });
+    } catch {
+      setLoading(false);
+      setError('Verification failed. Check the code and try again.');
+    }
+  }, [masterEmail, masterCode, signIn, signOut, loginOverallSession, loginStaff, navigate]);
 
   // ── Patient Login: look up by email ───────────────────────────
   const handlePatientLogin = useCallback(async (e: React.FormEvent) => {
@@ -239,6 +276,8 @@ export default function AuthPage() {
           email: result.user.email || '',
           role: (result.user.role || '') as Role,
           facilityId: result.user.facilityId ?? undefined,
+          districtId: result.user.districtId ?? undefined,
+          districtName: result.user.districtName ?? undefined,
           departmentId: result.user.departmentId ?? undefined,
           mustChangePassword: result.user.mustChangePassword,
         };
@@ -270,12 +309,16 @@ export default function AuthPage() {
           email: staffUser.email,
           role: staffUser.role,
           facilityId: staffUser.facilityId,
+          districtId: staffUser.districtId,
+          districtName: staffUser.districtName,
           departmentId: staffUser.departmentId,
           mustChangePassword: staffUser.mustChangePassword,
         };
         const fallback = {
           role: staffUser.role,
           facilityId: staffUser.facilityId,
+          districtId: staffUser.districtId,
+          districtName: staffUser.districtName,
           staffUserId: staffUser.id,
           name: staffUser.name,
           email: staffUser.email,
@@ -335,7 +378,9 @@ export default function AuthPage() {
       email: identity.email,
       role: identity.role,
       facilityId: identity.facilityId,
-      facilityName: staffFacility?.name || 'Unknown Facility',
+      facilityName: staffFacility?.name,
+      districtId: identity.districtId,
+      districtName: identity.districtName,
       departmentName: identity.departmentId,
       departmentId: identity.departmentId,
     });
@@ -375,7 +420,9 @@ export default function AuthPage() {
         email: updatedUser.email,
         role: updatedUser.role,
         facilityId: updatedUser.facilityId,
-        facilityName: staffFacility?.name || 'Unknown Facility',
+        facilityName: staffFacility?.name,
+        districtId: updatedUser.districtId,
+        districtName: updatedUser.districtName,
         departmentName: updatedUser.departmentId,
         departmentId: updatedUser.departmentId,
       });
@@ -493,7 +540,9 @@ export default function AuthPage() {
             <p className="text-xs text-muted-foreground mt-1">
               {isPatient
                 ? 'Enter the email registered by your Health Worker'
-                : 'Enter your assigned username and password'
+                : isOverallAdmin
+                  ? 'Verify the master email with the one-time code we send you'
+                  : 'Enter your assigned username and password'
               }
             </p>
           </div>
@@ -560,8 +609,91 @@ export default function AuthPage() {
             </form>
           )}
 
-          {/* ── Staff Login (Doctor, Health Worker, Admin) ── */}
-          {!isPatient && (
+          {/* ── Overall Administrator (master) login ─────── */}
+          {isOverallAdmin && (
+            <form onSubmit={masterStage === 'email' ? handleMasterRequestCode : handleMasterVerify} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Master Administrator Email</label>
+                <div className="relative">
+                  <ShieldCheck className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    value={masterEmail}
+                    onChange={(e) => { setMasterEmail(e.target.value); setError(''); setMasterInfo(''); setMasterStage('email'); }}
+                    placeholder="master-email@example.com"
+                    className="pl-9 h-11"
+                    autoFocus
+                    required
+                    disabled={masterStage === 'code'}
+                  />
+                </div>
+              </div>
+
+              {masterStage === 'code' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">One-Time Verification Code</label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      inputMode="numeric"
+                      value={masterCode}
+                      onChange={(e) => { setMasterCode(e.target.value.replace(/\D/g, '').slice(0, 8)); setError(''); }}
+                      placeholder="6-digit code"
+                      className="pl-9 h-11 tracking-[0.3em]"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              {masterInfo && !error && (
+                <div className="flex items-start gap-2 text-sm text-emerald-600 bg-emerald-50 p-3 rounded-lg">
+                  <Mail className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <span>{masterInfo}</span>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-11" disabled={loading}>
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                    {masterStage === 'email' ? 'Sending code...' : 'Verifying...'}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4" />
+                    {masterStage === 'email' ? 'Send Verification Code' : 'Verify & Open Overall Administration'}
+                  </span>
+                )}
+              </Button>
+
+              {masterStage === 'code' && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center"
+                  onClick={() => { setMasterStage('email'); setMasterCode(''); setMasterInfo(''); setError(''); }}
+                >
+                  ← Use a different email
+                </button>
+              )}
+
+              <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg p-3 space-y-1">
+                <p className="font-medium text-foreground">Master account</p>
+                <p>The Overall Administrator is the platform owner. Access is verified by a one-time code sent to the registered master email; only this account can create districts and District Administrators.</p>
+              </div>
+            </form>
+          )}
+
+          {/* ── Staff Login (Doctor, Health Worker, Hospital/District Admin) ── */}
+          {!isPatient && !isOverallAdmin && (
             <form onSubmit={handleStaffLogin} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Username</label>
@@ -570,7 +702,15 @@ export default function AuthPage() {
                   <Input
                     value={username}
                     onChange={(e) => { setUsername(e.target.value); setError(''); }}
-                    placeholder={currentRole === 'doctor' ? 'e.g. arun.pdk001' : currentRole === 'health_worker' ? 'e.g. suganthi.pdk001' : 'e.g. rajesh.pdk001'}
+                    placeholder={
+                      currentRole === 'doctor'
+                        ? 'e.g. arun.pdk001'
+                        : currentRole === 'health_worker'
+                          ? 'e.g. suganthi.pdk001'
+                          : currentRole === 'gov_admin'
+                            ? 'e.g. distadmin_pdk'
+                            : 'e.g. rajesh.pdk001'
+                    }
                     className="pl-9 h-11"
                     autoFocus
                     required
@@ -615,7 +755,11 @@ export default function AuthPage() {
 
               <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg p-3">
                 <p className="font-medium text-foreground">Staff Account</p>
-                <p>Your account was created by your Hospital Administrator. Contact them if you need access.</p>
+                <p>
+                  {currentRole === 'gov_admin'
+                    ? 'District Administrator accounts are created by the Overall Administrator and are scoped to a single district.'
+                    : 'Your account was created by your Hospital Administrator. Contact them if you need access.'}
+                </p>
               </div>
             </form>
           )}

@@ -35,20 +35,22 @@ export function writeBackendToken(token: string | null): void {
 export interface StaffFallback {
   role: string;
   facilityId?: string;
+  districtId?: string;
+  districtName?: string;
   staffUserId?: string;
   name?: string;
   email?: string;
   departmentId?: string;
 }
 
-/** Username of the demo District Administrator account (no password by design). */
-export const DISTRICT_ADMIN_USERNAME = 'collector.dist';
-
 /**
- * Credentials that can be re-derived from a restored session without asking
- * the user anything: the district demo account and a patient's registered
- * email. Staff roles need their password, which is never persisted, so a staff
- * session restored from before the backend binding existed must sign in again.
+ * Credentials that can be re-derived from a restored session without asking the
+ * user anything: the Overall Administrator (whose identity comes from the
+ * authenticated master email, verified server-side) and a patient's registered
+ * email. Username-based roles — staff AND District Administrators, who are
+ * scoped to one district — need their password, which is never persisted, so a
+ * session restored without its backend token signs in again rather than
+ * guessing a district.
  */
 export function derivePendingLogin(user: {
   role?: string;
@@ -56,7 +58,7 @@ export function derivePendingLogin(user: {
   healthCardId?: string;
 } | null): PendingLogin | null {
   if (!user?.role) return null;
-  if (user.role === 'gov_admin') return { kind: 'district', username: DISTRICT_ADMIN_USERNAME };
+  if (user.role === 'overall_admin') return { kind: 'overall' };
   if (user.role === 'patient' && user.email) {
     return { kind: 'patient', email: user.email, healthCardId: user.healthCardId };
   }
@@ -65,7 +67,7 @@ export function derivePendingLogin(user: {
 
 export type PendingLogin =
   | { kind: 'staff'; username: string; password: string; fallback?: StaffFallback }
-  | { kind: 'district'; username: string }
+  | { kind: 'overall' }
   | { kind: 'patient'; email: string; healthCardId?: string; fallback?: { patientId: string; name?: string } };
 
 // Module-level (never persisted): cleared on logout and on a successful bind.

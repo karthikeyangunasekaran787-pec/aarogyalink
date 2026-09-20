@@ -54,7 +54,7 @@ try {
     // 4) Bind a district session and read the shared collections.
     try {
       const bound = (await authed.mutation(api.appSession.loginDistrictSession, {
-        username: 'collector.dist',
+        username: 'distadmin_pdk',
       })) as { ok?: boolean };
       if (bound?.ok) {
         const rows = await authed.query(api.appData.getAll, {});

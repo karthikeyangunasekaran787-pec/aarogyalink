@@ -19,25 +19,21 @@ export interface AuthUser {
   role: Role;
   facilityId?: string;
   facilityName?: string;
+  districtId?: string;
+  districtName?: string;
   departmentName?: string;
   phone?: string;
   patientId?: string;
   healthCardId?: string;
 }
 
-// District Admin auto-login account (no credentials needed for prototype)
-const DEMO_ACCOUNTS: Record<string, AuthUser> = {
-  gov_admin: { id: 'uga1', name: 'District Collector', email: 'district@demo.com', role: 'gov_admin' },
-};
-
 interface AppState {
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
   /** True while the persisted session / Convex auth state is still resolving. */
   isAuthLoading: boolean;
-  login: (email: string) => boolean;
   loginPatient: (email: string, patientId: string, healthCardId: string, name: string) => void;
-  loginStaff: (staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; facilityName?: string; departmentName?: string; departmentId?: string }) => void;
+  loginStaff: (staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; facilityName?: string; districtId?: string; districtName?: string; departmentName?: string; departmentId?: string; phone?: string; patientId?: string; healthCardId?: string }) => void;
   logout: () => void;
   currentRole: Role;
   setCurrentRole: (role: Role) => void;
@@ -94,20 +90,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     writeStoredSession<AuthUser>(user ? { user, role: user.role } : null);
   }, []);
 
-  const login = useCallback((email: string) => {
-    const account = DEMO_ACCOUNTS[currentRole];
-    const user: AuthUser = account ?? {
-      id: `u-${currentRole}`,
-      name: currentRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      email,
-      role: currentRole,
-    };
-    setCurrentUser(user);
-    setCurrentRole(user.role);
-    persist(user);
-    return true;
-  }, [currentRole, persist]);
-
   const loginPatient = useCallback((email: string, patientId: string, healthCardId: string, name: string) => {
     const user: AuthUser = {
       id: `u-${patientId}`,
@@ -122,7 +104,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     persist(user);
   }, [persist]);
 
-  const loginStaff = useCallback((staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; facilityName?: string; departmentName?: string; departmentId?: string }) => {
+  const loginStaff = useCallback((staffUser: { id: string; name: string; email: string; role: Role; facilityId?: string; facilityName?: string; districtId?: string; districtName?: string; departmentName?: string; departmentId?: string; phone?: string; patientId?: string; healthCardId?: string }) => {
     const user: AuthUser = {
       id: staffUser.id,
       name: staffUser.name,
@@ -130,7 +112,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       role: staffUser.role,
       facilityId: staffUser.facilityId,
       facilityName: staffUser.facilityName,
+      districtId: staffUser.districtId,
+      districtName: staffUser.districtName,
       departmentName: staffUser.departmentName,
+      phone: staffUser.phone,
+      patientId: staffUser.patientId,
+      healthCardId: staffUser.healthCardId,
     };
     setCurrentUser(user);
     setCurrentRole(user.role);
@@ -152,7 +139,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value: AppState = {
-    currentUser, isAuthenticated, isAuthLoading, login, loginPatient, loginStaff, logout,
+    currentUser, isAuthenticated, isAuthLoading, loginPatient, loginStaff, logout,
     currentRole, setCurrentRole: handleSetRole,
     language, setLanguage,
     isOffline, setIsOffline,

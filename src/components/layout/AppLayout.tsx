@@ -69,12 +69,19 @@ const GOV_NAV: NavItem[] = [
   { label: 'insights', path: '/district-admin/reports', icon: MessageSquare },
 ];
 
+const OVERALL_NAV: NavItem[] = [
+  { label: 'Overall Administration', path: '/master-admin/dashboard', icon: Home },
+  { label: 'Districts', path: '/master-admin/districts', icon: MapPin },
+  { label: 'District Admins', path: '/master-admin/admins', icon: Users },
+];
+
 const ROLE_NAV_MAP: Record<string, NavItem[]> = {
   patient: PATIENT_NAV,
   health_worker: HW_NAV,
   doctor: DOCTOR_NAV,
   hospital_admin: HOSP_ADMIN_NAV,
   gov_admin: GOV_NAV,
+  overall_admin: OVERALL_NAV,
 };
 
 const ROLE_PATH_MAP: Record<string, string> = {
@@ -83,6 +90,7 @@ const ROLE_PATH_MAP: Record<string, string> = {
   doctor: '/doctor/dashboard',
   hospital_admin: '/hospital-admin/dashboard',
   gov_admin: '/district-admin/dashboard',
+  overall_admin: '/master-admin/dashboard',
 };
 
 // Click-outside hook

@@ -15,7 +15,10 @@
 // ============================================================================
 
 export type SessionScope =
-  | { kind: 'district' }
+  /** Overall Administrator: the whole platform, every district. */
+  | { kind: 'overall' }
+  /** District Administrator: only their own district's facilities and records. */
+  | { kind: 'district'; districtId: string; districtName: string; staffUserId?: string }
   | { kind: 'hospital'; hospitalId: string; staffUserId?: string }
   | { kind: 'patient'; patientId: string };
 
@@ -34,8 +37,15 @@ const HOSPITAL_FIELDS: Record<string, string[]> = {
   referrals: ['sourceFacilityId', 'destinationFacilityId'],
 };
 
-/** District-level analytics: only the District Administrator receives them. */
+/** District-level analytics: only the Overall/District Administrator receives them. */
 const DISTRICT_ONLY = new Set(['villageAccessScores', 'referralPredictions']);
+
+/**
+ * Administrator accounts. Only the Overall Administrator may create these — a
+ * District Administrator may edit their own record but never mint one, and a
+ * hospital user may not touch them at all.
+ */
+const DISTRICT_LEVEL_ROLES = new Set(['gov_admin', 'overall_admin']);
 
 /**
  * Collections a patient may receive, keyed by how the owning patient id is
@@ -72,16 +82,42 @@ export const CLINICAL_COLLECTIONS = new Set([
  * hospital may see, and the visible patients decide their clinical records.
  */
 const READ_ORDER = [
+  // Facilities/districts first: district scoping derives its facility set here.
+  'districts',
+  'hospitals',
+  // Referrals & appointments decide which patients a facility may see…
   'referrals',
   'appointments',
   'patients',
+  // …and the visible patients decide their clinical records.
   'followups',
   'vitals',
   'healthRecords',
   'consultations',
   'notifications',
+  'staffUsers',
+  'doctors',
+  'healthWorkers',
+  'medicineStock',
+  'diagnostics',
   'referralEvents',
+  'referralPredictions',
+  'villageAccessScores',
 ];
+
+/**
+ * Collections scoped to the facilities of one district. `hospitals` and
+ * `districts` are handled separately (they define the scope itself), and
+ * `referrals` uses its source/destination pair.
+ */
+const DISTRICT_FACILITY_COLLECTIONS = new Set([
+  'staffUsers',
+  'doctors',
+  'healthWorkers',
+  'medicineStock',
+  'diagnostics',
+  'appointments',
+]);
 
 /** Convex caps a document value at 1 MiB; stay under it with a safety margin. */
 const MAX_PAYLOAD_BYTES = 950 * 1024;
@@ -186,15 +222,16 @@ function patientVisibleToHospital(
 }
 
 /**
- * Patient ids a hospital may read AND write clinical data for. Mirrors
- * `patientVisibleToHospital` at the collection level so a hospital's readable
- * scope and its writable scope cannot drift apart.
+ * Patient ids a caller may read AND write clinical data for, given an
+ * ownership predicate over facilities. Mirrors `patientVisibleToHospital` at
+ * the collection level so a caller's readable scope and writable scope cannot
+ * drift apart.
  */
-export function writablePatientIdsForHospital(
+export function writablePatientIdsForFacilities(
   patients: unknown[],
   referrals: unknown[],
   appointments: unknown[],
-  hospitalId: string,
+  ownsFacility: (facilityId: string) => boolean,
 ): Set<string> {
   const out = new Set<string>();
   for (const patient of patients) {
@@ -202,21 +239,162 @@ export function writablePatientIdsForHospital(
     const id = str(patient.id);
     if (!id) continue;
     const owner = str(patient.registeredByFacilityId);
-    if (!owner || owner === hospitalId) out.add(id);
+    if (!owner || ownsFacility(owner)) out.add(id);
   }
   for (const referral of referrals) {
     if (!isRecord(referral)) continue;
-    const ties = str(referral.sourceFacilityId) === hospitalId || str(referral.destinationFacilityId) === hospitalId;
+    const ties =
+      ownsFacility(str(referral.sourceFacilityId) ?? '') ||
+      ownsFacility(str(referral.destinationFacilityId) ?? '');
     const id = str(referral.patientId);
     if (ties && id) out.add(id);
   }
   for (const appointment of appointments) {
     if (!isRecord(appointment)) continue;
-    if (str(appointment.facilityId) !== hospitalId) continue;
+    if (!ownsFacility(str(appointment.facilityId) ?? '')) continue;
     const id = str(appointment.patientId);
     if (id) out.add(id);
   }
   return out;
+}
+
+/** Patient ids a hospital may read AND write clinical data for. */
+export function writablePatientIdsForHospital(
+  patients: unknown[],
+  referrals: unknown[],
+  appointments: unknown[],
+  hospitalId: string,
+): Set<string> {
+  return writablePatientIdsForFacilities(patients, referrals, appointments, id => id === hospitalId);
+}
+
+/**
+ * Is this referral tied to the caller's scope? District callers pass the set
+ * of their district's facility ids.
+ */
+export function referralInScope(referral: unknown, scope: SessionScope, facilityIds?: Set<string>): boolean {
+  if (!isRecord(referral)) return false;
+  if (scope.kind === 'overall') return true;
+  if (scope.kind === 'patient') return str(referral.patientId) === scope.patientId;
+  const ids = [str(referral.sourceFacilityId), str(referral.destinationFacilityId)].filter(
+    (id): id is string => id !== undefined,
+  );
+  if (scope.kind === 'hospital') return ids.includes(scope.hospitalId);
+  return ids.some(id => facilityIds?.has(id) === true);
+}
+
+/**
+ * Derive the authorization scope from a STORED session binding. The role,
+ * district, hospital and patient always come from this row — never from the
+ * request — so a client cannot claim authorization it was not granted.
+ */
+export interface BindingLike {
+  role: string;
+  districtId?: string;
+  districtName?: string;
+  hospitalId?: string;
+  staffUserId?: string;
+  patientId?: string;
+}
+
+export function scopeFromBinding(binding: BindingLike | null | undefined): SessionScope | null {
+  if (!binding) return null;
+  if (binding.role === 'overall_admin') return { kind: 'overall' };
+  if (binding.role === 'gov_admin') {
+    // A district binding without a district cannot be authorized.
+    if (!binding.districtId) return null;
+    return {
+      kind: 'district',
+      districtId: binding.districtId,
+      districtName: binding.districtName ?? binding.districtId,
+      staffUserId: binding.staffUserId,
+    };
+  }
+  if (binding.role === 'patient' && binding.patientId) {
+    return { kind: 'patient', patientId: binding.patientId };
+  }
+  if (binding.hospitalId) {
+    return { kind: 'hospital', hospitalId: binding.hospitalId, staffUserId: binding.staffUserId };
+  }
+  return null;
+}
+
+// ── District scoping ──────────────────────────────────────────────
+
+/** Does this hospital record belong to the given district? */
+export function hospitalInDistrict(record: unknown, districtId: string, districtName: string): boolean {
+  if (!isRecord(record)) return false;
+  const own = str(record.districtId);
+  if (own) return own === districtId;
+  // Seeded/legacy hospitals carry only the district NAME.
+  return str(record.district) === districtName;
+}
+
+/** Facility (hospital) ids that belong to a district. */
+export function districtFacilityIds(hospitals: unknown[], districtId: string, districtName: string): Set<string> {
+  const ids = new Set<string>();
+  for (const hospital of hospitals) {
+    if (!isRecord(hospital)) continue;
+    const id = str(hospital.id);
+    if (id && hospitalInDistrict(hospital, districtId, districtName)) ids.add(id);
+  }
+  return ids;
+}
+
+/**
+ * Read one collection for a District Administrator. Everything tied to a
+ * facility is filtered to the district's hospitals. Unattributed legacy demo
+ * records (the seeded patients/facilities with no facility link) stay shared so
+ * the original Pudukkottai demo keeps working — see the note in appData.ts.
+ */
+function scopeDistrictRead(
+  key: string,
+  items: unknown[],
+  scope: { districtId: string; districtName: string },
+  context: Record<string, unknown[]>,
+): unknown[] | null {
+  const facilityIds = districtFacilityIds(context.hospitals ?? [], scope.districtId, scope.districtName);
+  const linkedToDistrict = (record: unknown) => recordHospitalIds(key, record).some(id => facilityIds.has(id));
+
+  if (key === 'districts') {
+    return items.filter(r => isRecord(r) && str(r.districtId) === scope.districtId);
+  }
+  if (key === 'hospitals') {
+    return items.filter(r => hospitalInDistrict(r, scope.districtId, scope.districtName));
+  }
+  if (key === 'referrals') return items.filter(linkedToDistrict);
+  if (DISTRICT_FACILITY_COLLECTIONS.has(key)) {
+    return items.filter(r => {
+      const facility = recordHospitalIds(key, r)[0];
+      if (facility) return facilityIds.has(facility);
+      // A District Administrator's own staff record carries no facility link.
+      return isRecord(r) && str(r.districtId) === scope.districtId;
+    });
+  }
+  if (key === 'patients') {
+    return items.filter(r => {
+      const owner = isRecord(r) ? str(r.registeredByFacilityId) : undefined;
+      return !owner || facilityIds.has(owner);
+    });
+  }
+  if (CLINICAL_COLLECTIONS.has(key)) {
+    const visiblePatients = new Set(
+      (context.patients ?? []).map(p => (isRecord(p) && typeof p.id === 'string' ? p.id : '')),
+    );
+    return items.filter(r => {
+      const patientId = patientIdOf(key, r);
+      return patientId === undefined || visiblePatients.has(patientId);
+    });
+  }
+  if (key === 'referralEvents' || key === 'referralPredictions') {
+    const visible = new Set(
+      (context.referrals ?? []).map(r => (isRecord(r) && typeof r.id === 'string' ? r.id : '')),
+    );
+    return items.filter(r => isRecord(r) && typeof r.referralId === 'string' && visible.has(r.referralId));
+  }
+  // Aggregate public-health statistics (village access scores) are not
+  // per-hospital private data; they stay available so district analytics work.
+  return items;
 }
 
 // ── READ scoping ──────────────────────────────────────────────────
@@ -235,11 +413,14 @@ export function scopeItemsForRead(
 ): unknown[] | null {
   // Authenticated but no session binding yet: nothing is shared.
   if (!scope) return null;
-  if (scope.kind === 'district') return items;
+  // The Overall Administrator sees everything, in every district.
+  if (scope.kind === 'overall') return items;
 
   // Deletion tombstones must reach every device, otherwise deleted records
   // would be resurrected by the merge on other devices.
   if (key === TOMBSTONES_KEY) return items;
+
+  if (scope.kind === 'district') return scopeDistrictRead(key, items, scope, context);
 
   if (scope.kind === 'hospital') {
     if (DISTRICT_ONLY.has(key)) return null;
@@ -324,32 +505,87 @@ export function scopeCollectionsForRead(
  * are unaffected.
  */
 export interface WriteScope {
+  /** Patients the caller may record clinical data for. */
   writablePatientIds?: Set<string>;
+  /** Facilities (hospitals) the caller may write records for — district scope. */
+  facilityIds?: Set<string>;
+  /**
+   * Referral ids that belong to ANOTHER scope. Referral events for these are
+   * never written, so one district/hospital cannot rewrite another's audit
+   * trail. Absent means "not enforced" (older deploys, unit callers).
+   */
+  foreignReferralIds?: Set<string>;
 }
 
-/** Preserve everything this hospital does not own; apply only its own patients. */
-function mergePatientsForHospital(stored: unknown[], incoming: unknown[], hospitalId: string): unknown[] {
-  const ownedByMe = (record: unknown) => str(isRecord(record) ? record.registeredByFacilityId : undefined) === hospitalId;
+/**
+ * Merge a collection so only records inside the caller's scope are applied:
+ * stored records the caller does not own are preserved exactly, existing
+ * incoming records are judged by their STORED ownership (a crafted payload
+ * cannot claim a record it does not own), and new records must declare an
+ * in-scope owner.
+ */
+function mergeScoped(
+  stored: unknown[],
+  incoming: unknown[],
+  belongs: (record: unknown) => boolean,
+  /** Gate for records that do not exist yet (defaults to `belongs`). */
+  canCreate: (record: unknown) => boolean = belongs,
+): unknown[] {
   const storedByKey = new Map<string, unknown>();
   for (const record of stored) storedByKey.set(mergeKeyOf(record), record);
 
   const out: unknown[] = [];
-  // Keep other hospitals' patients AND unattributed (seeded/legacy) records.
+  for (const record of stored) if (!belongs(record)) out.push(record);
+  for (const record of incoming) {
+    const storedRecord = storedByKey.get(mergeKeyOf(record));
+    if (storedRecord ? belongs(storedRecord) : canCreate(record)) out.push(record);
+  }
+  return out;
+}
+
+/** Preserve everything the caller does not own; apply only its own patients. */
+function mergePatientsInScope(
+  stored: unknown[],
+  incoming: unknown[],
+  ownsFacility: (facilityId: string) => boolean,
+): unknown[] {
+  const ownedByMe = (record: unknown) => {
+    const owner = str(isRecord(record) ? record.registeredByFacilityId : undefined);
+    return owner !== undefined && ownsFacility(owner);
+  };
+  const storedByKey = new Map<string, unknown>();
+  for (const record of stored) storedByKey.set(mergeKeyOf(record), record);
+
+  const out: unknown[] = [];
+  // Keep other facilities' patients AND unattributed (seeded/legacy) records.
   for (const record of stored) if (!ownedByMe(record)) out.push(record);
   for (const record of incoming) {
     if (!isRecord(record)) continue;
     const storedRecord = storedByKey.get(mergeKeyOf(record));
     if (storedRecord) {
       // Existing records are judged by their STORED owner, so a crafted payload
-      // cannot claim a patient that belongs to another hospital.
+      // cannot claim a patient that belongs to another facility.
       if (ownedByMe(storedRecord)) out.push(record);
       continue;
     }
     const owner = str(record.registeredByFacilityId);
-    // A new patient must belong to this hospital. An absent link is accepted so
+    // A new patient must belong to this facility. An absent link is accepted so
     // older offline clients keep working (treated as shared, like the seeds).
-    if (owner === hospitalId || owner === undefined) out.push(record);
+    if (owner === undefined || ownsFacility(owner)) out.push(record);
   }
+  return out;
+}
+
+/**
+ * Referral events are appended by whichever facility runs the workflow. An
+ * event may be written unless its referral belongs to another scope.
+ */
+function mergeReferralEvents(stored: unknown[], incoming: unknown[], foreignReferralIds: Set<string>): unknown[] {
+  const foreign = (record: unknown) =>
+    isRecord(record) && typeof record.referralId === 'string' && foreignReferralIds.has(record.referralId);
+  const out: unknown[] = [];
+  for (const record of stored) if (!foreign(record)) out.push(record);
+  for (const record of incoming) if (!foreign(record)) out.push(record);
   return out;
 }
 
@@ -376,6 +612,62 @@ function mergeClinicalForHospital(
   return out;
 }
 
+/**
+ * Write merge for a District Administrator.
+ *
+ * Only facilities/records inside the district are applied. Ownership is judged
+ * from the STORED hospitals (supplied by appData.ts as `write.facilityIds`) so a
+ * crafted payload cannot widen its own district. Districts themselves, and the
+ * District Administrator accounts, are created by the Overall Administrator
+ * only — a district admin can edit their own record but never mint one.
+ */
+function mergeDistrictWrite(
+  key: string,
+  stored: unknown[],
+  incoming: unknown[],
+  scope: { districtId: string; districtName: string },
+  write?: WriteScope,
+): unknown[] {
+  // Districts and district-level analytics are read-only for a district admin.
+  if (key === 'districts' || DISTRICT_ONLY.has(key)) return stored;
+
+  const facilityIds = write?.facilityIds;
+  const ownsFacility = (facilityId: string) => !!facilityIds && facilityIds.has(facilityId);
+  const inMyDistrict = (record: unknown) => isRecord(record) && str(record.districtId) === scope.districtId;
+  const isAdminRole = (record: unknown) =>
+    isRecord(record) && DISTRICT_LEVEL_ROLES.has(String(record.role));
+
+  if (key === 'hospitals') {
+    return mergeScoped(
+      stored,
+      incoming,
+      record => hospitalInDistrict(record, scope.districtId, scope.districtName),
+      // A NEW hospital must declare this district; the id is irrelevant (it is new).
+      record => isRecord(record) && hospitalInDistrict(record, scope.districtId, scope.districtName),
+    );
+  }
+  if (key === 'patients') return mergePatientsInScope(stored, incoming, ownsFacility);
+  if (CLINICAL_COLLECTIONS.has(key) && write?.writablePatientIds) {
+    return mergeClinicalForHospital(key, stored, incoming, write.writablePatientIds);
+  }
+  if (key === 'referralEvents') {
+    return write?.foreignReferralIds
+      ? mergeReferralEvents(stored, incoming, write.foreignReferralIds)
+      : stored;
+  }
+  // Unknown collections default to DENY.
+  if (!HOSPITAL_FIELDS[key]) return stored;
+
+  const ownsStored = (record: unknown) =>
+    (key === 'staffUsers' && isAdminRole(record) ? inMyDistrict(record) : recordHospitalIds(key, record).some(ownsFacility) || inMyDistrict(record));
+  const canCreate = (record: unknown) =>
+    key === 'staffUsers' && isAdminRole(record)
+      ? false
+      : recordHospitalIds(key, record).some(ownsFacility) || inMyDistrict(record);
+
+  return mergeScoped(stored, incoming, ownsStored, canCreate);
+}
+
 /** Merge one collection payload for a write from the given scope. */
 export function mergeAuthorizedWrite(
   key: string,
@@ -387,10 +679,13 @@ export function mergeAuthorizedWrite(
   // No binding → no writes at all; whatever is stored stays untouched.
   if (!scope) return stored;
 
-  // The District Administrator owns district-wide data.
-  if (scope.kind === 'district') return incoming;
+  // The Overall Administrator owns the whole platform.
+  if (scope.kind === 'overall') return incoming;
 
-  // Tombstones are additive — never let one device drop another's deletes.
+  // Deletion tombstones are scope-independent and additive — every role must be
+  // able to publish its own deletes, and no device may drop another's. (This is
+  // checked BEFORE the district branch, which would otherwise treat tombstones
+  // as an unknown collection and silently discard a district admin's deletes.)
   if (key === TOMBSTONES_KEY) {
     const seen = new Set<string>();
     const merged: unknown[] = [];
@@ -404,6 +699,9 @@ export function mergeAuthorizedWrite(
     return merged;
   }
 
+  // The District Administrator owns their district's data (and only that).
+  if (scope.kind === 'district') return mergeDistrictWrite(key, stored, incoming, scope, write);
+
   if (scope.kind === 'hospital') {
     // District-level analytics are read-only for hospital users.
     if (DISTRICT_ONLY.has(key)) return stored;
@@ -411,41 +709,30 @@ export function mergeAuthorizedWrite(
     // Patients are attributed to the registering hospital, so a hospital may
     // only create/update its own and can never touch another hospital's record.
     if (key === 'patients') {
-      return mergePatientsForHospital(stored, incoming, scope.hospitalId);
+      return mergePatientsInScope(stored, incoming, facilityId => facilityId === scope.hospitalId);
     }
     // Clinical records are scoped through the patients the hospital may see.
     if (CLINICAL_COLLECTIONS.has(key) && write?.writablePatientIds) {
       return mergeClinicalForHospital(key, stored, incoming, write.writablePatientIds);
     }
-
-    const fields = HOSPITAL_FIELDS[key];
-    if (!fields) {
-      // Any other patient-linked record we have no ownership information for
-      // stays writable so registration and clinical capture keep working.
-      return incoming;
+    // Referral audit trail: never rewrite another scope's referral events.
+    if (key === 'referralEvents') {
+      return write?.foreignReferralIds
+        ? mergeReferralEvents(stored, incoming, write.foreignReferralIds)
+        : incoming;
     }
+    // Anything we have no ownership information for defaults to DENY.
+    if (!HOSPITAL_FIELDS[key]) return stored;
 
-    const storedByKey = new Map<string, unknown>();
-    for (const record of stored) storedByKey.set(mergeKeyOf(record), record);
-
-    const belongs = (record: unknown) => recordHospitalIds(key, record).includes(scope.hospitalId);
-
-    const out: unknown[] = [];
-    // Keep every stored record the caller does not own.
-    for (const record of stored) {
-      if (!belongs(record)) out.push(record);
-    }
-    // Apply only the incoming records the caller is allowed to write.
-    for (const record of incoming) {
-      if (key === 'staffUsers' && isRecord(record) && record.role === 'gov_admin') {
-        continue; // hospital users must never mint a District Administrator
+    // Existing records are judged by their STORED owner (so a crafted payload
+    // cannot claim ownership); new records must declare this hospital.
+    return mergeScoped(stored, incoming, record => {
+      // Hospital users must never create or alter an administrator account.
+      if (key === 'staffUsers' && isRecord(record) && DISTRICT_LEVEL_ROLES.has(String(record.role))) {
+        return false;
       }
-      const storedRecord = storedByKey.get(mergeKeyOf(record));
-      // Existing records are judged by their STORED owner (so a crafted payload
-      // cannot claim ownership); new records must declare this hospital.
-      if (storedRecord ? belongs(storedRecord) : belongs(record)) out.push(record);
-    }
-    return out;
+      return recordHospitalIds(key, record).includes(scope.hospitalId);
+    });
   }
 
   // Patient scope: only their own records.

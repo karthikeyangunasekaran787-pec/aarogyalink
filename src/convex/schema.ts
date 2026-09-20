@@ -52,6 +52,10 @@ const schema = defineSchema(
       convexUserId: v.string(),
       role: v.string(),
       hospitalId: v.optional(v.string()),
+      // District Administrators are scoped to exactly one district; only the
+      // Overall Administrator binding has neither.
+      districtId: v.optional(v.string()),
+      districtName: v.optional(v.string()),
       staffUserId: v.optional(v.string()),
       patientId: v.optional(v.string()),
       username: v.optional(v.string()),

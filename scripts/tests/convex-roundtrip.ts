@@ -6,10 +6,15 @@
  *   1. unauthenticated access is rejected
  *   2. two independent authenticated clients ("device A" / "device B")
  *      share the same data through Convex
- *   3. saveCollection persists, getAll returns it, deleteCollection cleans up
+ *   3. a clinical record written on one device is read (and updated) on the other
+ *
+ * It uses the real `vitals` collection and removes its own record again, so it
+ * never leaves test data behind (whole-collection deletion is reserved for the
+ * Overall Administrator).
  */
 import { AnyApi, ConvexHttpClient } from 'convex/browser';
 import { api } from '../../src/convex/_generated/api';
+import { DATA_VERSION } from '../../src/contexts/cloudData';
 
 const url = process.env.VITE_CONVEX_URL;
 if (!url) {
@@ -42,23 +47,31 @@ async function device(label: string): Promise<ConvexHttpClient> {
   if (!token) throw new Error(`${label}: anonymous sign-in returned no token`);
   client.setAuth(token);
 
-  let bound = (await client.mutation(api.appSession.loginDistrictSession as AnyApi, {
-    username: 'collector.dist',
+  // Bind the (full-data) District Administrator demo account so both devices
+  // share one scope; the binding only exists after the deployment has been
+  // seeded with the current fixtures (the app does this on first load).
+  const bound = (await client.mutation(api.appSession.loginDistrictSession as AnyApi, {
+    username: 'distadmin_pdk',
   })) as { ok?: boolean };
   if (!bound?.ok) {
-    bound = (await client.mutation(api.appSession.loginDistrictSession as AnyApi, {
-      username: 'district@demo.com',
-    })) as { ok?: boolean };
+    throw new Error(`${label}: could not bind a session — load the app once to seed the current fixtures`);
   }
-  if (!bound?.ok) throw new Error(`${label}: could not bind a session`);
   return client;
 }
 
-const testKey = '__sync_selftest__';
-
-async function readKey(client: ConvexHttpClient, key: string): Promise<unknown> {
+async function readPayload(
+  client: ConvexHttpClient,
+  key: string,
+): Promise<{ v: string; items: Record<string, unknown>[] }> {
   const all = await client.query(api.appData.getAll as AnyApi, {});
-  return (all as Record<string, unknown>)[key];
+  const raw = (all as Record<string, unknown>)[key];
+  if (typeof raw !== 'string') return { v: DATA_VERSION, items: [] };
+  const parsed = JSON.parse(raw) as { v?: string; items?: Record<string, unknown>[] };
+  return { v: parsed.v ?? DATA_VERSION, items: parsed.items ?? [] };
+}
+
+function payload(version: string, items: unknown[]): string {
+  return JSON.stringify({ v: version, items });
 }
 
 try {
@@ -77,65 +90,73 @@ try {
   const deviceB = await device('device B');
   check('two independent authenticated sessions established', true);
 
-  // 2) Clean slate.
-  await deviceA.mutation(api.appData.deleteCollection as AnyApi, { key: testKey });
-  check('deleteCollection clears any prior test row', (await readKey(deviceB, testKey)) === undefined);
+  // 2) Baseline: the vitals this scope can see, plus a patient inside it.
+  const baseline = await readPayload(deviceA, 'vitals');
+  const visiblePatients = await readPayload(deviceA, 'patients');
+  const patientId = visiblePatients.items[0]?.id;
+  check('the district scope exposes patients to record vitals for', typeof patientId === 'string', patientId);
+  if (typeof patientId !== 'string') throw new Error('no visible patient to record vitals for');
 
-  // 3) Device A writes a patient collection (Health Worker registers a patient).
-  const payload = {
-    v: 'test',
-    items: [
-      {
-        id: 'p99',
-        healthCardId: 'AL-PT-2026-099',
-        registeredByEmail: 'sync.selftest@example.com',
-        name: 'Sync Self-Test Patient',
-        vitals: [{ id: 'v1', bloodPressureSystolic: 128, bloodPressureDiastolic: 82, spO2: 97 }],
-      },
-    ],
-  };
+  const testRecordId = 'v-sync-selftest';
+  const cleanedUp = baseline.items.filter(v => v.id !== testRecordId);
+
+  // 3) Device A records vitals (Health Worker at the facility).
   await deviceA.mutation(api.appData.saveCollection as AnyApi, {
-    key: testKey,
-    data: JSON.stringify(payload),
+    key: 'vitals',
+    data: payload(baseline.v, [
+      ...cleanedUp,
+      {
+        id: testRecordId,
+        patientId,
+        recordedBy: 'Sync Self-Test',
+        date: '2026-09-20',
+        bloodPressureSystolic: 128,
+        bloodPressureDiastolic: 82,
+        spO2: 97,
+      },
+    ]),
   });
 
-  // 4) Device B reads it (Doctor searches by Health Card ID).
-  const raw = await readKey(deviceB, testKey);
-  check('device B sees the row written by device A', typeof raw === 'string', raw);
-  const parsed = typeof raw === 'string' ? JSON.parse(raw) : null;
+  // 4) Device B reads it (Doctor opens the patient).
+  const afterWrite = await readPayload(deviceB, 'vitals');
+  const written = afterWrite.items.find(v => v.id === testRecordId);
   check(
-    'written patient (with vitals) round-trips intact to the other device',
-    parsed?.items?.[0]?.healthCardId === 'AL-PT-2026-099' &&
-      parsed?.items?.[0]?.vitals?.[0]?.spO2 === 97,
-    parsed,
+    'a vitals reading written on device A round-trips intact to device B',
+    written?.spO2 === 97 && written?.bloodPressureSystolic === 128,
+    written,
   );
 
-  // 5) Device B updates (Doctor records vitals) — device A must see it.
-  parsed.items[0].vitals.push({ id: 'v2', bloodPressureSystolic: 118, bloodPressureDiastolic: 76, spO2: 99 });
+  // 5) Device B records a follow-up reading (Doctor) — device A must see it.
   await deviceB.mutation(api.appData.saveCollection as AnyApi, {
-    key: testKey,
-    data: JSON.stringify(parsed),
+    key: 'vitals',
+    data: payload(afterWrite.v, [
+      ...afterWrite.items.filter(v => v.id !== testRecordId),
+      {
+        id: testRecordId,
+        patientId,
+        recordedBy: 'Sync Self-Test',
+        date: '2026-09-20',
+        bloodPressureSystolic: 118,
+        bloodPressureDiastolic: 76,
+        spO2: 99,
+      },
+    ]),
   });
-  const seenByA = await readKey(deviceA, testKey);
-  const parsedByA = typeof seenByA === 'string' ? JSON.parse(seenByA) : null;
+  const seenByA = await readPayload(deviceA, 'vitals');
+  const updated = seenByA.items.find(v => v.id === testRecordId);
+  check('the updated vitals are visible on device A', updated?.spO2 === 99, updated);
   check(
-    'vitals recorded on device B are visible on device A',
-    parsedByA?.items?.[0]?.vitals?.length === 2 && parsedByA?.items?.[0]?.vitals?.[1]?.spO2 === 99,
-    parsedByA,
+    'saving does not duplicate the record',
+    seenByA.items.filter(v => v.id === testRecordId).length === 1,
   );
 
-  // 6) Overwrite replaces the row instead of duplicating it.
-  parsed.items[0].name = 'Sync Self-Test Patient (updated)';
-  await deviceA.mutation(api.appData.saveCollection as AnyApi, { key: testKey, data: JSON.stringify(parsed) });
-  const updated = await readKey(deviceB, testKey);
-  check(
-    'saveCollection overwrites instead of duplicating',
-    typeof updated === 'string' && JSON.parse(updated as string).items.length === 1,
-  );
-
-  // 7) Cleanup.
-  await deviceA.mutation(api.appData.deleteCollection as AnyApi, { key: testKey });
-  check('cleanup removed the test row', (await readKey(deviceB, testKey)) === undefined);
+  // 6) Cleanup: put the collection back exactly as it was.
+  await deviceA.mutation(api.appData.saveCollection as AnyApi, {
+    key: 'vitals',
+    data: payload(baseline.v, cleanedUp),
+  });
+  const afterCleanup = await readPayload(deviceB, 'vitals');
+  check('cleanup removed the self-test record', !afterCleanup.items.some(v => v.id === testRecordId));
 } catch (err) {
   failures++;
   console.error('(FAIL) unexpected error:', err);

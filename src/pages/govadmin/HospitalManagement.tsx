@@ -37,7 +37,7 @@ type FormState = {
 };
 
 const EMPTY_FORM: FormState = {
-  name: '', type: 'government', address: '', district: 'Madurai',
+  name: '', type: 'government', address: '', district: '',
   phone: '', email: '', departments: '', services: '',
   totalBeds: 50, adminName: '', adminUsername: '', adminEmail: '',
   adminPhone: '', adminPassword: '',
@@ -45,7 +45,15 @@ const EMPTY_FORM: FormState = {
 
 export default function HospitalManagement() {
   const { currentUser } = useApp();
-  const { hospitals, addHospital, updateHospital, toggleHospitalStatus, removeHospital, addStaffUser, staffUsers } = useData();
+  const { hospitals: allHospitals, addHospital, updateHospital, toggleHospitalStatus, removeHospital, addStaffUser, staffUsers, } = useData();
+  // District isolation is enforced by the BACKEND (see convex/authz.ts). This
+  // filter additionally hides anything an older offline cache may still hold
+  // for another district on this device.
+  const districtName = currentUser?.districtName;
+  const districtId = currentUser?.districtId;
+  const hospitals = allHospitals.filter(h =>
+    districtId ? (h.districtId ? h.districtId === districtId : h.district === districtName) : true,
+  );
   const [showForm, setShowForm] = useState(false);
   const [editingHospital, setEditingHospital] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,7 +100,11 @@ export default function HospitalManagement() {
       name: form.name,
       type: form.type,
       address: form.address,
-      district: form.district,
+      // A District Administrator's hospital always belongs to their own
+      // district; the backend derives and verifies this too.
+      district: districtName || form.district,
+      districtId,
+      districtName,
       state: 'Tamil Nadu',
       phone: form.phone,
       email: form.email,
@@ -174,7 +186,7 @@ export default function HospitalManagement() {
             Hospital Management
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Register and manage hospitals in your district
+            Register and manage hospitals in {districtName ? `${districtName} District` : 'your district'}
           </p>
         </div>
         <Button onClick={() => { setShowForm(true); setEditingHospital(null); setForm({ ...EMPTY_FORM }); }} className="gap-1.5">
@@ -336,7 +348,10 @@ export default function HospitalManagement() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">District</label>
-                <Input value={form.district} onChange={e => setForm(f => ({ ...f, district: e.target.value }))} />
+                <Input value={districtName || form.district} readOnly disabled className="bg-muted/40" />
+                <p className="text-[11px] text-muted-foreground">
+                  Set automatically to your district ({districtId || '—'}). The backend rejects hospitals for any other district.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Phone *</label>

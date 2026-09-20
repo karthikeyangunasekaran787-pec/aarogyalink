@@ -182,38 +182,76 @@ export const healthWorkers: HealthWorker[] = [
 // ---------------------------------------------------------------------------
 import type { User } from '@/types';
 export const staffUsers: User[] = [
-  // ── District Administrator (auto-login, no password needed) ──────────
-  { id: 'uga1', name: 'District Collector', email: 'district@demo.com', role: 'gov_admin', username: 'collector.dist', phone: '9860100001', status: 'active', createdAt: '2026-01-01', lastLogin: '2026-09-01' },
+  // ── District Administrators ──────────────────────────────────────────
+  // Each District Administrator belongs to exactly ONE district; the backend
+  // scopes their hospitals, staff and analytics to it. Only the Overall
+  // Administrator may create them.
+  { id: 'uga1', name: 'Pudukkottai District Administrator', email: 'distadmin.pdk@tn.gov.in', role: 'gov_admin', username: 'distadmin_pdk', password: 'PDK@2026Admin', phone: '9860100001', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdBy: 'overall_admin', createdAt: '2026-01-01', lastLogin: '2026-09-01' },
+  { id: 'ustaff-da2', name: 'Tiruchirappalli District Administrator', email: 'distadmin.try@tn.gov.in', role: 'gov_admin', username: 'distadmin_trichy', password: 'TRY@2026Admin', phone: '9860100002', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', status: 'active', createdBy: 'overall_admin', createdAt: '2026-02-01', lastLogin: '2026-09-01' },
 
   // ── Hospital 1: Pudukkottai Government Hospital (HOS-PDK-001) ────────
-  { id: 'ustaff-ha1', name: 'Rajesh Kumar', email: 'rajesh@pgsh.gov.in', role: 'hospital_admin', username: 'rajesh.pdk001', password: 'Admin@123', phone: '9840100001', facilityId: 'h1', status: 'active', createdAt: '2024-03-15', lastLogin: '2026-09-01', mustChangePassword: true },
-  { id: 'ustaff-doc1', name: 'Dr. Arun Kumar', email: 'arun@pgsh.gov.in', role: 'doctor', username: 'arun.pdk001', password: 'Doctor@123', phone: '9840100101', facilityId: 'h1', departmentId: 'Cardiology', status: 'active', createdAt: '2024-04-01', mustChangePassword: true },
-  { id: 'ustaff-doc2', name: 'Dr. Priya Sharma', email: 'priya@pgsh.gov.in', role: 'doctor', username: 'priya.pdk002', password: 'Doctor@123', phone: '9840100102', facilityId: 'h1', departmentId: 'General Medicine', status: 'active', createdAt: '2024-04-01', mustChangePassword: true },
-  { id: 'ustaff-hw1', name: 'Suganthi M', email: 'suganthi@pgsh.gov.in', role: 'health_worker', username: 'suganthi.pdk001', password: 'HW@12345', phone: '9840100201', facilityId: 'h1', status: 'active', createdAt: '2024-05-01', mustChangePassword: true },
+  { id: 'ustaff-ha1', name: 'Rajesh Kumar', email: 'rajesh@pgsh.gov.in', role: 'hospital_admin', username: 'rajesh.pdk001', password: 'Admin@123', phone: '9840100001', facilityId: 'h1', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2024-03-15', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc1', name: 'Dr. Arun Kumar', email: 'arun@pgsh.gov.in', role: 'doctor', username: 'arun.pdk001', password: 'Doctor@123', phone: '9840100101', facilityId: 'h1', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'Cardiology', status: 'active', createdAt: '2024-04-01', mustChangePassword: true },
+  { id: 'ustaff-doc2', name: 'Dr. Priya Sharma', email: 'priya@pgsh.gov.in', role: 'doctor', username: 'priya.pdk002', password: 'Doctor@123', phone: '9840100102', facilityId: 'h1', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'General Medicine', status: 'active', createdAt: '2024-04-01', mustChangePassword: true },
+  { id: 'ustaff-hw1', name: 'Suganthi M', email: 'suganthi@pgsh.gov.in', role: 'health_worker', username: 'suganthi.pdk001', password: 'HW@12345', phone: '9840100201', facilityId: 'h1', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2024-05-01', mustChangePassword: true },
 
   // ── Hospital 2: Alangudi Primary Health Centre (HOS-PDK-002) ─────────
-  { id: 'ustaff-ha2', name: 'Meena Devi', email: 'meena@aphc.gov.in', role: 'hospital_admin', username: 'meena.pdk002', password: 'Admin@123', phone: '9840100002', facilityId: 'h2', status: 'active', createdAt: '2024-06-20', lastLogin: '2026-09-01', mustChangePassword: true },
-  { id: 'ustaff-doc3', name: 'Dr. Ravi Shankar', email: 'ravi@aphc.gov.in', role: 'doctor', username: 'ravi.pdk003', password: 'Doctor@123', phone: '9840100103', facilityId: 'h2', departmentId: 'General Medicine', status: 'active', createdAt: '2024-07-01', mustChangePassword: true },
-  { id: 'ustaff-doc4', name: 'Dr. Kavitha N', email: 'kavitha@aphc.gov.in', role: 'doctor', username: 'kavitha.pdk004', password: 'Doctor@123', phone: '9840100104', facilityId: 'h2', departmentId: 'Maternity', status: 'active', createdAt: '2024-07-01', mustChangePassword: true },
-  { id: 'ustaff-hw2', name: 'Rajendran K', email: 'rajendran@aphc.gov.in', role: 'health_worker', username: 'rajendran.pdk002', password: 'HW@12345', phone: '9840100202', facilityId: 'h2', status: 'active', createdAt: '2024-08-01', mustChangePassword: true },
+  { id: 'ustaff-ha2', name: 'Meena Devi', email: 'meena@aphc.gov.in', role: 'hospital_admin', username: 'meena.pdk002', password: 'Admin@123', phone: '9840100002', facilityId: 'h2', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2024-06-20', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc3', name: 'Dr. Ravi Shankar', email: 'ravi@aphc.gov.in', role: 'doctor', username: 'ravi.pdk003', password: 'Doctor@123', phone: '9840100103', facilityId: 'h2', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'General Medicine', status: 'active', createdAt: '2024-07-01', mustChangePassword: true },
+  { id: 'ustaff-doc4', name: 'Dr. Kavitha N', email: 'kavitha@aphc.gov.in', role: 'doctor', username: 'kavitha.pdk004', password: 'Doctor@123', phone: '9840100104', facilityId: 'h2', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'Maternity', status: 'active', createdAt: '2024-07-01', mustChangePassword: true },
+  { id: 'ustaff-hw2', name: 'Rajendran K', email: 'rajendran@aphc.gov.in', role: 'health_worker', username: 'rajendran.pdk002', password: 'HW@12345', phone: '9840100202', facilityId: 'h2', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2024-08-01', mustChangePassword: true },
 
   // ── Hospital 3: Aranthangi Community Health Centre (HOS-PDK-003) ──────
-  { id: 'ustaff-ha3', name: 'Senthil Murugan', email: 'senthil@achc.gov.in', role: 'hospital_admin', username: 'senthil.pdk003', password: 'Admin@123', phone: '9840100003', facilityId: 'h3', status: 'active', createdAt: '2024-01-10', lastLogin: '2026-09-01', mustChangePassword: true },
-  { id: 'ustaff-doc5', name: 'Dr. Mohan Prasad', email: 'mohan@achc.gov.in', role: 'doctor', username: 'mohan.pdk005', password: 'Doctor@123', phone: '9840100105', facilityId: 'h3', departmentId: 'Surgery', status: 'active', createdAt: '2024-02-01', mustChangePassword: true },
-  { id: 'ustaff-doc6', name: 'Dr. Kamala Devi', email: 'kamala@achc.gov.in', role: 'doctor', username: 'kamala.pdk006', password: 'Doctor@123', phone: '9840100106', facilityId: 'h3', departmentId: 'Paediatrics', status: 'active', createdAt: '2024-02-01', mustChangePassword: true },
-  { id: 'ustaff-hw3', name: 'Senthil Kumaran', email: 'senthilk@achc.gov.in', role: 'health_worker', username: 'senthilk.pdk003', password: 'HW@12345', phone: '9840100203', facilityId: 'h3', status: 'active', createdAt: '2024-03-01', mustChangePassword: true },
+  { id: 'ustaff-ha3', name: 'Senthil Murugan', email: 'senthil@achc.gov.in', role: 'hospital_admin', username: 'senthil.pdk003', password: 'Admin@123', phone: '9840100003', facilityId: 'h3', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2024-01-10', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc5', name: 'Dr. Mohan Prasad', email: 'mohan@achc.gov.in', role: 'doctor', username: 'mohan.pdk005', password: 'Doctor@123', phone: '9840100105', facilityId: 'h3', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'Surgery', status: 'active', createdAt: '2024-02-01', mustChangePassword: true },
+  { id: 'ustaff-doc6', name: 'Dr. Kamala Devi', email: 'kamala@achc.gov.in', role: 'doctor', username: 'kamala.pdk006', password: 'Doctor@123', phone: '9840100106', facilityId: 'h3', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'Paediatrics', status: 'active', createdAt: '2024-02-01', mustChangePassword: true },
+  { id: 'ustaff-hw3', name: 'Senthil Kumaran', email: 'senthilk@achc.gov.in', role: 'health_worker', username: 'senthilk.pdk003', password: 'HW@12345', phone: '9840100203', facilityId: 'h3', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2024-03-01', mustChangePassword: true },
 
   // ── Hospital 4: Illupur Government Hospital (HOS-PDK-004) ────────────
-  { id: 'ustaff-ha4', name: 'Kavitha R', email: 'kavitha.r@igh.gov.in', role: 'hospital_admin', username: 'kavitha.pdk004', password: 'Admin@123', phone: '9840100004', facilityId: 'h4', status: 'active', createdAt: '2024-09-01', lastLogin: '2026-09-01', mustChangePassword: true },
-  { id: 'ustaff-doc7', name: 'Dr. Rajesh Verma', email: 'rajeshv@igh.gov.in', role: 'doctor', username: 'rajeshv.pdk007', password: 'Doctor@123', phone: '9840100107', facilityId: 'h4', departmentId: 'General Medicine', status: 'active', createdAt: '2024-10-01', mustChangePassword: true },
-  { id: 'ustaff-doc8', name: 'Dr. Anitha R', email: 'anitha@igh.gov.in', role: 'doctor', username: 'anitha.pdk008', password: 'Doctor@123', phone: '9840100108', facilityId: 'h4', departmentId: 'Orthopaedics', status: 'active', createdAt: '2024-10-01', mustChangePassword: true },
-  { id: 'ustaff-hw4', name: 'Kumar S', email: 'kumar@igh.gov.in', role: 'health_worker', username: 'kumar.pdk004', password: 'HW@12345', phone: '9840100204', facilityId: 'h4', status: 'active', createdAt: '2024-11-01', mustChangePassword: true },
+  { id: 'ustaff-ha4', name: 'Kavitha R', email: 'kavitha.r@igh.gov.in', role: 'hospital_admin', username: 'kavitha.pdk004', password: 'Admin@123', phone: '9840100004', facilityId: 'h4', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2024-09-01', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc7', name: 'Dr. Rajesh Verma', email: 'rajeshv@igh.gov.in', role: 'doctor', username: 'rajeshv.pdk007', password: 'Doctor@123', phone: '9840100107', facilityId: 'h4', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'General Medicine', status: 'active', createdAt: '2024-10-01', mustChangePassword: true },
+  { id: 'ustaff-doc8', name: 'Dr. Anitha R', email: 'anitha@igh.gov.in', role: 'doctor', username: 'anitha.pdk008', password: 'Doctor@123', phone: '9840100108', facilityId: 'h4', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'Orthopaedics', status: 'active', createdAt: '2024-10-01', mustChangePassword: true },
+  { id: 'ustaff-hw4', name: 'Kumar S', email: 'kumar@igh.gov.in', role: 'health_worker', username: 'kumar.pdk004', password: 'HW@12345', phone: '9840100204', facilityId: 'h4', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2024-11-01', mustChangePassword: true },
 
   // ── Hospital 5: Gandaravakottai PHC (HOS-PDK-005) ───────────────────
-  { id: 'ustaff-ha5', name: 'Priya Shankar', email: 'priya@gphc.gov.in', role: 'hospital_admin', username: 'priya.pdk005', password: 'Admin@123', phone: '9840100005', facilityId: 'h5', status: 'active', createdAt: '2025-02-01', lastLogin: '2026-09-01', mustChangePassword: true },
-  { id: 'ustaff-doc9', name: 'Dr. Senthil Kumar', email: 'senthild@gphc.gov.in', role: 'doctor', username: 'senthild.pdk009', password: 'Doctor@123', phone: '9840100109', facilityId: 'h5', departmentId: 'General Medicine', status: 'active', createdAt: '2025-03-01', mustChangePassword: true },
-  { id: 'ustaff-doc10', name: 'Dr. Lakshmi P', email: 'lakshmi@gphc.gov.in', role: 'doctor', username: 'lakshmi.pdk010', password: 'Doctor@123', phone: '9840100110', facilityId: 'h5', departmentId: 'General Medicine', status: 'active', createdAt: '2025-03-01', mustChangePassword: true },
-  { id: 'ustaff-hw5', name: 'Anitha V', email: 'anitha@gphc.gov.in', role: 'health_worker', username: 'anitha.pdk005', password: 'HW@12345', phone: '9840100205', facilityId: 'h5', status: 'active', createdAt: '2025-04-01', mustChangePassword: true },
+  { id: 'ustaff-ha5', name: 'Priya Shankar', email: 'priya@gphc.gov.in', role: 'hospital_admin', username: 'priya.pdk005', password: 'Admin@123', phone: '9840100005', facilityId: 'h5', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2025-02-01', lastLogin: '2026-09-01', mustChangePassword: true },
+  { id: 'ustaff-doc9', name: 'Dr. Senthil Kumar', email: 'senthild@gphc.gov.in', role: 'doctor', username: 'senthild.pdk009', password: 'Doctor@123', phone: '9840100109', facilityId: 'h5', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'General Medicine', status: 'active', createdAt: '2025-03-01', mustChangePassword: true },
+  { id: 'ustaff-doc10', name: 'Dr. Lakshmi P', email: 'lakshmi@gphc.gov.in', role: 'doctor', username: 'lakshmi.pdk010', password: 'Doctor@123', phone: '9840100110', facilityId: 'h5', districtId: 'DIST-PDK', districtName: 'Pudukkottai', departmentId: 'General Medicine', status: 'active', createdAt: '2025-03-01', mustChangePassword: true },
+  { id: 'ustaff-hw5', name: 'Anitha V', email: 'anitha@gphc.gov.in', role: 'health_worker', username: 'anitha.pdk005', password: 'HW@12345', phone: '9840100205', facilityId: 'h5', districtId: 'DIST-PDK', districtName: 'Pudukkottai', status: 'active', createdAt: '2025-04-01', mustChangePassword: true },
+
+  // ── Tiruchirappalli District (HOS-TRY-001..003) ─────────────────────
+  // Hospital 6: Tiruchirappalli Government Hospital (HOS-TRY-001)
+  { id: 'ustaff-ha6', name: 'Balamurugan S', email: 'bala@trygh.gov.in', role: 'hospital_admin', username: 'hosadmin_try1', password: 'TRYHOS@2026', phone: '9840100006', facilityId: 'h6', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', status: 'active', createdAt: '2026-02-10', lastLogin: '2026-09-01' },
+  { id: 'ustaff-doc11', name: 'Dr. Suresh Kumar', email: 'suresh@trygh.gov.in', role: 'doctor', username: 'doctor_try1', password: 'TRYDOC@2026', phone: '9840100111', facilityId: 'h6', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', departmentId: 'General Medicine', status: 'active', createdAt: '2026-02-10' },
+  { id: 'ustaff-doc12', name: 'Dr. Meena R', email: 'meena@trygh.gov.in', role: 'doctor', username: 'doctor_try2', password: 'TRYDOC2@2026', phone: '9840100112', facilityId: 'h6', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', departmentId: 'Cardiology', status: 'active', createdAt: '2026-02-10' },
+  { id: 'ustaff-hw6', name: 'Kannan M', email: 'kannan@trygh.gov.in', role: 'health_worker', username: 'worker_try1', password: 'TRYWORK@2026', phone: '9840100206', facilityId: 'h6', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', status: 'active', createdAt: '2026-02-11' },
+
+  // Hospital 7: Manapparai Government Hospital (HOS-TRY-002)
+  { id: 'ustaff-ha7', name: 'Vijayalakshmi K', email: 'viji@manapparai.gov.in', role: 'hospital_admin', username: 'hosadmin_try2', password: 'TRYHOS2@2026', phone: '9840100007', facilityId: 'h7', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', status: 'active', createdAt: '2026-02-12', lastLogin: '2026-09-01' },
+  { id: 'ustaff-doc13', name: 'Dr. Arun Prakash', email: 'arun.p@manapparai.gov.in', role: 'doctor', username: 'doctor_try3', password: 'TRYDOC3@2026', phone: '9840100113', facilityId: 'h7', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', departmentId: 'General Medicine', status: 'active', createdAt: '2026-02-12' },
+  { id: 'ustaff-hw7', name: 'Selvi K', email: 'selvi@manapparai.gov.in', role: 'health_worker', username: 'worker_try2', password: 'TRYWORK2@2026', phone: '9840100207', facilityId: 'h7', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', status: 'active', createdAt: '2026-02-13' },
+
+  // Hospital 8: Srirangam Government Hospital (HOS-TRY-003)
+  { id: 'ustaff-ha8', name: 'Ramesh Babu', email: 'ramesh@srirangam.gov.in', role: 'hospital_admin', username: 'hosadmin_try3', password: 'TRYHOS3@2026', phone: '9840100008', facilityId: 'h8', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', status: 'active', createdAt: '2026-02-14', lastLogin: '2026-09-01' },
+  { id: 'ustaff-doc14', name: 'Dr. Lakshmi Narayanan', email: 'lakshmi.n@srirangam.gov.in', role: 'doctor', username: 'doctor_try4', password: 'TRYDOC4@2026', phone: '9840100114', facilityId: 'h8', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', departmentId: 'General Medicine', status: 'active', createdAt: '2026-02-14' },
+  { id: 'ustaff-hw8', name: 'Murugan R', email: 'murugan@srirangam.gov.in', role: 'health_worker', username: 'worker_try3', password: 'TRYWORK3@2026', phone: '9840100208', facilityId: 'h8', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli', status: 'active', createdAt: '2026-02-15' },
+];
+
+// ---------------------------------------------------------------------------
+// Districts (created by the Overall Administrator)
+// ---------------------------------------------------------------------------
+import type { District } from '@/types';
+export const districts: District[] = [
+  {
+    id: 'dist-pdk', districtId: 'DIST-PDK', name: 'Pudukkottai',
+    displayName: 'Pudukkottai District', state: 'Tamil Nadu', headquarters: 'Pudukkottai',
+    createdByUserId: 'overall_admin', createdAt: '2026-01-01',
+  },
+  {
+    id: 'dist-try', districtId: 'DIST-TRY', name: 'Tiruchirappalli',
+    displayName: 'Tiruchirappalli District', state: 'Tamil Nadu', headquarters: 'Tiruchirappalli',
+    createdByUserId: 'overall_admin', createdAt: '2026-02-01',
+  },
 ];
 
 // ---------------------------------------------------------------------------

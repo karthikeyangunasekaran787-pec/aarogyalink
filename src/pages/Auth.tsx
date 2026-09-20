@@ -253,6 +253,13 @@ export default function AuthPage() {
     }
 
     // 2) Local fallback (offline-first): accounts this device knows about.
+    //
+    // DEMO/PROTOTYPE ONLY. This compares against the cached demo credentials so
+    // field devices keep working without connectivity. It is NOT a security
+    // boundary: it grants routing access only, and every protected backend
+    // operation still requires the server-issued session binding created by
+    // loginStaffSession. TODO(production): move staff accounts into Convex Auth
+    // with hashed passwords and delete this branch.
     if (!identity && !disabled) {
       const staffUser = staffUsers.find(u => u.username === username.trim());
       const passwordOk = !!staffUser && (!staffUser.password || staffUser.password === password);

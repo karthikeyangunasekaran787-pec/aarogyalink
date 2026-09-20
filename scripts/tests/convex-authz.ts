@@ -270,6 +270,98 @@ try {
     const stillThere = await read(district);
     check('hospital user cannot delete a shared collection', deletionRejected && (stillThere.doctors?.length ?? 0) > 0);
 
+    // ── 5b) Patient attribution & cross-hospital isolation ────────
+    // A hospital may only see its own registered patients (plus shared
+    // unattributed demo records). We create one patient as hospital A, check
+    // hospital B can neither see nor steal it, then remove it again.
+    const testPatientId = 'p-authtest-isolation';
+    const testPatient = {
+      id: testPatientId,
+      userId: 'u-authtest',
+      healthCardId: 'AL-PT-2026-900',
+      registeredByEmail: 'authtest@example.com',
+      registeredAt: '2026-09-20',
+      name: 'Authorization Test Patient',
+      age: 30,
+      gender: 'other',
+      phone: '9000000000',
+      address: 'Isolation Test Address',
+      village: 'Isolation Test Village',
+      district: 'Pudukkottai',
+      state: 'Tamil Nadu',
+      registeredByFacilityId: hospitalA,
+      createdAt: '2026-09-20',
+    };
+    const patientsBeforeA = a.patients ?? [];
+    try {
+      await hospitalAClient.mutation(api.appData.saveCollection as AnyApi, {
+        key: 'patients',
+        data: payloadOf([...patientsBeforeA, testPatient]),
+      });
+      const aAfter = await read(hospitalAClient);
+      check(
+        'hospital A sees the patient it registered',
+        (aAfter.patients ?? []).some(p => s(p.id) === testPatientId),
+      );
+
+      const bAfter = await read(hospitalBClient);
+      check(
+        "hospital B cannot see hospital A's registered patient",
+        !(bAfter.patients ?? []).some(p => s(p.id) === testPatientId),
+        (bAfter.patients ?? []).map(p => p.id),
+      );
+
+      // Hospital B must not be able to claim or overwrite it either.
+      await hospitalBClient.mutation(api.appData.saveCollection as AnyApi, {
+        key: 'patients',
+        data: payloadOf([
+          ...(bAfter.patients ?? []),
+          { ...testPatient, name: 'STOLEN', registeredByFacilityId: hospitalB },
+        ]),
+      });
+      const afterTheft = await read(district);
+      const storedTest = (afterTheft.patients ?? []).find(p => s(p.id) === testPatientId);
+      check(
+        "hospital B cannot steal or overwrite hospital A's patient",
+        storedTest !== undefined &&
+          storedTest.name !== 'STOLEN' &&
+          s(storedTest.registeredByFacilityId) === hospitalA,
+        storedTest,
+      );
+    } finally {
+      await hospitalAClient.mutation(api.appData.saveCollection as AnyApi, {
+        key: 'patients',
+        data: payloadOf(patientsBeforeA.filter(p => s(p.id) !== testPatientId)),
+      });
+      const cleaned = await read(district);
+      check(
+        'isolation test patient was cleaned up',
+        !(cleaned.patients ?? []).some(p => s(p.id) === testPatientId),
+      );
+    }
+
+    // Invariant: everything a hospital sees is its own or unattributed, and its
+    // clinical records only ever reference patients it may see.
+    check(
+      'hospital A: patients are own or unattributed only',
+      (a.patients ?? []).every(p => {
+        const owner = s(p.registeredByFacilityId);
+        return !owner || owner === hospitalA;
+      }),
+      (a.patients ?? []).filter(p => s(p.registeredByFacilityId) && s(p.registeredByFacilityId) !== hospitalA),
+    );
+    const visibleIds = new Set((a.patients ?? []).map(p => s(p.id)));
+    check(
+      'hospital A: clinical records reference only visible patients',
+      ['vitals', 'consultations', 'followups', 'healthRecords'].every(key =>
+        (a[key] ?? []).every(r => visibleIds.has(s(r.patientId))),
+      ),
+      ['vitals', 'consultations', 'followups', 'healthRecords'].map(key => ({
+        key,
+        leaked: (a[key] ?? []).filter(r => !visibleIds.has(s(r.patientId))).map(r => s(r.patientId)),
+      })),
+    );
+
     // ── 6) Patient scope ──────────────────────────────────────────
     const withEmail = patients.find(p => s(p.registeredByEmail) && s(p.id));
     if (withEmail) {

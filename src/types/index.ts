@@ -49,6 +49,13 @@ export interface Patient {
   emergencyContact?: string;
   allergies?: string[];
   chronicConditions?: string[];
+  /**
+   * Hospital/facility that registered this patient. Set automatically by
+   * `addPatient` from the registering health worker's facility, and used by the
+   * backend to keep each patient's clinical record inside their hospital.
+   * Absent on seeded/legacy records, which are treated as shared demo data.
+   */
+  registeredByFacilityId?: string;
   createdAt: string;
 }
 

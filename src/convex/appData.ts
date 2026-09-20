@@ -3,12 +3,15 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import {
+  CLINICAL_COLLECTIONS,
   mergeAuthorizedWrite,
   parseEnvelope,
   payloadFits,
   scopeCollectionsForRead,
   serializeEnvelope,
+  writablePatientIdsForHospital,
   type SessionScope,
+  type WriteScope,
 } from "./authz";
 
 /**
@@ -54,6 +57,27 @@ async function resolveScope(ctx: Ctx): Promise<{ userId: string; scope: SessionS
   return { userId, scope: null };
 }
 
+/** Read the raw items of one stored collection (never throws on bad payloads). */
+async function readItems(ctx: Ctx, key: string): Promise<unknown[]> {
+  const row = await ctx.db.query("collections").withIndex("by_key", q => q.eq("key", key)).unique();
+  return parseEnvelope(row?.data)?.items ?? [];
+}
+
+/**
+ * Work out which patients a hospital may record clinical data for. Derived from
+ * the STORED patients/referrals/appointments, so a hospital cannot widen its
+ * own scope by sending a crafted payload.
+ */
+async function writeScopeFor(ctx: Ctx, key: string, scope: SessionScope | null): Promise<WriteScope | undefined> {
+  if (!scope || scope.kind !== "hospital" || !CLINICAL_COLLECTIONS.has(key)) return undefined;
+  const [patients, referrals, appointments] = await Promise.all([
+    readItems(ctx, "patients"),
+    readItems(ctx, "referrals"),
+    readItems(ctx, "appointments"),
+  ]);
+  return { writablePatientIds: writablePatientIdsForHospital(patients, referrals, appointments, scope.hospitalId) };
+}
+
 export const getAll = query({
   args: {},
   handler: async (ctx) => {
@@ -94,7 +118,8 @@ export const saveCollection = mutation({
 
     const storedEnvelope = existing ? parseEnvelope(existing.data) : null;
     const storedItems = storedEnvelope?.items ?? [];
-    const mergedItems = mergeAuthorizedWrite(key, storedItems, incoming.items, scope);
+    const write = await writeScopeFor(ctx, key, scope);
+    const mergedItems = mergeAuthorizedWrite(key, storedItems, incoming.items, scope, write);
 
     // Keep the client's data version so version checks stay client-side.
     if (!payloadFits(incoming.v, mergedItems)) {

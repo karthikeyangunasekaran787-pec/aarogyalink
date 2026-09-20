@@ -713,12 +713,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const patient: Patient = {
       ...data,
       ...ids,
+      // Attribute the patient to the registering health worker's facility so the
+      // backend can keep their record (and their clinical history) inside that
+      // hospital. Seeded/legacy records stay unattributed and remain shared.
+      registeredByFacilityId: data.registeredByFacilityId ?? currentUser?.facilityId,
       registeredAt: now().split('T')[0],
       createdAt: now().split('T')[0],
     };
     setPatients(prev => [...prev, patient]);
     return patient;
-  }, []);
+  }, [currentUser]);
 
   const addDoctor = useCallback((data: Omit<Doctor, 'id'>) => {
     const num = nextDoctorNum++;

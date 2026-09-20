@@ -13,6 +13,7 @@ import {
   scopeCollectionsForRead,
   scopeItemsForRead,
   serializeEnvelope,
+  writablePatientIdsForHospital,
   type SessionScope,
 } from '../../src/convex/authz';
 import { hospitalToFacility, mergedFacilities } from '../../src/contexts/DataContext';
@@ -238,5 +239,106 @@ describe('dynamic facilities (Fix 3)', () => {
     expect(facility.id).toBe('h9');
     expect(facility.name).toBe('Hospital C');
     expect(facility.totalBeds).toBe(100);
+  });
+});
+
+describe('hospital patient isolation', () => {
+  const patientRecords = [
+    { id: 'p1', name: 'Patient One', registeredByFacilityId: 'h1' },
+    { id: 'p2', name: 'Patient Two', registeredByFacilityId: 'h2' },
+    { id: 'p9', name: 'Seeded Patient' }, // unattributed: shared demo data
+  ];
+  const clinical = [
+    { id: 'v1', patientId: 'p1', spO2: 97 },
+    { id: 'v2', patientId: 'p2', spO2: 99 },
+    { id: 'v3', patientId: 'p9', spO2: 95 },
+  ];
+  const ids = (list: unknown[]) => (list as { id: string }[]).map(r => r.id).sort();
+
+  test('hospital sees only its own and unattributed patients', () => {
+    expect(ids(scopeItemsForRead('patients', patientRecords, hospitalA) as unknown[])).toEqual(['p1', 'p9']);
+  });
+
+  test('another hospital’s patient is not readable', () => {
+    const visible = scopeItemsForRead('patients', patientRecords, hospitalA) as { id: string }[];
+    expect(visible.some(p => p.id === 'p2')).toBe(false);
+  });
+
+  test('a referred patient becomes visible to the receiving hospital', () => {
+    const visible = scopeItemsForRead('patients', patientRecords, hospitalA, {
+      referrals: [{ id: 'r1', patientId: 'p2', sourceFacilityId: 'h2', destinationFacilityId: 'h1' }],
+    }) as unknown[];
+    expect(ids(visible)).toEqual(['p1', 'p2', 'p9']);
+  });
+
+  test('a patient booked at the hospital becomes visible too', () => {
+    const visible = scopeItemsForRead('patients', patientRecords, hospitalA, {
+      appointments: [{ id: 'a1', patientId: 'p2', facilityId: 'h1' }],
+    }) as unknown[];
+    expect(ids(visible)).toEqual(['p1', 'p2', 'p9']);
+  });
+
+  test('clinical records follow the visible patients', () => {
+    const visiblePatients = scopeItemsForRead('patients', patientRecords, hospitalA, {}) as unknown[];
+    const vitalsRead = scopeItemsForRead('vitals', clinical, hospitalA, { patients: visiblePatients }) as unknown[];
+    expect(ids(vitalsRead)).toEqual(['v1', 'v3']);
+  });
+
+  test('staff notifications without a patient link are kept', () => {
+    // Patient notifications are addressed to `u-<patientId>`; staff ones use a
+    // staff user id. Only the patient-addressed kind may be scoped away.
+    const notes = [
+      { id: 'n1', userId: 'ustaff-1' },
+      { id: 'n2', userId: 'u-p2' },
+    ];
+    const visiblePatients = scopeItemsForRead('patients', patientRecords, hospitalA, {}) as unknown[];
+    const read = scopeItemsForRead('notifications', notes, hospitalA, { patients: visiblePatients }) as unknown[];
+    expect(ids(read)).toEqual(['n1']);
+  });
+
+  test('hospital can register a patient attributed to itself', () => {
+    const owned = { id: 'p11', name: 'New Patient', registeredByFacilityId: 'h1' };
+    const merged = mergeAuthorizedWrite('patients', patientRecords, [...patientRecords, owned], hospitalA) as unknown[];
+    expect(ids(merged)).toContain('p11');
+  });
+
+  test('hospital cannot register a patient for another hospital', () => {
+    const forged = { id: 'p12', name: 'Forged', registeredByFacilityId: 'h2' };
+    const merged = mergeAuthorizedWrite('patients', patientRecords, [...patientRecords, forged], hospitalA) as unknown[];
+    expect(ids(merged)).not.toContain('p12');
+  });
+
+  test("hospital cannot take over another hospital's patient record", () => {
+    const tampered = { id: 'p2', name: 'TAMPERED', registeredByFacilityId: 'h1' };
+    const merged = mergeAuthorizedWrite('patients', patientRecords, [tampered], hospitalA) as {
+      id: string;
+      name: string;
+    }[];
+    expect(merged.find(p => p.id === 'p2')?.name).toBe('Patient Two');
+  });
+
+  test('a hospital payload never deletes other or shared patients', () => {
+    const merged = mergeAuthorizedWrite('patients', patientRecords, [], hospitalA) as unknown[];
+    expect(ids(merged)).toEqual(['p2', 'p9']);
+  });
+
+  test('clinical writes are limited to patients in scope', () => {
+    const writable = new Set(['p1', 'p9']);
+    const tampered = { ...clinical[1], spO2: 1 };
+    const merged = mergeAuthorizedWrite('vitals', clinical, [...clinical, tampered], hospitalA, {
+      writablePatientIds: writable,
+    }) as { id: string; spO2: number }[];
+    expect(merged.find(v => v.id === 'v2')?.spO2).toBe(99);
+    expect(merged).toHaveLength(3);
+  });
+
+  test('writable patient ids mirror the read scope', () => {
+    const writable = writablePatientIdsForHospital(
+      patientRecords,
+      [{ id: 'r1', patientId: 'p2', sourceFacilityId: 'h2', destinationFacilityId: 'h1' }],
+      [],
+      'h1',
+    );
+    expect([...writable].sort()).toEqual(['p1', 'p2', 'p9']);
   });
 });

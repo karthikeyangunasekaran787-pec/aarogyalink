@@ -53,11 +53,28 @@ const PATIENT_LINKED = new Set([
   'notifications',
 ]);
 
-/** Order matters: referralEvents are scoped through referrals. */
+/**
+ * Patient-linked collections that carry only a `patientId` (no hospital link),
+ * so a hospital caller is scoped through the patients they may see. `patients`
+ * itself is handled separately (it carries `registeredByFacilityId`).
+ */
+export const CLINICAL_COLLECTIONS = new Set([
+  'vitals',
+  'healthRecords',
+  'consultations',
+  'followups',
+  'notifications',
+]);
+
+/**
+ * Order matters: each collection is scoped using the already-filtered
+ * collections it depends on — referrals/appointments decide which patients a
+ * hospital may see, and the visible patients decide their clinical records.
+ */
 const READ_ORDER = [
   'referrals',
-  'patients',
   'appointments',
+  'patients',
   'followups',
   'vitals',
   'healthRecords',
@@ -78,6 +95,17 @@ export interface Envelope {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** Patient id a record belongs to, for the patient-linked collections. */
+function patientIdOf(key: string, record: unknown): string | undefined {
+  if (!isRecord(record)) return undefined;
+  if (key === 'notifications') return recordPatientLink(key, record);
+  return str(record.patientId);
 }
 
 export function parseEnvelope(raw: unknown): Envelope | null {
@@ -136,6 +164,61 @@ function recordPatientLink(key: string, record: unknown): string | undefined {
   return typeof record.patientId === 'string' ? record.patientId : undefined;
 }
 
+/**
+ * May this hospital see the given patient? A patient is visible when it was
+ * registered at that hospital, when it carries no facility link (seeded/legacy
+ * demo data that is intentionally shared), or when a referral or appointment
+ * ties it to the hospital (the explicit referral exception).
+ */
+function patientVisibleToHospital(
+  patient: unknown,
+  hospitalId: string,
+  context: { referrals?: unknown[]; appointments?: unknown[] },
+): boolean {
+  if (!isRecord(patient)) return false;
+  const owner = str(patient.registeredByFacilityId);
+  if (!owner) return true;
+  if (owner === hospitalId) return true;
+  const id = str(patient.id);
+  if (!id) return false;
+  const linked = (list?: unknown[]) => (list ?? []).some(r => isRecord(r) && str(r.patientId) === id);
+  return linked(context.referrals) || linked(context.appointments);
+}
+
+/**
+ * Patient ids a hospital may read AND write clinical data for. Mirrors
+ * `patientVisibleToHospital` at the collection level so a hospital's readable
+ * scope and its writable scope cannot drift apart.
+ */
+export function writablePatientIdsForHospital(
+  patients: unknown[],
+  referrals: unknown[],
+  appointments: unknown[],
+  hospitalId: string,
+): Set<string> {
+  const out = new Set<string>();
+  for (const patient of patients) {
+    if (!isRecord(patient)) continue;
+    const id = str(patient.id);
+    if (!id) continue;
+    const owner = str(patient.registeredByFacilityId);
+    if (!owner || owner === hospitalId) out.add(id);
+  }
+  for (const referral of referrals) {
+    if (!isRecord(referral)) continue;
+    const ties = str(referral.sourceFacilityId) === hospitalId || str(referral.destinationFacilityId) === hospitalId;
+    const id = str(referral.patientId);
+    if (ties && id) out.add(id);
+  }
+  for (const appointment of appointments) {
+    if (!isRecord(appointment)) continue;
+    if (str(appointment.facilityId) !== hospitalId) continue;
+    const id = str(appointment.patientId);
+    if (id) out.add(id);
+  }
+  return out;
+}
+
 // ── READ scoping ──────────────────────────────────────────────────
 
 /**
@@ -169,9 +252,21 @@ export function scopeItemsForRead(
     if (HOSPITAL_FIELDS[key]) {
       return items.filter(r => recordHospitalIds(key, r).includes(scope.hospitalId));
     }
-    // No hospital link stored on these records (patients, vitals, health
-    // records, consultations, follow-ups, notifications). They cannot be
-    // filtered by hospital with the current schema — see the module note.
+    if (key === 'patients') {
+      return items.filter(r => patientVisibleToHospital(r, scope.hospitalId, context));
+    }
+    // Clinical records carry only a patientId, so they follow the patients the
+    // hospital is allowed to see (owned + shared + referred/booked in).
+    if (CLINICAL_COLLECTIONS.has(key)) {
+      const visiblePatients = new Set(
+        (context.patients ?? []).map(p => (isRecord(p) && typeof p.id === 'string' ? p.id : '')),
+      );
+      return items.filter(r => {
+        const patientId = patientIdOf(key, r);
+        // Staff notifications carry no patient link; keep them for the staff UI.
+        return patientId === undefined || visiblePatients.has(patientId);
+      });
+    }
     return items;
   }
 
@@ -221,12 +316,73 @@ export function scopeCollectionsForRead(
 
 // ── WRITE scoping ─────────────────────────────────────────────────
 
+/**
+ * Extra context a write needs. `writablePatientIds` is computed by the caller
+ * (appData.ts) from the STORED patients/referrals/appointments, so a hospital
+ * can only record clinical data for patients inside its scope. When absent the
+ * previous (permissive) behaviour is kept, so unit callers and older deploys
+ * are unaffected.
+ */
+export interface WriteScope {
+  writablePatientIds?: Set<string>;
+}
+
+/** Preserve everything this hospital does not own; apply only its own patients. */
+function mergePatientsForHospital(stored: unknown[], incoming: unknown[], hospitalId: string): unknown[] {
+  const ownedByMe = (record: unknown) => str(isRecord(record) ? record.registeredByFacilityId : undefined) === hospitalId;
+  const storedByKey = new Map<string, unknown>();
+  for (const record of stored) storedByKey.set(mergeKeyOf(record), record);
+
+  const out: unknown[] = [];
+  // Keep other hospitals' patients AND unattributed (seeded/legacy) records.
+  for (const record of stored) if (!ownedByMe(record)) out.push(record);
+  for (const record of incoming) {
+    if (!isRecord(record)) continue;
+    const storedRecord = storedByKey.get(mergeKeyOf(record));
+    if (storedRecord) {
+      // Existing records are judged by their STORED owner, so a crafted payload
+      // cannot claim a patient that belongs to another hospital.
+      if (ownedByMe(storedRecord)) out.push(record);
+      continue;
+    }
+    const owner = str(record.registeredByFacilityId);
+    // A new patient must belong to this hospital. An absent link is accepted so
+    // older offline clients keep working (treated as shared, like the seeds).
+    if (owner === hospitalId || owner === undefined) out.push(record);
+  }
+  return out;
+}
+
+/** Preserve clinical records for patients outside the hospital's scope. */
+function mergeClinicalForHospital(
+  key: string,
+  stored: unknown[],
+  incoming: unknown[],
+  writablePatientIds: Set<string>,
+): unknown[] {
+  const belongs = (record: unknown) => {
+    const patientId = patientIdOf(key, record);
+    return patientId === undefined || writablePatientIds.has(patientId);
+  };
+  const storedByKey = new Map<string, unknown>();
+  for (const record of stored) storedByKey.set(mergeKeyOf(record), record);
+
+  const out: unknown[] = [];
+  for (const record of stored) if (!belongs(record)) out.push(record);
+  for (const record of incoming) {
+    const storedRecord = storedByKey.get(mergeKeyOf(record));
+    if (storedRecord ? belongs(storedRecord) : belongs(record)) out.push(record);
+  }
+  return out;
+}
+
 /** Merge one collection payload for a write from the given scope. */
 export function mergeAuthorizedWrite(
   key: string,
   stored: unknown[],
   incoming: unknown[],
   scope: SessionScope | null,
+  write?: WriteScope,
 ): unknown[] {
   // No binding → no writes at all; whatever is stored stays untouched.
   if (!scope) return stored;
@@ -252,11 +408,20 @@ export function mergeAuthorizedWrite(
     // District-level analytics are read-only for hospital users.
     if (DISTRICT_ONLY.has(key)) return stored;
 
+    // Patients are attributed to the registering hospital, so a hospital may
+    // only create/update its own and can never touch another hospital's record.
+    if (key === 'patients') {
+      return mergePatientsForHospital(stored, incoming, scope.hospitalId);
+    }
+    // Clinical records are scoped through the patients the hospital may see.
+    if (CLINICAL_COLLECTIONS.has(key) && write?.writablePatientIds) {
+      return mergeClinicalForHospital(key, stored, incoming, write.writablePatientIds);
+    }
+
     const fields = HOSPITAL_FIELDS[key];
     if (!fields) {
-      // Records without a hospital link cannot be verified (patients, vitals,
-      // health records, consultations, follow-ups, notifications). Writes stay
-      // allowed so registration and clinical capture keep working.
+      // Any other patient-linked record we have no ownership information for
+      // stays writable so registration and clinical capture keep working.
       return incoming;
     }
 

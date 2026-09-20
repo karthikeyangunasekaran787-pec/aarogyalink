@@ -66,7 +66,9 @@ async function writeScopeFor(ctx: Ctx, key: string, scope: SessionScope | null):
   if (!scope || (scope.kind !== "hospital" && scope.kind !== "district")) return undefined;
 
   const needsPatients = CLINICAL_COLLECTIONS.has(key) || key === "patients";
-  const needsReferrals = key === "referralEvents";
+  // Referrals themselves (workflow transitions) and their audit trail both need
+  // the referral set to describe what the caller may touch.
+  const needsReferrals = key === "referralEvents" || key === "referrals";
   if (!needsPatients && !needsReferrals && scope.kind !== "district") return undefined;
 
   const [referrals, patients, appointments] = await Promise.all([
@@ -106,6 +108,15 @@ async function writeScopeFor(ctx: Ctx, key: string, scope: SessionScope | null):
         .filter((id): id is string => typeof id === "string"),
     );
   }
+
+  // Audit fields on referral events are overwritten with the STORED identity, so
+  // a client cannot attribute a transition to somebody else.
+  write.actor = {
+    id: scope.kind === "district" ? scope.staffUserId : scope.staffUserId,
+    name: scope.kind === "district" ? scope.staffName ?? "District Administrator" : scope.staffName ?? "Hospital staff",
+    role: scope.kind === "district" ? "gov_admin" : scope.staffRole ?? "hospital_staff",
+    hospitalId: scope.kind === "district" ? undefined : scope.hospitalId,
+  };
 
   return write;
 }

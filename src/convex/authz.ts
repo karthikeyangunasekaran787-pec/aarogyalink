@@ -14,13 +14,32 @@
 // (see appSession.ts) — never from anything the client sends.
 // ============================================================================
 
+import {
+  REFERRAL_STATUS,
+  REFERRAL_TOTAL_STEPS,
+  canTransition,
+  referralStepOf,
+} from './referralStatus';
+
 export type SessionScope =
   /** Overall Administrator: the whole platform, every district. */
   | { kind: 'overall' }
   /** District Administrator: only their own district's facilities and records. */
-  | { kind: 'district'; districtId: string; districtName: string; staffUserId?: string }
-  | { kind: 'hospital'; hospitalId: string; staffUserId?: string }
+  | { kind: 'district'; districtId: string; districtName: string; staffUserId?: string; staffName?: string }
+  | { kind: 'hospital'; hospitalId: string; staffUserId?: string; staffName?: string; staffRole?: string }
   | { kind: 'patient'; patientId: string };
+
+/**
+ * The authenticated actor behind a write. Supplied by appData.ts from the
+ * STORED binding so audit fields can be overwritten server-side instead of
+ * trusting whatever the client put in the payload.
+ */
+export interface WriteActor {
+  id?: string;
+  name: string;
+  role: string;
+  hospitalId?: string;
+}
 
 /** Cloud collection key holding deletion tombstones. */
 export const TOMBSTONES_KEY = 'tombstones';
@@ -295,6 +314,9 @@ export interface BindingLike {
   hospitalId?: string;
   staffUserId?: string;
   patientId?: string;
+  /** Display name / username, used for audit attribution on writes. */
+  name?: string;
+  username?: string;
 }
 
 export function scopeFromBinding(binding: BindingLike | null | undefined): SessionScope | null {
@@ -308,13 +330,20 @@ export function scopeFromBinding(binding: BindingLike | null | undefined): Sessi
       districtId: binding.districtId,
       districtName: binding.districtName ?? binding.districtId,
       staffUserId: binding.staffUserId,
+      staffName: binding.name ?? binding.username,
     };
   }
   if (binding.role === 'patient' && binding.patientId) {
     return { kind: 'patient', patientId: binding.patientId };
   }
   if (binding.hospitalId) {
-    return { kind: 'hospital', hospitalId: binding.hospitalId, staffUserId: binding.staffUserId };
+    return {
+      kind: 'hospital',
+      hospitalId: binding.hospitalId,
+      staffUserId: binding.staffUserId,
+      staffName: binding.name ?? binding.username,
+      staffRole: binding.role,
+    };
   }
   return null;
 }
@@ -515,6 +544,8 @@ export interface WriteScope {
    * trail. Absent means "not enforced" (older deploys, unit callers).
    */
   foreignReferralIds?: Set<string>;
+  /** Authenticated actor, used to overwrite audit fields on referral events. */
+  actor?: WriteActor;
 }
 
 /**
@@ -577,15 +608,104 @@ function mergePatientsInScope(
 }
 
 /**
- * Referral events are appended by whichever facility runs the workflow. An
- * event may be written unless its referral belongs to another scope.
+ * Referral events are APPEND-ONLY. Stored history is never modified or removed
+ * (only events for referrals outside the caller's scope are withheld), and an
+ * appended event has its identity fields overwritten with the server-verified
+ * actor so a client cannot attribute an action to someone else.
  */
-function mergeReferralEvents(stored: unknown[], incoming: unknown[], foreignReferralIds: Set<string>): unknown[] {
+export function mergeReferralEvents(
+  stored: unknown[],
+  incoming: unknown[],
+  foreignReferralIds: Set<string>,
+  actor?: WriteActor,
+): unknown[] {
   const foreign = (record: unknown) =>
     isRecord(record) && typeof record.referralId === 'string' && foreignReferralIds.has(record.referralId);
   const out: unknown[] = [];
-  for (const record of stored) if (!foreign(record)) out.push(record);
-  for (const record of incoming) if (!foreign(record)) out.push(record);
+  const seen = new Set<string>();
+  for (const record of stored) {
+    if (foreign(record)) continue;
+    out.push(record);
+    if (isRecord(record) && typeof record.id === 'string') seen.add(record.id);
+  }
+  for (const record of incoming) {
+    if (!isRecord(record) || foreign(record)) continue;
+    const id = typeof record.id === 'string' ? record.id : undefined;
+    if (id) {
+      if (seen.has(id)) continue; // already stored — history is immutable
+      seen.add(id);
+    }
+    out.push(actor ? { ...record, ...serverActorFields(actor) } : record);
+  }
+  return out;
+}
+
+/** Server-derived audit fields (a client's own values are discarded). */
+function serverActorFields(actor: WriteActor): Record<string, unknown> {
+  return {
+    performedBy: actor.name,
+    performedByUserId: actor.id,
+    performedByRole: actor.role,
+    performedByFacilityId: actor.hospitalId,
+    actorId: actor.id,
+    actorName: actor.name,
+    actorRole: actor.role,
+    hospitalId: actor.hospitalId,
+  };
+}
+
+/**
+ * Referral writes keep the working fields editable but never let a caller jump
+ * the workflow: a status change that the canonical model does not allow is
+ * dropped (the stored record wins), so the collection path cannot be used to
+ * bypass the Referral Closure Engine.
+ */
+function mergeReferralsScoped(
+  stored: unknown[],
+  incoming: unknown[],
+  belongs: (record: unknown) => boolean,
+  canCreate: (record: unknown) => boolean,
+  actor?: WriteActor,
+): unknown[] {
+  const storedByKey = new Map<string, unknown>();
+  for (const record of stored) storedByKey.set(mergeKeyOf(record), record);
+
+  const out: unknown[] = [];
+  for (const record of stored) if (!belongs(record)) out.push(record);
+  for (const record of incoming) {
+    const storedRecord = storedByKey.get(mergeKeyOf(record));
+    if (!storedRecord) {
+      // A referral always STARTS at CREATED: a client cannot insert one that is
+      // already in flight or closed, and the creator is the server-side actor.
+      if (canCreate(record) && isRecord(record)) {
+        out.push({
+          ...record,
+          status: REFERRAL_STATUS.CREATED,
+          currentStep: referralStepOf(REFERRAL_STATUS.CREATED),
+          totalSteps: REFERRAL_TOTAL_STEPS,
+          createdByUserId: actor?.id ?? (record.createdByUserId as string | undefined),
+          createdByName: actor?.name ?? (record.createdByName as string | undefined),
+          createdByRole: actor?.role ?? (record.createdByRole as string | undefined),
+        });
+      }
+      continue;
+    }
+    if (!belongs(storedRecord)) continue; // another scope's referral
+    if (!isRecord(record) || !isRecord(storedRecord)) {
+      out.push(record);
+      continue;
+    }
+    const previous = str(storedRecord.status);
+    const next = str(record.status);
+    const statusChange = previous !== next;
+    if (statusChange && !canTransition(previous, next ?? '')) {
+      // Invalid transition — keep the stored status but let the caller's other
+      // field edits through (notes, appointment details, …).
+      out.push({ ...record, status: storedRecord.status });
+      continue;
+    }
+    out.push(record);
+  }
   return out;
 }
 
@@ -652,7 +772,7 @@ function mergeDistrictWrite(
   }
   if (key === 'referralEvents') {
     return write?.foreignReferralIds
-      ? mergeReferralEvents(stored, incoming, write.foreignReferralIds)
+      ? mergeReferralEvents(stored, incoming, write.foreignReferralIds, write.actor)
       : stored;
   }
   // Unknown collections default to DENY.
@@ -664,6 +784,12 @@ function mergeDistrictWrite(
     key === 'staffUsers' && isAdminRole(record)
       ? false
       : recordHospitalIds(key, record).some(ownsFacility) || inMyDistrict(record);
+
+  // Referrals additionally enforce the canonical workflow (the collection path
+  // must not be usable to skip the Referral Closure Engine).
+  if (key === 'referrals') {
+    return mergeReferralsScoped(stored, incoming, ownsStored, canCreate, write?.actor);
+  }
 
   return mergeScoped(stored, incoming, ownsStored, canCreate);
 }
@@ -718,7 +844,7 @@ export function mergeAuthorizedWrite(
     // Referral audit trail: never rewrite another scope's referral events.
     if (key === 'referralEvents') {
       return write?.foreignReferralIds
-        ? mergeReferralEvents(stored, incoming, write.foreignReferralIds)
+        ? mergeReferralEvents(stored, incoming, write.foreignReferralIds, write.actor)
         : incoming;
     }
     // Anything we have no ownership information for defaults to DENY.
@@ -726,13 +852,18 @@ export function mergeAuthorizedWrite(
 
     // Existing records are judged by their STORED owner (so a crafted payload
     // cannot claim ownership); new records must declare this hospital.
-    return mergeScoped(stored, incoming, record => {
+    const belongs = (record: unknown) => {
       // Hospital users must never create or alter an administrator account.
       if (key === 'staffUsers' && isRecord(record) && DISTRICT_LEVEL_ROLES.has(String(record.role))) {
         return false;
       }
       return recordHospitalIds(key, record).includes(scope.hospitalId);
-    });
+    };
+
+    // Referrals additionally enforce the canonical workflow.
+    if (key === 'referrals') return mergeReferralsScoped(stored, incoming, belongs, belongs, write?.actor);
+
+    return mergeScoped(stored, incoming, belongs);
   }
 
   // Patient scope: only their own records.

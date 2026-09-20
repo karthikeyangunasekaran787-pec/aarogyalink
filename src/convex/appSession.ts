@@ -34,7 +34,17 @@ function overallAdminEmail(): string {
   return (process.env.OVERALL_ADMIN_EMAIL ?? 'karthikeyangunasekaran787@gmail.com').trim().toLowerCase();
 }
 
-/** Email of the currently authenticated Convex user, or undefined. */
+/**
+ * Verified email of the currently authenticated Convex user, or undefined.
+ *
+ * Resolved in three steps, all server-side:
+ *   1. the identity claim on the session's JWT,
+ *   2. the user document the session belongs to,
+ *   3. the provider account the session's user actually verified — the
+ *      authoritative record, because an account can be linked to a user whose
+ *      document carries no email (Convex Auth links a verified email account to
+ *      the session's existing user).
+ */
 async function callerEmail(ctx: Ctx): Promise<string | undefined> {
   const identity = await ctx.auth.getUserIdentity();
   const fromIdentity = str(identity?.email);
@@ -42,7 +52,20 @@ async function callerEmail(ctx: Ctx): Promise<string | undefined> {
   const userId = await getAuthUserId(ctx);
   if (userId === null) return undefined;
   const user = await ctx.db.get(userId);
-  return str(user?.email)?.toLowerCase();
+  const fromUser = str(user?.email)?.toLowerCase();
+  if (fromUser) return fromUser;
+  // Fall back to the accounts this user signed in with: only an account that
+  // was created by verifying an emailed code for that address exists here, so
+  // its providerAccountId/emailVerified IS a verified address.
+  const accounts = await ctx.db
+    .query('authAccounts')
+    .withIndex('userIdAndProvider', q => q.eq('userId', userId).eq('provider', 'email-otp'))
+    .collect();
+  for (const account of accounts) {
+    const verified = str(account.emailVerified) ?? str(account.providerAccountId);
+    if (verified) return verified.toLowerCase();
+  }
+  return undefined;
 }
 
 type Ctx = QueryCtx | MutationCtx;
@@ -267,7 +290,14 @@ export const loginOverallSession = mutation({
     const userId = await requireUserId(ctx);
     const email = await callerEmail(ctx);
     if (!email || email !== overallAdminEmail()) {
-      return { ok: false as const, reason: 'not_master' };
+      // `observedEmail` is the caller's OWN verified address (never the
+      // configured master address), so the sign-in screen can say exactly what
+      // went wrong: no verified email on this session, or a different address.
+      return {
+        ok: false as const,
+        reason: email ? ('not_master' as const) : ('no_verified_email' as const),
+        observedEmail: email ?? null,
+      };
     }
     const token = await upsertBinding(ctx, userId, {
       role: 'overall_admin',

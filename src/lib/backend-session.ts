@@ -13,6 +13,27 @@
 //            returns without a page reload.
 // ============================================================================
 
+// ----------------------------------------------------------------------------
+// Anonymous-session suspension
+// ----------------------------------------------------------------------------
+// The app keeps an ANONYMOUS Convex Auth session purely as transport so the
+// backend can authorize the demo logins. While a real sign-in is in flight
+// (Overall Administrator: master email + emailed one-time code) that anonymous
+// session must not be (re)created, otherwise it replaces the freshly verified
+// session and the backend then sees a caller with no email address.
+// ----------------------------------------------------------------------------
+
+let anonymousAuthSuspended = false;
+
+/** Pause automatic anonymous sign-in while a real sign-in is in progress. */
+export function setAnonymousAuthSuspended(value: boolean): void {
+  anonymousAuthSuspended = value;
+}
+
+export function isAnonymousAuthSuspended(): boolean {
+  return anonymousAuthSuspended;
+}
+
 export const BACKEND_TOKEN_KEY = 'aal_backend_token';
 
 export function readBackendToken(): string | null {

@@ -15,6 +15,7 @@ import { useData } from '@/contexts/DataContext';
 import {
   clearPendingLogin,
   rememberPendingLogin,
+  setAnonymousAuthSuspended,
   writeBackendToken,
 } from '@/lib/backend-session';
 import type { Role } from '@/types';
@@ -138,24 +139,44 @@ export default function AuthPage() {
       return;
     }
     setLoading(true);
+    // While this real sign-in runs, the app must NOT create its usual anonymous
+    // transport session: that would replace the freshly verified session and
+    // leave the backend looking at a caller with no email address.
+    setAnonymousAuthSuspended(true);
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     try {
+      // Start from a clean slate so the emailed code opens a session for the
+      // MASTER address instead of upgrading whatever session is already there.
+      try { await signOut(); } catch { /* no session to drop */ }
       await signIn('email-otp', { email: masterEmail.trim(), code: masterCode.trim() });
-      const result = await loginOverallSession({});
-      if (!result?.ok || !result.token) {
-        // Not the master account: drop the Convex session we just opened so the
-        // visitor is not left authenticated but unbound.
+
+      // The verified session has to be live before the binding call; the
+      // backend reports an empty `observedEmail` until it is.
+      let observed = '';
+      let bound: { token?: string; user?: { id: string; name?: string; email?: string } } | null = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const result = await loginOverallSession({});
+        if (result?.ok && result.token) { bound = result; break; }
+        observed = (result as { observedEmail?: string | null })?.observedEmail ?? '';
+        if (observed) break; // a real answer: this address is not the master
+        await sleep(400);
+      }
+
+      if (!bound?.token) {
         try { await signOut(); } catch { /* ok */ }
         setLoading(false);
-        setError('This email is not the Overall Administrator account for AarogyaLink.');
+        setError(observed
+          ? `Signed in as ${observed}, but the Overall Administrator of AarogyaLink is another address. Sign in with the master email.`
+          : 'Could not verify this session with the backend. Please request a new code and try again.');
         return;
       }
-      writeBackendToken(result.token);
+      writeBackendToken(bound.token);
       clearPendingLogin();
       justLoggedInRef.current = true;
       loginStaff({
-        id: result.user.id,
-        name: result.user.name || 'Overall Administrator',
-        email: result.user.email || masterEmail.trim(),
+        id: bound.user?.id ?? 'overall-admin',
+        name: bound.user?.name || 'Overall Administrator',
+        email: bound.user?.email || masterEmail.trim(),
         role: 'overall_admin',
       });
       setLoading(false);
@@ -163,6 +184,10 @@ export default function AuthPage() {
     } catch {
       setLoading(false);
       setError('Verification failed. Check the code and try again.');
+    } finally {
+      // Release the anonymous transport session once this flow is over (the
+      // successful branch no longer needs it: the master session is live).
+      setAnonymousAuthSuspended(false);
     }
   }, [masterEmail, masterCode, signIn, signOut, loginOverallSession, loginStaff, navigate]);
 

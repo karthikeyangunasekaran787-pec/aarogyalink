@@ -216,9 +216,14 @@ try {
     ok?: boolean;
     reason?: string;
   };
+  // A fresh anonymous session has no verified email at all, so the master
+  // binding is refused and the reason says exactly that (the sign-in screen
+  // uses it to explain the failure). It must never report a session email here.
   check(
     'overall administrator binding cannot be claimed without the master email',
-    forgedMaster?.ok === false && forgedMaster?.reason === 'not_master',
+    forgedMaster?.ok === false &&
+      (forgedMaster?.reason === 'no_verified_email' || forgedMaster?.reason === 'not_master') &&
+      !(forgedMaster as { observedEmail?: string | null })?.observedEmail,
     forgedMaster,
   );
 

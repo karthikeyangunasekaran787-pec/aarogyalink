@@ -60,6 +60,31 @@ const HOSPITAL_FIELDS: Record<string, string[]> = {
 const DISTRICT_ONLY = new Set(['villageAccessScores', 'referralPredictions']);
 
 /**
+ * Credential fields a hospital record carries for ITS OWN administrator
+ * account. A hospital is directory information — every role needs the list to
+ * choose a referral destination or book an appointment, including hospitals in
+ * another district — but another facility's administrator credentials are not
+ * the caller's business, so they are stripped everywhere except the district
+ * that manages the hospital.
+ */
+const HOSPITAL_ADMIN_FIELDS = [
+  'adminName',
+  'adminUsername',
+  'adminEmail',
+  'adminPhone',
+  'adminTempPassword',
+  'adminPassword',
+];
+
+/** A hospital as directory data: everything except its administrator's credentials. */
+function hospitalDirectoryRecord(record: unknown): unknown {
+  if (!isRecord(record)) return record;
+  const out: Record<string, unknown> = { ...record };
+  for (const field of HOSPITAL_ADMIN_FIELDS) delete out[field];
+  return out;
+}
+
+/**
  * Administrator accounts. Only the Overall Administrator may create these — a
  * District Administrator may edit their own record but never mint one, and a
  * hospital user may not touch them at all.
@@ -458,6 +483,15 @@ export function scopeItemsForRead(
 
   if (scope.kind === 'hospital') {
     if (DISTRICT_ONLY.has(key)) return null;
+    // The hospital directory is shared reference data: a doctor or health
+    // worker must be able to refer a patient to ANY hospital, including one in
+    // another district. Only the administrator credentials of OTHER hospitals
+    // are withheld — the caller's own hospital record is unchanged.
+    if (key === 'hospitals') {
+      return items.map(record =>
+        isRecord(record) && str(record.id) === scope.hospitalId ? record : hospitalDirectoryRecord(record),
+      );
+    }
     if (key === 'referralEvents') {
       const visible = new Set(
         (context.referrals ?? []).map(r => (isRecord(r) && typeof r.id === 'string' ? r.id : '')),
@@ -491,6 +525,8 @@ export function scopeItemsForRead(
   // A patient never needs the health-worker roster (names, phones, work areas).
   if (key === 'healthWorkers') return null;
   if (DISTRICT_ONLY.has(key)) return null;
+  // Every hospital is bookable, whatever district it sits in.
+  if (key === 'hospitals') return items.map(hospitalDirectoryRecord);
   if (key === 'referralEvents') {
     const visible = new Set(
       (context.referrals ?? []).map(r => (isRecord(r) && typeof r.id === 'string' ? r.id : '')),
@@ -851,6 +887,12 @@ export function mergeAuthorizedWrite(
   if (scope.kind === 'hospital') {
     // District-level analytics are read-only for hospital users.
     if (DISTRICT_ONLY.has(key)) return stored;
+
+    // The hospital directory is READ-ONLY for hospital users: they may read
+    // every hospital to pick a referral destination, but only the District
+    // Administrator registers or edits hospitals. Leaving this writable would
+    // also let a redacted payload overwrite the stored record's credentials.
+    if (key === 'hospitals') return stored;
 
     // Patients are attributed to the registering hospital, so a hospital may
     // only create/update its own and can never touch another hospital's record.

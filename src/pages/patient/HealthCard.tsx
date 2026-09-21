@@ -2,20 +2,54 @@
 // Digital Health Card with QR Code
 // ============================================================================
 
+import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { QRCode } from '@/components/shared/QRCode';
 import { UnlinkedPatientNotice } from '@/components/shared/UnlinkedPatientNotice';
 import { useData } from '@/contexts/DataContext';
+import { downloadTextFile, safeFilePart, shareText } from '@/lib/download';
 import { CreditCard, Download, Share2, Heart, Droplets, Phone, AlertTriangle, Shield } from 'lucide-react';
 
 export default function HealthCard() {
   const { patients } = useData();
   const { language, currentUser } = useApp();
+  const [feedback, setFeedback] = useState<string | null>(null);
   // Never fall back to another patient's record (private health data).
   const patient = patients.find(p => p.id === currentUser?.patientId);
   if (!patient) return <UnlinkedPatientNotice language={language} />;
+
+  // Everything the card shows, in the order it is printed — also what Download
+  // saves and Share offers, so all three views can never disagree.
+  const cardText = [
+    'AarogyaLink — Digital Health Card',
+    'Government of Tamil Nadu',
+    `Health Card ID: ${patient.healthCardId}`,
+    `Patient ID: ${patient.id}`,
+    `Name: ${patient.name}`,
+    `Age / Gender: ${patient.age} / ${patient.gender}`,
+    `Blood Group: ${patient.bloodGroup || 'N/A'}`,
+    `Phone: ${patient.phone}`,
+    `Emergency Contact: ${patient.emergencyContact || 'N/A'}`,
+    `Address: ${patient.address}, ${patient.village}, ${patient.district}`,
+    `Allergies: ${patient.allergies?.length ? patient.allergies.join(', ') : 'None recorded'}`,
+    `Existing Conditions: ${patient.chronicConditions?.length ? patient.chronicConditions.join(', ') : 'None recorded'}`,
+  ].join('\n');
+
+  const handleDownload = () => {
+    downloadTextFile(`health-card-${safeFilePart(patient.healthCardId)}.txt`, cardText);
+    setFeedback('Health card downloaded');
+  };
+
+  const handleShare = async () => {
+    const outcome = await shareText('AarogyaLink Health Card', cardText);
+    setFeedback(
+      outcome === 'shared' ? 'Health card shared'
+        : outcome === 'copied' ? 'Health card copied to clipboard'
+          : 'Sharing is not supported on this device — use Download instead',
+    );
+  };
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
@@ -116,12 +150,17 @@ export default function HealthCard() {
       </div>
 
       {/* Actions */}
+      {feedback && (
+        <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+          {feedback}
+        </p>
+      )}
       <div className="flex gap-3">
-        <Button variant="outline" className="flex-1 gap-2">
+        <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
           <Download className="h-4 w-4" />
           {language === 'ta' ? 'பதிவிறக்கு' : language === 'hi' ? 'डाउनलोड' : 'Download'}
         </Button>
-        <Button variant="outline" className="flex-1 gap-2">
+        <Button variant="outline" className="flex-1 gap-2" onClick={() => void handleShare()}>
           <Share2 className="h-4 w-4" />
           {language === 'ta' ? 'பகிர்' : language === 'hi' ? 'शेयर' : 'Share'}
         </Button>

@@ -315,7 +315,34 @@ try {
     check('hospital A: medicineStock scoped to own facility', inHospital('medicineStock', 'facilityId'));
     check('hospital A: diagnostics scoped to own facility', inHospital('diagnostics', 'facilityId'));
     check('hospital A: appointments scoped to own facility', inHospital('appointments', 'facilityId'));
-    check('hospital A: hospitals list limited to own hospital', (a.hospitals ?? []).every(h => s(h.id) === hospitalA));
+    // The hospital DIRECTORY is shared reference data — every hospital must be
+    // reachable as a referral/bookable destination, including one in another
+    // district — but another hospital's administrator credentials never are.
+    const directory = a.hospitals ?? [];
+    check('hospital A: hospital directory lists every hospital', directory.length > 1, directory.map(h => s(h.id)));
+    check(
+      'hospital A: administrator credentials of other hospitals are withheld',
+      directory.filter(h => s(h.id) !== hospitalA).every(h => !h.adminUsername && !h.adminTempPassword && !h.adminPassword),
+      directory.filter(h => s(h.id) !== hospitalA).map(h => s(h.adminUsername)),
+    );
+    check(
+      'hospital A: own hospital record keeps its administrator details',
+      (directory.find(h => s(h.id) === hospitalA) ?? {}).adminUsername !== undefined,
+      directory.find(h => s(h.id) === hospitalA),
+    );
+    check(
+      'hospital A: hospital records are read-only on the collection path',
+      await (async () => {
+        const forged = (a.hospitals ?? []).map(h => (s(h.id) === hospitalB ? { ...h, name: 'Forged by hospital A' } : h));
+        await hospitalAClient.mutation(api.appData.saveCollection as AnyApi, {
+          key: 'hospitals',
+          data: payloadOf(forged),
+        });
+        const after = await read(hospitalAClient);
+        const stored = (after.hospitals ?? []).find(h => s(h.id) === hospitalB);
+        return !!stored && stored.name !== 'Forged by hospital A';
+      })(),
+    );
     check(
       'hospital A: referrals limited to source/destination hospital',
       (a.referrals ?? []).every(r => s(r.sourceFacilityId) === hospitalA || s(r.destinationFacilityId) === hospitalA),

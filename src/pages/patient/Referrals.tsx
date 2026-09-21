@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function Referrals() {
-  const { referrals, referralEvents, getReferralEvents } = useData();
+  const { referrals, referralEvents } = useData();
   const { language, currentUser } = useApp();
   const [selectedReferral, setSelectedReferral] = useState<string | null>(null);
 
@@ -120,15 +120,20 @@ export default function Referrals() {
                     </CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">{selected.reason}</p>
                   </div>
-                  <Button variant="outline" size="sm" className="gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => document.getElementById(`referral-qr-${selected.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                  >
                     <QrCode className="h-3.5 w-3.5" />
                     QR Code
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* QR Code */}
-                <div className="flex justify-center">
+                {/* QR Code — scanned at the receiving hospital to verify arrival */}
+                <div id={`referral-qr-${selected.id}`} className="flex justify-center">
                   <QRCode
                     data={selected.referralId}
                     size={140}

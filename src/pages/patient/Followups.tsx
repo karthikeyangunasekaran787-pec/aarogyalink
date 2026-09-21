@@ -2,6 +2,7 @@
 // Follow-up Reminders
 // ============================================================================
 
+import { useNavigate } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,6 +22,7 @@ const STATUS_CONFIG = {
 export default function Followups() {
   const { followups } = useData();
   const { language, currentUser } = useApp();
+  const navigate = useNavigate();
   const patientFollowups = followups.filter(f => f.patientId === currentUser?.patientId);
   const upcoming = patientFollowups.filter(f => f.status === 'scheduled');
   const past = patientFollowups.filter(f => f.status !== 'scheduled');
@@ -67,7 +69,15 @@ export default function Followups() {
                       <span>AI predicts {f.missedFollowupRisk}% risk of missing this follow-up</span>
                     </div>
                   )}
-                  <Button variant="outline" size="sm" className="mt-3 h-8 text-xs">Reschedule</Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 h-8 text-xs"
+                    title="Choose a new slot with the same doctor"
+                    onClick={() => navigate(`/patient/book-appointment?doctor=${f.doctorId}`)}
+                  >
+                    Reschedule
+                  </Button>
                 </CardContent>
               </Card>
             );

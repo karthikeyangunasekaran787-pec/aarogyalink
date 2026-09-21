@@ -3,12 +3,14 @@
 // ============================================================================
 
 import { useState, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router';
-import type { HealthWorker, Referral, ReferralEvent, ReferralStatus, Vitals } from '@/types';
+import { Link } from 'react-router';
+import type { HealthWorker, ReferralStatus } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { useSubmitGuard } from '@/hooks/use-submit-guard';
 import { recordsOrCache, resolveHealthWorker } from '@/lib/resolve-staff';
+import { destinationLabel, referralTargets } from '@/lib/care-destinations';
+import { referralStatusLabel } from '@/convex/referralStatus';
 import { t } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -84,15 +86,13 @@ export default function HWDashboard() {
 
 function HWDashboardContent({ hw }: { hw: HealthWorker }) {
   const { language } = useApp();
-  const { patients, referrals, followups, facilities, hospitals, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient, completeFollowupById, markFollowupMissed, completeFollowup } = useData();
-  const navigate = useNavigate();
+  const { patients, referrals, followups, facilities, hospitals, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient, completeFollowupById, markFollowupMissed, completeFollowup  } = useData();
 
-  // Hospital isolation: show only patients and referrals from this HW's hospital
+  // Hospital isolation: show only patients and referrals from this HW's hospital.
+  // The backend already scopes `patients` to this hospital's register, so no
+  // client-side filter is needed (and none may widen it).
   const hwHospitalId = hw.facilityId;
-  const hwPatients = patients.filter(p => {
-    // Patients registered by this HW or at this facility
-    return true; // For now show all patients the HW has access to (filtered by registration context)
-  });
+  const hwPatients = patients;
   const highRiskPatients = hwPatients.filter(p => p.chronicConditions && p.chronicConditions.length > 0);
   const pendingReferrals = referrals.filter(r => (r.status === 'created' || r.status === 'accepted') && r.sourceFacilityId === hwHospitalId);
   const overdueFollowups = followups.filter(f => (f.status === 'missed' || f.status === 'overdue'));
@@ -214,20 +214,17 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
    * are offered too, but hospitals must be present or referrals sent to them
    * never appear in the Hospital Admin's referral inbox.
    */
-  const referralDestinations = useMemo(() => {
-    const hospitalOptions = hospitals
-      .filter(h => h.status === 'active' && h.id !== hw.facilityId)
-      .map(h => ({ id: h.id, name: `${h.name} (Hospital)`, kind: 'hospital' as const }));
-    const facilityOptions = facilities
-      .filter(f => f.id !== hw.facilityId && !hospitals.some(h => h.id === f.id))
-      .map(f => ({ id: f.id, name: f.name, kind: 'facility' as const }));
-    return [...hospitalOptions, ...facilityOptions];
-  }, [hospitals, facilities, hw.facilityId]);
+  const hwFacility = hospitals.find(h => h.id === hw.facilityId)
+    || facilities.find(f => f.id === hw.facilityId);
+  const referralDestinations = useMemo(
+    () => referralTargets(hospitals, facilities, hw.facilityId, hwFacility?.district),
+    [hospitals, facilities, hw.facilityId, hwFacility?.district],
+  );
 
   const handleCreateReferral = () => {
     const patient = patients.find(p => p.id === referralPatientId);
     const destination = referralDestinations.find(d => d.id === referralDestination);
-    const destinationName = destination?.name.replace(/ \(Hospital\)$/, '') || '';
+    const destinationName = destination?.name || '';
     if (!patient || !referralReason || !destination || !referralDepartment) {
       showFeedback('Please fill all required fields.');
       return;
@@ -482,7 +479,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                 >
                   <option value="">Select hospital / facility...</option>
                   {referralDestinations.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
+                    <option key={d.id} value={d.id}>{destinationLabel(d)}</option>
                   ))}
                 </select>
               </div>
@@ -782,7 +779,9 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <PriorityBadge priority={ref.priority} />
-                    <Badge className={`text-[10px] ${STATUS_COLORS[ref.status] || ''}`}>\n                      {ref.status.replace(/_/g, ' ')}\n                    </Badge>
+                    <Badge className={`text-[10px] ${STATUS_COLORS[ref.status] || ''}`}>
+                      {referralStatusLabel(ref.status)}
+                    </Badge>
                     <Button size="sm" variant="ghost" className="h-6 text-[10px] gap-0.5 mt-1">
                       <Eye className="h-3 w-3" /> Monitor
                     </Button>
@@ -837,7 +836,9 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
 
               {/* Status Badge */}
               <div className="flex items-center gap-2">
-                <Badge className={`text-xs ${STATUS_COLORS[selectedReferral.status] || ''}`}>\n                  {selectedReferral.status.replace(/_/g, ' ')}\n                </Badge>
+                <Badge className={`text-xs ${STATUS_COLORS[selectedReferral.status] || ''}`}>
+                  {referralStatusLabel(selectedReferral.status)}
+                </Badge>
                 {selectedReferral.isOverdue && (
                   <Badge className="text-xs bg-red-50 text-red-700 border-red-200">Overdue</Badge>
                 )}
@@ -856,7 +857,6 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                   {REFERRAL_STEPS.map((step, idx) => {
                     const isCompleted = selectedReferral.currentStep > idx;
                     const isCurrent = selectedReferral.currentStep === idx + 1;
-                    const isPending = selectedReferral.currentStep < idx + 1;
                     const Icon = step.icon;
                     const eventForStep = selectedReferralEvents.find(e => e.status === step.key as ReferralStatus);
                     return (
@@ -871,7 +871,8 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                           {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-3.5 w-3.5" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-medium ${isCompleted || isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>\n                            {step.label}
+                          <p className={`text-xs font-medium ${isCompleted || isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {step.label}
                           </p>
                           {eventForStep && (
                             <p className="text-[10px] text-muted-foreground truncate">{eventForStep.description}</p>
@@ -1002,7 +1003,9 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                         <p className="text-xs font-medium text-foreground">{ref.patientName} → {ref.destinationFacilityName}</p>
                         <p className="text-[10px] text-muted-foreground">{ref.referralId} • {ref.department}</p>
                       </div>
-                      <Badge className={`text-[9px] ${STATUS_COLORS[ref.status] || ''}`}>\n                        {ref.status.replace(/_/g, ' ')}\n                      </Badge>
+                      <Badge className={`text-[9px] ${STATUS_COLORS[ref.status] || ''}`}>
+                        {referralStatusLabel(ref.status)}
+                      </Badge>
                     </div>
                   ))}
                   {activeMyReferrals.length > 3 && (
@@ -1037,7 +1040,9 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                       {ref.status.replace(/_/g, ' ')} • {ref.department} • To: {ref.destinationFacilityName}
                     </p>
                   </div>
-                  <Badge className={`text-[9px] ${STATUS_COLORS[ref.status] || ''}`}>\n                    {ref.status.replace(/_/g, ' ')}\n                  </Badge>
+                  <Badge className={`text-[9px] ${STATUS_COLORS[ref.status] || ''}`}>
+                    {referralStatusLabel(ref.status)}
+                  </Badge>
                 </div>
               ))}
               {myReferrals.length === 0 && (

@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { useState } from 'react';
+import type { Facility } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
@@ -31,10 +32,16 @@ export default function HospitalAdminDashboard() {
   // validated against the stored record by the backend.
   const { assignDoctor, verifyArrivalByQr } = useReferralEngine();
 
-  // Resolve the hospital from the logged-in user's facilityId — check both facilities and hospitals
+  // Resolve the hospital from the logged-in user's facilityId — check both facilities and hospitals.
+  // NEVER fall back to another hospital's record: the backend scopes this account to its own
+  // hospital, so an unknown id only means the record has not synced yet. Show a neutral
+  // placeholder instead of another hospital's data.
   const facility = facilities.find(f => f.id === currentUser?.facilityId)
     || hospitals.find(h => h.id === currentUser?.facilityId)
-    || facilities[0];
+    || ({
+      id: currentUser?.facilityId ?? '',
+      name: currentUser?.facilityName || 'Your hospital',
+    } as unknown as Facility);
   const facilityReferrals = referrals.filter(r => r.destinationFacilityId === facility.id);
   const pendingReferrals = facilityReferrals.filter(r => r.status === 'created');
   const closedReferrals = facilityReferrals.filter(r => r.status === 'closed');

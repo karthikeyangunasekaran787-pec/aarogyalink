@@ -12,15 +12,17 @@ import { Badge } from '@/components/ui/badge';
 import { useData } from '@/contexts/DataContext';
 import { Calendar, Clock, MapPin, CheckCircle2, ArrowRight, User, Building2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { bookingLocations, type CareDestination } from '@/lib/care-destinations';
 import type { Facility, Hospital } from '@/types';
 
 const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30'];
 
 /**
  * Doctors are linked to HOSPITAL ids (h1, h2, ...), while the patient-facing
- * facility finder uses FACILITY ids (f1, f2, ...). Booking must therefore
- * offer both hospital and facility locations — otherwise doctors at h1–h5
- * never match a facility filter and the doctor list shows up empty.
+ * facility finder uses FACILITY ids (f1, f2, ...). Both kinds are offered, but
+ * only where a doctor actually practises — otherwise the doctor list would be
+ * empty and the booking would be a dead end. The hospital directory spans every
+ * district, so a patient can book at any hospital in the platform.
  */
 interface BookingLocation {
   id: string;
@@ -28,37 +30,39 @@ interface BookingLocation {
   area: string;
   kind: 'facility' | 'hospital';
   careMatchScore?: number;
+  doctorCount: number;
   phone: string;
 }
 
-function toBookingLocations(facilities: Facility[], hospitals: Hospital[]): BookingLocation[] {
-  const locations: BookingLocation[] = facilities.map(f => ({
-    id: f.id,
-    name: f.name,
-    area: f.village,
-    kind: 'facility' as const,
-    careMatchScore: f.careMatchScore,
-    phone: f.phone,
-  }));
-  const seen = new Set(locations.map(l => l.id));
-  for (const h of hospitals) {
-    if (!seen.has(h.id) && h.status === 'active') {
-      locations.push({
-        id: h.id,
-        name: h.name,
-        area: h.district,
-        kind: 'hospital' as const,
-        phone: h.phone,
-      });
-    }
-  }
-  return locations;
+function toBookingLocations(
+  destinations: CareDestination[],
+  facilities: Facility[],
+  hospitals: Hospital[],
+): BookingLocation[] {
+  const facilityById = new Map(facilities.map(f => [f.id, f]));
+  const hospitalById = new Map(hospitals.map(h => [h.id, h]));
+  return destinations.map(d => {
+    const facility = facilityById.get(d.id);
+    const hospital = hospitalById.get(d.id);
+    return {
+      id: d.id,
+      name: d.name,
+      area: d.district || facility?.village || '',
+      kind: d.kind,
+      careMatchScore: facility?.careMatchScore,
+      doctorCount: d.doctorCount,
+      phone: facility?.phone || hospital?.phone || '',
+    };
+  });
 }
 
 export default function BookAppointment() {
   const { language, currentUser } = useApp();
   const { facilities, hospitals, doctors, bookAppointment, addNotification } = useData();
-  const locations = useMemo(() => toBookingLocations(facilities, hospitals), [facilities, hospitals]);
+  const locations = useMemo(
+    () => toBookingLocations(bookingLocations(facilities, hospitals, doctors), facilities, hospitals),
+    [facilities, hospitals, doctors],
+  );
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedFacility = searchParams.get('facility') || '';
@@ -78,19 +82,34 @@ export default function BookAppointment() {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [reason, setReason] = useState('');
+  // Reference shown on the confirmation screen. It is created once, when the
+  // booking is made — deriving it during render would change it on every
+  // re-render and hand the patient two different reference numbers.
+  const [bookingRef, setBookingRef] = useState('');
 
-  const filteredDoctors = selectedFacility
-    ? doctors.filter(d => d.facilityId === selectedFacility)
+  // A deep link from the facility finder may point at a location that is not in
+  // the bookable list (e.g. a facility with no doctor, or one that no longer
+  // exists). Treat that as "nothing selected" so the screen can never show a
+  // highlighted location the patient cannot actually book at.
+  const selectedLocationId = locations.some(l => l.id === selectedFacility) ? selectedFacility : '';
+
+  const filteredDoctors = selectedLocationId
+    ? doctors.filter(d => d.facilityId === selectedLocationId)
     : doctors;
 
-  const location = locations.find(l => l.id === selectedFacility);
-  const doctor = doctors.find(d => d.id === selectedDoctor);
+  const location = locations.find(l => l.id === selectedLocationId);
+  // The doctor must belong to the selected location: a stale deep link cannot
+  // book one hospital's doctor at another hospital.
+  const doctor = selectedLocationId
+    ? doctors.find(d => d.id === selectedDoctor && d.facilityId === selectedLocationId)
+    : undefined;
 
   const handleBook = () => {
     if (!doctor || !location) return;
     // Never book against another patient's record if this account is unlinked.
     const patientId = currentUser?.patientId;
     if (!patientId) return;
+    setBookingRef(`APT-${Date.now().toString().slice(-6)}`);
     bookAppointment({
       patientId,
       doctorId: doctor.id,
@@ -128,7 +147,7 @@ export default function BookAppointment() {
               <span className="flex items-center gap-1"><Calendar className="h-4 w-4" />{selectedDate}</span>
               <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{selectedTime}</span>
             </div>
-            <Badge variant="outline" className="text-xs mt-2">APT-{Date.now().toString().slice(-6)}</Badge>
+            <Badge variant="outline" className="text-xs mt-2">{bookingRef}</Badge>
             <div className="flex gap-3 justify-center mt-6">
               <Button variant="outline" onClick={() => navigate('/patient/appointments')}>View My Appointments</Button>
               <Button onClick={() => navigate('/patient/dashboard')}>Back to Home</Button>
@@ -158,12 +177,11 @@ export default function BookAppointment() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Select Hospital / Facility</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {locations.map(l => (
+            <CardContent className="space-y-2">                  {locations.map(l => (
                 <button
                   key={l.id}
                   className={`w-full text-left p-3 rounded-lg border transition-all cursor-pointer ${
-                    selectedFacility === l.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted/50'
+                    selectedLocationId === l.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted/50'
                   }`}
                   onClick={() => { setSelectedFacility(l.id); setSelectedDoctor(''); }}
                 >
@@ -175,16 +193,21 @@ export default function BookAppointment() {
                         {l.area}
                       </p>
                     </div>
-                    <Badge variant="outline" className="text-[10px]">
-                      {l.kind === 'hospital' ? 'Hospital' : `Score ${l.careMatchScore ?? '—'}`}
-                    </Badge>
+                    <div className="text-right">
+                      <Badge variant="outline" className="text-[10px]">
+                        {l.kind === 'hospital' ? 'Hospital' : 'Facility'}
+                      </Badge>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {l.careMatchScore ? `Score ${l.careMatchScore}` : `${l.doctorCount} doctor${l.doctorCount === 1 ? '' : 's'}`}
+                      </p>
+                    </div>
                   </div>
                 </button>
               ))}
             </CardContent>
           </Card>
 
-          {selectedFacility && (
+          {selectedLocationId && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Select Doctor</CardTitle>
@@ -221,7 +244,7 @@ export default function BookAppointment() {
             </Card>
           )}
 
-          {selectedFacility && selectedDoctor && (
+          {selectedLocationId && selectedDoctor && (
             <Button className="w-full h-11" onClick={() => setStep('datetime')}>
               Continue <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
@@ -335,7 +358,7 @@ export default function BookAppointment() {
           </Card>
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1 h-11" onClick={() => setStep('datetime')}>Back</Button>
-            <Button className="flex-1 h-11" onClick={handleBook}>Confirm Booking</Button>
+            <Button className="flex-1 h-11" disabled={!doctor || !location} onClick={handleBook}>Confirm Booking</Button>
           </div>
         </div>
       )}

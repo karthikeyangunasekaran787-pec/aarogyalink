@@ -492,6 +492,43 @@ describe('hospital patient isolation', () => {
   });
 });
 
+describe('hospital directory (referral origin + appointment booking)', () => {
+  // Two districts, each with its own hospital and its own administrator.
+  const directory = [
+    { id: 'h1', name: 'Pudukkottai Government Hospital', district: 'Pudukkottai', districtId: 'DIST-PDK', adminUsername: 'hosadmin.pdk001', adminTempPassword: 'Temp#1' },
+    { id: 'h6', name: 'Tiruchirappalli Government Hospital', district: 'Tiruchirappalli', districtId: 'DIST-TRY', adminUsername: 'hosadmin.try1', adminTempPassword: 'Temp#6' },
+  ];
+
+  test('a hospital user receives every hospital, so any referral destination is reachable', () => {
+    const rows = scopeItemsForRead('hospitals', directory, hospitalA) as { id: string }[];
+    expect(rows.map(h => h.id).sort()).toEqual(['h1', 'h6']);
+  });
+
+  test('administrator credentials of OTHER hospitals are withheld', () => {
+    const rows = scopeItemsForRead('hospitals', directory, hospitalA) as Record<string, unknown>[];
+    const other = rows.find(h => h.id === 'h6')!;
+    expect(other.adminUsername).toBeUndefined();
+    expect(other.adminTempPassword).toBeUndefined();
+    expect(other.name).toBe('Tiruchirappalli Government Hospital');
+    // …while the caller's own hospital is untouched.
+    expect(rows.find(h => h.id === 'h1')?.adminUsername).toBe('hosadmin.pdk001');
+  });
+
+  test('a patient may book at a hospital in another district, without credentials', () => {
+    const rows = scopeItemsForRead('hospitals', directory, patientX) as Record<string, unknown>[];
+    expect(rows.map(h => h.id).sort()).toEqual(['h1', 'h6']);
+    expect(rows.every(h => h.adminTempPassword === undefined)).toBe(true);
+  });
+
+  test('a hospital user cannot write the directory (forged payload is dropped)', () => {
+    const forged = [{ id: 'h6', name: 'Forged', adminTempPassword: 'Stolen' }];
+    const merged = mergeAuthorizedWrite('hospitals', directory, forged, hospitalA) as Record<string, unknown>[];
+    expect(merged.map(h => h.id)).toEqual(['h1', 'h6']);
+    expect(merged.find(h => h.id === 'h6')?.name).toBe('Tiruchirappalli Government Hospital');
+    expect(merged.find(h => h.id === 'h6')?.adminTempPassword).toBe('Temp#6');
+  });
+});
+
 describe('district analytics seed', () => {
   test('every seeded village is attributed to a real district', () => {
     // The district console derives its Rural Healthcare Access Score from these

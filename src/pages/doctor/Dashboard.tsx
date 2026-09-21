@@ -5,6 +5,7 @@
 import { useMemo, useState } from 'react';
 import type { Doctor } from '@/types';
 import { recordsOrCache, resolveDoctor } from '@/lib/resolve-staff';
+import { destinationLabel, referralTargets } from '@/lib/care-destinations';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
@@ -58,7 +59,7 @@ export default function DoctorDashboard() {
 function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
   const { language } = useApp();
   const {
-    patients, referrals, referralEvents, followups, facilities,
+    patients, referrals, referralEvents, followups, facilities, hospitals,
     getAppointmentsForDoctor, getReferralsForPatient, getVitalsForPatient,
     getConsultationsForPatient,
     startConsultation, completeConsultation, scheduleFollowup, closeReferral,
@@ -108,6 +109,14 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
   const [referralReason, setReferralReason] = useState('');
   const [referralDestination, setReferralDestination] = useState('');
   const [referralDepartment, setReferralDepartment] = useState('');
+
+  // Referral targets: EVERY active hospital in the platform, including those in
+  // another district, so a specialist referral is never limited to the doctor's
+  // own hospital. Shared with the health-worker console.
+  const referralDestinations = useMemo(
+    () => referralTargets(hospitals, facilities, doctor.facilityId, doctorFacility?.district),
+    [hospitals, facilities, doctor.facilityId, doctorFacility?.district],
+  );
 
   const showFeedback = (msg: string) => {
     setActionFeedback(msg);
@@ -181,7 +190,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
 
   const handleCreateReferral = () => {
     const patientData = patients.find(p => p.id === referralPatientId);
-    const destination = facilities.find(f => f.id === referralDestination);
+    const destination = referralDestinations.find(d => d.id === referralDestination);
     if (!patientData || !referralReason || !destination || !referralDepartment) {
       showFeedback('Please fill all required fields.');
       return;
@@ -390,8 +399,8 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                   className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="">Select facility...</option>
-                  {facilities.filter(f => f.id !== doctor.facilityId).map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
+                  {referralDestinations.map(d => (
+                    <option key={d.id} value={d.id}>{destinationLabel(d)}</option>
                   ))}
                 </select>
               </div>

@@ -243,7 +243,12 @@ export default function Facilities() {
                     {language === 'ta' ? 'வழிகாட்டு' : language === 'hi' ? 'नेविगेशन' : 'Navigate to Hospital'}
                   </Button>
                 </a>
-                <Link to={`/patient/book-appointment?facility=${facility.id}`}>
+                {/* Only pre-select the facility when a doctor practises there;
+                    otherwise the booking screen opens with nothing selected and
+                    the patient picks a staffed location. */}
+                <Link to={facilityDoctors.length > 0
+                  ? `/patient/book-appointment?facility=${facility.id}`
+                  : '/patient/book-appointment'}>
                   <Button className="w-full h-10">
                     {t('bookAppointment', language)}
                     <ChevronRight className="h-4 w-4 ml-1" />

@@ -421,8 +421,13 @@ function scopeDistrictRead(
     );
     return items.filter(r => isRecord(r) && typeof r.referralId === 'string' && visible.has(r.referralId));
   }
-  // Aggregate public-health statistics (village access scores) are not
-  // per-hospital private data; they stay available so district analytics work.
+  // Village access scores are per-district statistics: a District
+  // Administrator sees only their OWN district's rows. Rows carry the district
+  // NAME — the same value the session binding is issued with — so a district
+  // can never mix another district's villages into its analytics.
+  if (key === 'villageAccessScores') {
+    return items.filter(r => isRecord(r) && str(r.district) === scope.districtName);
+  }
   return items;
 }
 

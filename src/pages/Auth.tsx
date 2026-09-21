@@ -79,7 +79,7 @@ export default function AuthPage() {
 
   // Set once a login happens on this page so the auto-redirect below never
   // overrides the intended return path after an explicit sign-in.
-  const justLoggedInRef = useRef(false);
+  const justLoggedInRef = useRef<boolean>(false);
 
   const [emailValue, setEmailValue] = useState('');
   const [username, setUsername] = useState('');

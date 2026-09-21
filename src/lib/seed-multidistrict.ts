@@ -23,6 +23,7 @@ import type {
   MedicineStock,
   Patient,
   Referral,
+  VillageAccessScore,
 } from '@/types';
 
 /** Pudukkottai hospitals were seeded without a district id — fill it in. */
@@ -31,6 +32,47 @@ export function normalizeHospitals(hospitals: Hospital[], districts: District[])
     if (h.districtId) return h;
     const match = districts.find(d => d.name === h.district);
     return match ? { ...h, districtId: match.districtId, districtName: match.name } : h;
+  });
+}
+
+/**
+ * Village access scores are per-district public-health statistics, and the
+ * backend hands a District Administrator only their OWN district's rows (see
+ * `scopeDistrictRead` in convex/authz.ts). The base fixtures predate districts,
+ * so every village is attributed to a real district here — otherwise a district
+ * console would compute its Rural Healthcare Access Score from an empty set.
+ */
+const VILLAGE_DISTRICT_ASSIGNMENT: Record<
+  string,
+  { district: string; villageName?: string; latitude: number; longitude: number }
+> = {
+  // Pudukkottai
+  v1: { district: 'Pudukkottai', latitude: 10.42, longitude: 78.75 },
+  v2: { district: 'Pudukkottai', latitude: 10.38, longitude: 78.82 },
+  v3: { district: 'Pudukkottai', latitude: 10.31, longitude: 78.69 },
+  v6: { district: 'Pudukkottai', latitude: 10.44, longitude: 78.61 },
+  v8: { district: 'Pudukkottai', latitude: 10.36, longitude: 78.98 },
+  // Tiruchirappalli
+  v4: { district: 'Tiruchirappalli', villageName: 'Manapparai', latitude: 10.61, longitude: 78.42 },
+  v5: { district: 'Tiruchirappalli', villageName: 'Musiri', latitude: 10.95, longitude: 78.44 },
+  v7: { district: 'Tiruchirappalli', villageName: 'Thuraiyur', latitude: 11.14, longitude: 78.6 },
+};
+
+export function normalizeVillageScores(
+  scores: VillageAccessScore[],
+  districts: District[],
+): VillageAccessScore[] {
+  const known = new Set(districts.map(d => d.name));
+  return scores.map(score => {
+    const target = VILLAGE_DISTRICT_ASSIGNMENT[score.villageId];
+    if (!target || !known.has(target.district)) return score;
+    return {
+      ...score,
+      villageName: target.villageName ?? score.villageName,
+      district: target.district,
+      latitude: target.latitude,
+      longitude: target.longitude,
+    };
   });
 }
 
@@ -199,6 +241,6 @@ export const seedHealthRecords = base.healthRecords;
 export const seedConsultations = base.consultations;
 export const seedNotifications = base.notifications;
 export const seedReferralEvents = base.referralEvents;
-export const seedVillageScores = base.villageAccessScores;
+export const seedVillageScores = normalizeVillageScores(base.villageAccessScores, base.districts);
 export const seedPredictions = base.referralPredictions;
 export const seedInsights = base.aiInsights;

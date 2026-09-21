@@ -626,8 +626,30 @@ try {
     check('Trichy receives only its own district record', (tryData.districts ?? []).every(d => d.districtId === 'DIST-TRY'));
     check('Pudukkottai receives only its own district record', (pdkData.districts ?? []).every(d => d.districtId === 'DIST-PDK'));
 
-    // District-level analytics are for the district console, not hospitals.
-    check('district console receives district analytics', (tryData.villageAccessScores ?? []).length >= 0);
+    // District-level analytics are for the district console, not hospitals —
+    // and each district gets ONLY its own villages, so analytics never mix.
+    const pdkVillages = pdkData.villageAccessScores ?? [];
+    const tryVillages = tryData.villageAccessScores ?? [];
+    check(
+      'each district console receives its own village analytics',
+      pdkVillages.length > 0 && tryVillages.length > 0,
+      { pdk: pdkVillages.length, try: tryVillages.length },
+    );
+    check(
+      'Pudukkottai analytics hold only Pudukkottai villages',
+      pdkVillages.every(v => s((v as { district?: unknown }).district) === 'Pudukkottai'),
+      pdkVillages.map(v => (v as { district?: unknown }).district),
+    );
+    check(
+      'Trichy analytics hold only Tiruchirappalli villages',
+      tryVillages.every(v => s((v as { district?: unknown }).district) === 'Tiruchirappalli'),
+      tryVillages.map(v => (v as { district?: unknown }).district),
+    );
+    const pdkVillageIds = new Set(pdkVillages.map(v => s((v as { villageId?: unknown }).villageId)));
+    check(
+      'the two districts share no village',
+      tryVillages.every(v => !pdkVillageIds.has(s((v as { villageId?: unknown }).villageId))),
+    );
 
     // Writes: neither district may touch the other's hospital or staff.
     const pdkHospital = (pdkData.hospitals ?? [])[0];

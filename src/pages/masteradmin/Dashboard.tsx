@@ -97,10 +97,15 @@ export default function MasterAdminDashboard() {
     setTimeout(() => setNotice(''), 5000);
   };
 
-  // ── Create district ───────────────────────────────────────────
-  const handleCreateDistrict = () => {
+  // ── Create a district and its administrator in one step ───────
+  // A district is useless without its own administrator (and only the Overall
+  // Administrator may mint one), so both are created together. A district
+  // administrator is bound to exactly one district for life; that binding is
+  // what the backend uses to keep districts from mixing.
+  const handleCreateDistrictWithAdmin = () => {
     setError('');
-    const { name, code } = districtForm;
+    const { name, code, headquarters } = districtForm;
+    const admin = adminForm;
     if (!name.trim() || !code.trim()) {
       setError('District name and a short code (e.g. TRY) are required.');
       return;
@@ -114,10 +119,43 @@ export default function MasterAdminDashboard() {
       setError(`District ${districtId} already exists.`);
       return;
     }
-    const district = addDistrict({ name, code, headquarters: districtForm.headquarters });
+    if (!admin.name.trim() || !admin.email.trim() || !admin.username.trim() || !admin.password) {
+      setError('The District Administrator name, email, username and password are all required.');
+      return;
+    }
+    if (!admin.email.includes('@')) {
+      setError('Enter a valid email address for the District Administrator.');
+      return;
+    }
+    if (admin.password.length < 6) {
+      setError('The password must be at least 6 characters.');
+      return;
+    }
+    if (staffUsers.some(u => u.username?.toLowerCase() === admin.username.trim().toLowerCase())) {
+      setError(`Username "${admin.username.trim()}" is already taken.`);
+      return;
+    }
+    const district = addDistrict({ name, code, headquarters });
+    addStaffUser({
+      name: admin.name.trim(),
+      email: admin.email.trim(),
+      role: 'gov_admin',
+      username: admin.username.trim(),
+      password: admin.password,
+      districtId: district.districtId,
+      districtName: district.name,
+      status: 'active',
+      createdBy: currentUser?.id || 'overall_admin',
+    });
+    setCreatedAdmin({
+      name: admin.name.trim(),
+      username: admin.username.trim(),
+      password: admin.password,
+      district: district.displayName,
+    });
     setDistrictForm({ name: '', code: '', headquarters: '' });
+    setAdminForm({ name: '', email: '', username: '', password: '', districtId: '' });
     setShowDistrictForm(false);
-    flash(`${district.displayName} created (${district.districtId}). Create its District Administrator next.`);
   };
 
   // ── Create district administrator ─────────────────────────────
@@ -226,11 +264,8 @@ export default function MasterAdminDashboard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setError(''); setShowDistrictForm(true); }}>
-            <Plus className="h-4 w-4 mr-1.5" /> Create District
-          </Button>
-          <Button size="sm" onClick={() => openAdminForm()}>
-            <UserPlus className="h-4 w-4 mr-1.5" /> Create District Admin
+          <Button size="sm" onClick={() => { setError(''); setShowDistrictForm(true); }}>
+            <Plus className="h-4 w-4 mr-1.5" /> Create District + Administrator
           </Button>
         </div>
       </div>
@@ -261,13 +296,14 @@ export default function MasterAdminDashboard() {
         <Card className="border-primary/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center justify-between">
-              Create District
+              Create District + District Administrator
               <button className="text-muted-foreground hover:text-foreground" onClick={() => setShowDistrictForm(false)}>
                 <X className="h-4 w-4" />
               </button>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">1 · District</p>
             <div className="grid sm:grid-cols-3 gap-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">District Name</label>
@@ -283,12 +319,45 @@ export default function MasterAdminDashboard() {
                 <Input value={districtForm.headquarters} onChange={e => setDistrictForm(f => ({ ...f, headquarters: e.target.value }))} placeholder="e.g. Karur" />
               </div>
             </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              2 · District Administrator (bound to this district only)
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Full Name</label>
+                <Input value={adminForm.name} onChange={e => setAdminForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Karur District Administrator" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Email</label>
+                <Input type="email" value={adminForm.email} onChange={e => setAdminForm(f => ({ ...f, email: e.target.value }))} placeholder="distadmin@tn.gov.in" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Username</label>
+                <Input
+                  value={adminForm.username}
+                  onChange={e => setAdminForm(f => ({ ...f, username: e.target.value }))}
+                  placeholder={`e.g. distadmin_${(districtForm.code || 'krr').toLowerCase()}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Password</label>
+                <div className="flex gap-2">
+                  <Input value={adminForm.password} onChange={e => setAdminForm(f => ({ ...f, password: e.target.value }))} placeholder="min 6 characters" />
+                  <Button type="button" variant="outline" onClick={() => setAdminForm(f => ({ ...f, password: generateTempPassword() }))}>
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              This administrator is created together with {districtForm.code ? `DIST-${districtForm.code.toUpperCase()}` : 'the new district'} and can only ever see and edit that one district — enforced by the backend.
+            </p>
             {error && (
               <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
                 <AlertCircle className="h-4 w-4" /> {error}
               </div>
             )}
-            <Button onClick={handleCreateDistrict}>Create District</Button>
+            <Button onClick={handleCreateDistrictWithAdmin}>Create District + Administrator</Button>
           </CardContent>
         </Card>
       )}
@@ -397,7 +466,7 @@ export default function MasterAdminDashboard() {
             <CardTitle className="text-base flex items-center justify-between">
               <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" /> Districts</span>
               <Button size="sm" variant="outline" onClick={() => { setError(''); setShowDistrictForm(true); }}>
-                <Plus className="h-4 w-4 mr-1.5" /> Create District
+                <Plus className="h-4 w-4 mr-1.5" /> Create District + Administrator
               </Button>
             </CardTitle>
           </CardHeader>

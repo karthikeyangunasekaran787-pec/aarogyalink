@@ -19,7 +19,7 @@ import {
   type SessionScope,
 } from '../../src/convex/authz';
 import { hospitalToFacility, mergedFacilities } from '../../src/contexts/DataContext';
-import { seedDistricts } from '../../src/lib/seed-multidistrict';
+import { seedDistricts, seedVillageScores } from '../../src/lib/seed-multidistrict';
 import type { Facility, Hospital } from '../../src/types';
 
 const overall: SessionScope = { kind: 'overall' };
@@ -274,6 +274,27 @@ describe('WRITE scoping', () => {
     expect(districtsMerged.map(d => d.districtId)).toEqual(seedDistricts.map(d => d.districtId));
   });
 
+  test('district analytics are per-district: villages never mix', () => {
+    const villages = [
+      { villageId: 'v1', villageName: 'Kallikudi', district: 'Pudukkottai' },
+      { villageId: 'v4', villageName: 'Manapparai', district: 'Tiruchirappalli' },
+    ];
+    const context = { hospitals: districtHospitals };
+    const pdkRead = scopeItemsForRead('villageAccessScores', villages, districtPdk, context) as {
+      district: string;
+    }[];
+    const tryRead = scopeItemsForRead('villageAccessScores', villages, districtTry, context) as {
+      district: string;
+    }[];
+    expect(pdkRead.map(v => v.district)).toEqual(['Pudukkottai']);
+    expect(tryRead.map(v => v.district)).toEqual(['Tiruchirappalli']);
+    // …while the Overall Administrator still sees the whole platform.
+    expect(scopeItemsForRead('villageAccessScores', villages, overall, context)).toHaveLength(2);
+    // Village analytics are never part of a hospital's or patient's payload.
+    expect(scopeItemsForRead('villageAccessScores', villages, hospitalA, context)).toBeNull();
+    expect(scopeItemsForRead('villageAccessScores', villages, patientX, context)).toBeNull();
+  });
+
   test('an overall administrator binding is derived server-side, never from the client', () => {
     expect(scopeFromBinding({ role: 'overall_admin' })).toEqual({ kind: 'overall' });
     expect(scopeFromBinding({ role: 'gov_admin', districtId: 'DIST-TRY', districtName: 'Tiruchirappalli' })).toEqual({
@@ -468,5 +489,22 @@ describe('hospital patient isolation', () => {
       'h1',
     );
     expect([...writable].sort()).toEqual(['p1', 'p2', 'p9']);
+  });
+});
+
+describe('district analytics seed', () => {
+  test('every seeded village is attributed to a real district', () => {
+    // The district console derives its Rural Healthcare Access Score from these
+    // rows, so a district with no villages would silently show an empty map.
+    const counts = new Map<string, number>();
+    for (const village of seedVillageScores as unknown as { district: string }[]) {
+      counts.set(village.district, (counts.get(village.district) ?? 0) + 1);
+    }
+    for (const district of seedDistricts) {
+      expect(counts.get(district.name) ?? 0).toBeGreaterThan(0);
+    }
+    // No row may claim a district the platform does not have.
+    const known = new Set(seedDistricts.map(d => d.name));
+    expect([...counts.keys()].every(name => known.has(name))).toBe(true);
   });
 });

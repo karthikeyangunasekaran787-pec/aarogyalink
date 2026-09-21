@@ -13,7 +13,7 @@
 // v9: includes the Tiruchirappalli hospitals in the composed seed (v8 shipped
 // them only in the client seed, so a deployment seeded by an earlier device had
 // none) — the bump makes every device reseed the complete dataset.
-export const DATA_VERSION = 'v9-multidistrict-2026-09';
+export const DATA_VERSION = 'v10-district-analytics-2026-09';
 
 /** Cloud collection key that stores deletion tombstones. */
 export const TOMBSTONES_KEY = 'tombstones';

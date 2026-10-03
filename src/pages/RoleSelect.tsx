@@ -3,19 +3,18 @@
 // UI/UX only: role-selection state, auth, routing and backend are untouched.
 // ============================================================================
 
+import '@fontsource-variable/inter';
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import {
-  Activity,
   ArrowRight,
   Building2,
   Check,
-  ClipboardList,
-  CloudOff,
-  Route,
-  Shield,
+  ClipboardPlus,
+  MapPinned,
   ShieldCheck,
   Stethoscope,
   UserRound,
@@ -24,7 +23,7 @@ import {
 import { useApp } from '@/contexts/AppContext';
 import type { Role } from '@/types';
 
-// Official AarogyaLink healthcare-loop logo (served from public/).
+// Official AarogyaLink logo (served from public/).
 const LOGO_SOURCES = [
   '/aarogyalink-logo.jpeg',
   '/aarogyalink-logo.jpg',
@@ -32,62 +31,35 @@ const LOGO_SOURCES = [
   '/aarogyalink-logo.webp',
 ];
 
-const ROLES: { role: Role; icon: LucideIcon; label: string; description: string }[] = [
-  { role: 'patient', icon: UserRound, label: 'Patient', description: 'View your healthcare journey' },
-  { role: 'health_worker', icon: ClipboardList, label: 'Health Worker', description: 'Register patients & manage referrals' },
-  { role: 'doctor', icon: Stethoscope, label: 'Doctor', description: 'Consult & manage assigned patients' },
-  { role: 'hospital_admin', icon: Building2, label: 'Hospital Administrator', description: 'Manage hospital referrals & staff' },
-  { role: 'gov_admin', icon: Shield, label: 'District Administrator', description: 'Monitor district healthcare activity' },
-  { role: 'overall_admin', icon: ShieldCheck, label: 'Overall Administrator', description: 'Manage the healthcare network' },
-];
+const FONT_STACK = '"Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
-const FEATURES: { icon: LucideIcon; label: string }[] = [
-  { icon: ShieldCheck, label: 'Secure Role-Based Access' },
-  { icon: Route, label: 'Referral Tracking' },
-  { icon: CloudOff, label: 'Offline-First Workflows' },
-  { icon: Activity, label: 'Follow-up Monitoring' },
+const ROLES: { role: Role; icon: LucideIcon; label: string }[] = [
+  { role: 'patient', icon: UserRound, label: 'Patient' },
+  { role: 'health_worker', icon: ClipboardPlus, label: 'Health Worker' },
+  { role: 'doctor', icon: Stethoscope, label: 'Doctor' },
+  { role: 'hospital_admin', icon: Building2, label: 'Hospital Administrator' },
+  { role: 'gov_admin', icon: MapPinned, label: 'District Administrator' },
+  { role: 'overall_admin', icon: ShieldCheck, label: 'Overall Administrator' },
 ];
 
 // --- Decorative background (aria-hidden, extremely low opacity) -------------
 
-const NODES: [number, number][] = [
-  [120, 160], [245, 92], [352, 214], [184, 322], [96, 428],
-  [1318, 142], [1214, 258], [1358, 332],
-  [1178, 702], [1298, 782], [1076, 798],
-  [238, 716], [124, 818], [358, 796],
-  [694, 58], [842, 118],
-];
-
-const LINKS: [number, number][] = [
-  [0, 1], [1, 2], [2, 3], [3, 4], [0, 3],
-  [5, 6], [6, 7], [5, 7],
-  [8, 9], [9, 10], [8, 10],
-  [11, 12], [11, 13], [12, 13],
-  [14, 15],
-];
-
-const CROSSES: [number, number, number][] = [
-  [478, 118, 1], [982, 218, 0.75], [142, 558, 0.9],
-  [1244, 542, 1.05], [622, 832, 0.8], [906, 62, 0.65],
-];
-
 function BackgroundDecor() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      {/* Very subtle teal / green / blue gradient wash */}
+      {/* Very subtle teal + blue gradient glows */}
       <div
         className="absolute inset-0"
         style={{
           backgroundImage: [
-            'radial-gradient(58rem 30rem at 8% -8%, rgba(13, 148, 136, 0.10), transparent 60%)',
-            'radial-gradient(52rem 28rem at 100% 0%, rgba(59, 130, 246, 0.09), transparent 55%)',
-            'radial-gradient(48rem 30rem at 55% 112%, rgba(16, 185, 129, 0.08), transparent 60%)',
+            'radial-gradient(54rem 28rem at 10% -8%, rgba(13, 148, 136, 0.09), transparent 60%)',
+            'radial-gradient(50rem 26rem at 98% 4%, rgba(59, 130, 246, 0.08), transparent 55%)',
           ].join(', '),
         }}
       />
-      {/* Connected nodes, curved lines and faint medical crosses */}
+      {/* Faint curved healthcare connection lines */}
       <svg
-        className="absolute inset-0 h-full w-full opacity-[0.07]"
+        className="absolute inset-0 h-full w-full opacity-[0.06]"
         viewBox="0 0 1440 900"
         preserveAspectRatio="xMidYMid slice"
         fill="none"
@@ -95,29 +67,6 @@ function BackgroundDecor() {
         <path d="M-60 262 C 300 142 560 362 900 242 S 1320 122 1520 232" stroke="#0d9488" strokeWidth="1.5" />
         <path d="M-60 642 C 260 722 520 542 860 642 S 1280 762 1520 622" stroke="#3b82f6" strokeWidth="1.5" />
         <path d="M-40 462 C 380 402 700 522 1040 442 S 1380 382 1500 432" stroke="#10b981" strokeWidth="1" />
-        {LINKS.map(([a, b]) => (
-          <line
-            key={`${a}-${b}`}
-            x1={NODES[a][0]}
-            y1={NODES[a][1]}
-            x2={NODES[b][0]}
-            y2={NODES[b][1]}
-            stroke="#0d9488"
-            strokeWidth="1.25"
-          />
-        ))}
-        {NODES.map(([x, y], index) => (
-          <g key={`node-${index}`}>
-            <circle cx={x} cy={y} r="4.5" fill="#0d9488" />
-            <circle cx={x} cy={y} r="10" stroke="#3b82f6" strokeWidth="1.25" />
-          </g>
-        ))}
-        {CROSSES.map(([x, y, scale], index) => (
-          <g key={`cross-${index}`} transform={`translate(${x} ${y}) scale(${scale})`} fill="#10b981">
-            <rect x={-12} y={-4} width={24} height={8} rx={4} />
-            <rect x={-4} y={-12} width={8} height={24} rx={4} />
-          </g>
-        ))}
       </svg>
     </div>
   );
@@ -134,116 +83,103 @@ export default function RoleSelect() {
   };
 
   return (
-    <div className="relative min-h-screen bg-background">
+    <div className="relative min-h-screen bg-background" style={{ fontFamily: FONT_STACK }}>
       <BackgroundDecor />
 
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-8 sm:px-6 sm:py-10">
-        <div className="w-full max-w-[1100px]">
-          {/* Brand header */}
-          <header className="text-center">
-            {logoSrc && (
-              <img
-                key={logoSrc}
-                src={logoSrc}
-                alt="AarogyaLink logo"
-                onError={() => setLogoAttempt((attempt) => attempt + 1)}
-                className="mx-auto h-14 w-auto max-w-full select-none sm:h-20 lg:h-24"
-                draggable={false}
-              />
-            )}
-            <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              AarogyaLink
-            </h1>
-            <p className="mt-2 text-base font-medium text-primary sm:text-lg">
-              Closing the Rural Healthcare Loop
-            </p>
-            <p className="mx-auto mt-2.5 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
-              One connected platform for referrals, care coordination and follow-up.
-            </p>
-          </header>
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-6 sm:px-6 sm:py-8">
+        <div className="flex w-full max-w-[1000px] flex-col items-center">
+          {/* Branding */}
+          {logoSrc && (
+            <img
+              key={logoSrc}
+              src={logoSrc}
+              alt="AarogyaLink logo"
+              onError={() => setLogoAttempt((attempt) => attempt + 1)}
+              className="mx-auto h-[72px] w-auto max-w-full select-none animate-[brand-fade-down_450ms_ease-out_both] motion-reduce:animate-none sm:h-[84px]"
+              style={{ animationDelay: '0ms' }}
+              draggable={false}
+            />
+          )}
+          <h1
+            className="mt-3 text-[28px] font-bold tracking-tight text-foreground animate-[content-fade-up_450ms_ease-out_both] motion-reduce:animate-none sm:text-[32px]"
+            style={{ animationDelay: '70ms' }}
+          >
+            AarogyaLink
+          </h1>
+          <p
+            className="mt-1.5 text-sm font-medium text-primary animate-[content-fade-up_450ms_ease-out_both] motion-reduce:animate-none sm:text-[15px]"
+            style={{ animationDelay: '130ms' }}
+          >
+            Closing the Rural Healthcare Loop
+          </p>
 
-          {/* Role selection */}
-          <section className="mt-8 text-center sm:mt-9">
-            <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+          {/* Role selection container */}
+          <section
+            className="mt-6 w-full rounded-[24px] border border-border/60 bg-card/60 p-4 shadow-[0_1px_4px_rgba(16,24,40,0.05)] backdrop-blur-md animate-[content-fade-up_450ms_ease-out_both] motion-reduce:animate-none sm:p-6"
+            style={{ animationDelay: '180ms' }}
+          >
+            <h2 className="text-center text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
               Choose your role
             </h2>
-            <p className="mt-1.5 text-sm text-muted-foreground">Select how you access AarogyaLink</p>
-          </section>
 
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {ROLES.map(({ role, icon: Icon, label, description }) => {
-              const selected = currentRole === role;
-              return (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => handleSelect(role)}
-                  aria-pressed={selected}
-                  className={`group flex items-start gap-4 rounded-[18px] border p-4 text-left cursor-pointer transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                    selected
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary/25 shadow-[0_10px_30px_-16px_rgba(13,148,136,0.45)]'
-                      : 'border-border/70 bg-card shadow-[0_1px_3px_rgba(16,24,40,0.05)] hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-[0_6px_18px_-10px_rgba(16,24,40,0.25)]'
-                  }`}
-                >
-                  <span
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
-                      selected ? 'bg-primary/15 text-primary' : 'bg-primary/10 text-primary'
-                    }`}
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {ROLES.map(({ role, icon: Icon, label }, index) => {
+                const selected = currentRole === role;
+                return (
+                  <div
+                    key={role}
+                    className="animate-[card-fade-up_450ms_ease-out_both] motion-reduce:animate-none"
+                    style={{ animationDelay: `${240 + index * 60}ms` }}
                   >
-                    <Icon className="h-5 w-5" aria-hidden="true" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="text-[15px] font-semibold leading-snug text-foreground">
-                        {label}
-                      </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(role)}
+                      aria-pressed={selected}
+                      className={`group relative flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[20px] border p-2.5 text-center transition-all duration-200 ease-out hover:-translate-y-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:gap-2 sm:p-4 ${
+                        selected
+                          ? 'border-primary bg-primary/5 shadow-[0_6px_18px_-10px_rgba(13,148,136,0.5)] hover:border-primary'
+                          : 'border-border/70 bg-card/95 shadow-[0_1px_2px_rgba(16,24,40,0.04)] hover:border-primary/60 hover:shadow-[0_10px_24px_-14px_rgba(16,24,40,0.35)]'
+                      }`}
+                    >
                       {selected && (
                         <span
                           aria-hidden="true"
-                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm"
+                          className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm"
                         >
                           <Check className="h-3.5 w-3.5" strokeWidth={3} />
                         </span>
                       )}
-                    </span>
-                    <span className="mt-1 block text-[13px] leading-relaxed text-muted-foreground">
-                      {description}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                      <span
+                        className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 sm:h-11 sm:w-11 ${
+                          selected
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-healthcare-light text-healthcare-dark group-hover:bg-primary/25'
+                        }`}
+                      >
+                        <Icon
+                          className="h-5 w-5 transition-transform duration-200 ease-out group-hover:scale-105"
+                          aria-hidden="true"
+                        />
+                      </span>
+                      <span className="text-sm font-semibold leading-snug text-foreground">{label}</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
 
-          {/* Continue */}
-          <div className="mt-7 flex justify-center">
-            <Button
-              size="lg"
-              className="h-12 w-full rounded-full px-9 text-[15px] font-semibold shadow-[0_8px_22px_-12px_rgba(13,148,136,0.65)] transition-all hover:-translate-y-0.5 sm:w-auto"
-              onClick={() => navigate('/auth')}
-              disabled={!currentRole}
-            >
-              Continue
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </div>
-
-          {/* Platform feature strip */}
-          <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2.5">
-            {FEATURES.map(({ icon: Icon, label }) => (
-              <li
-                key={label}
-                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground sm:text-[13px]"
+            {/* Continue */}
+            <div className="mt-6 flex justify-center">
+              <Button
+                className="h-12 w-full rounded-[13px] gap-1.5 text-[15px] font-semibold transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(13,148,136,0.65)] hover:brightness-110 disabled:shadow-none sm:w-[160px]"
+                onClick={() => navigate('/auth')}
+                disabled={!currentRole}
               >
-                <Icon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-                {label}
-              </li>
-            ))}
-          </ul>
-
-          <p className="mx-auto mt-4 max-w-2xl text-center text-[11px] leading-relaxed text-muted-foreground/70">
-            Secure role-based access • Referral tracking • Offline-first healthcare workflows
-          </p>
+                Continue
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          </section>
         </div>
       </div>
     </div>

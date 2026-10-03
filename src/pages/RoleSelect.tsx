@@ -22,8 +22,9 @@ import type { Role } from '@/types';
 // Official AarogyaLink brand logo. Drop the asset into `public/` under any of
 // these names (png preferred) and it renders top-center, untouched.
 const LOGO_SOURCES = [
-  '/aarogyalink-logo.png',
+  '/aarogyalink-logo.jpeg',
   '/aarogyalink-logo.jpg',
+  '/aarogyalink-logo.png',
   '/aarogyalink-logo.webp',
 ];
 

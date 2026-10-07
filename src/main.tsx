@@ -12,7 +12,7 @@ import { DataProvider } from "@/contexts/DataContext";
 import "./index.css";
 
 // Lazy load route components
-const Landing = lazy(() => import("./pages/Landing.tsx"));
+// (`/` renders RoleSelect, which is the entry gate into /auth.)
 const RoleSelect = lazy(() => import("./pages/RoleSelect.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -98,7 +98,22 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+// `VITE_CONVEX_URL` is published by the platform's Convex dev process, so a
+// cold start can serve the page before the value exists. `ConvexReactClient`
+// throws when it receives `undefined`, and because this runs at module scope
+// that would abort the entry module — React never mounts and the page stays
+// blank until the env file lands and the browser reloads. Fall back to a
+// reserved, non-resolvable host instead (RFC 2606 `.invalid`) so the app always
+// boots and renders from its offline cache; cloud calls simply stay
+// unavailable until the real URL is present.
+const convexUrl = (import.meta.env.VITE_CONVEX_URL as string | undefined)?.trim();
+if (!convexUrl) {
+  console.warn(
+    "[convex] VITE_CONVEX_URL is not set yet — starting on the local cache. " +
+      "Cloud sync resumes automatically once Convex dev publishes the URL.",
+  );
+}
+const convex = new ConvexReactClient(convexUrl || "https://convex-unconfigured.invalid");
 
 function RouteSyncer() {
   const location = useLocation();

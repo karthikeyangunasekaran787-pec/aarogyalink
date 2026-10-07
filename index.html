@@ -7,11 +7,72 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AarogyaLink</title>
+  <style>
+    /*
+     * Entry splash. The app's JS graph (providers + route bundle) has to load
+     * before React can mount, so this renders branded content immediately
+     * instead of a blank white screen while those modules arrive. React
+     * replaces #root's children on mount, so this clears itself and needs no
+     * cleanup code.
+     */
+    #root > #boot-splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: #f6f9fa;
+      font-family: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    #boot-splash img {
+      height: 72px;
+      width: auto;
+      opacity: 0.9;
+    }
+    #boot-splash .boot-name {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #0f172a;
+    }
+    #boot-splash .boot-tag {
+      font-size: 13px;
+      font-weight: 500;
+      color: #0f766e;
+    }
+    #boot-splash .boot-spinner {
+      margin-top: 6px;
+      height: 20px;
+      width: 20px;
+      border-radius: 9999px;
+      border: 2px solid rgba(13, 148, 136, 0.25);
+      border-top-color: #0d9488;
+      animation: boot-spin 0.7s linear infinite;
+    }
+    @keyframes boot-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #boot-splash .boot-spinner {
+        animation-duration: 2s;
+      }
+    }
+  </style>
 </head>
 
-
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div id="boot-splash">
+      <img src="/aarogyalink-logo.jpeg" alt="" onerror="this.style.display='none'" />
+      <div class="boot-name">AarogyaLink</div>
+      <div class="boot-tag">Closing the Rural Healthcare Loop</div>
+      <div class="boot-spinner"></div>
+    </div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

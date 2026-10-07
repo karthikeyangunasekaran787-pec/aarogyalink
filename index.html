@@ -176,7 +176,20 @@
       <div class="boot-spinner"></div>
     </div>
   </div>
-  <script type="module" src="/src/main.tsx"></script>
+  
+<script>
+(function () {
+  var msg = document.getElementById("boot-msg");
+  function fail() {
+    if (!document.getElementById("boot-img") || msg.style.display === "none") return;
+    document.getElementById("boot-spinner").style.display = "none";
+    msg.style.display = "block";
+  }
+  window.addEventListener("error", fail, true);
+  window.addEventListener("unhandledrejection", fail);
+})();
+</script>
+<script type="module" src="/src/main.tsx"></script>
 </body>
 
 </html>

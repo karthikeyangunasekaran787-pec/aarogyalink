@@ -98,16 +98,6 @@
     #boot-splash .boot-retry:hover {
       background: #0f766e;
     }
-    @keyframes boot-spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      #boot-splash .boot-spinner {
-        animation-duration: 2s;
-      }
-    }
   </style>
   <script>
     /*
@@ -168,7 +158,8 @@
   </script>
 </head>
 
-<body>  <div id="root">
+<body>
+  <div id="root">
     <div id="boot-splash">
       <img src="/aarogyalink-logo.jpeg" alt="" onerror="this.style.display='none'" />
       <div class="boot-name">AarogyaLink</div>
@@ -176,20 +167,7 @@
       <div class="boot-spinner"></div>
     </div>
   </div>
-  
-<script>
-(function () {
-  var msg = document.getElementById("boot-msg");
-  function fail() {
-    if (!document.getElementById("boot-img") || msg.style.display === "none") return;
-    document.getElementById("boot-spinner").style.display = "none";
-    msg.style.display = "block";
-  }
-  window.addEventListener("error", fail, true);
-  window.addEventListener("unhandledrejection", fail);
-})();
-</script>
-<script type="module" src="/src/main.tsx"></script>
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 
 </html>

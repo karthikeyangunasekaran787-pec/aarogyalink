@@ -13,10 +13,10 @@ import { OfflineIndicator } from '@/components/shared/OfflineIndicator';
 import { Button } from '@/components/ui/button';
 import {
   Heart, Menu, X, Globe, Wifi, WifiOff, LogOut,
-  Home, Stethoscope, FileText,
+  Home, FileText,
   Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
   Pill, TestTube, BarChart3, UserPlus,
-  Package, TrendingUp, MessageSquare, Inbox, Clock, Users, Building2
+  Package, TrendingUp, Inbox, Clock, Users, Building2
 } from 'lucide-react';
 
 interface NavItem {
@@ -27,7 +27,6 @@ interface NavItem {
 
 const PATIENT_NAV: NavItem[] = [
   { label: 'home', path: '/patient/dashboard', icon: Home },
-  { label: 'aiAssistant', path: '/patient/ai-triage', icon: Stethoscope },
   { label: 'findFacilities', path: '/patient/facilities', icon: MapPin },
   { label: 'myAppointments', path: '/patient/appointments', icon: Calendar },
   { label: 'myReferrals', path: '/patient/referrals', icon: FileText },
@@ -66,7 +65,6 @@ const GOV_NAV: NavItem[] = [
   { label: 'Hospital Management', path: '/district-admin/hospitals', icon: Building2 },
   { label: 'referralFunnel', path: '/district-admin/analytics', icon: TrendingUp },
   { label: 'villageMap', path: '/district-admin/facilities', icon: MapPin },
-  { label: 'insights', path: '/district-admin/reports', icon: MessageSquare },
 ];
 
 const OVERALL_NAV: NavItem[] = [

@@ -12,14 +12,14 @@ import { DataProvider } from "@/contexts/DataContext";
 import "./index.css";
 
 // Lazy load route components
-// (`/` renders RoleSelect, which is the entry gate into /auth.)
+// `/` is the public product page; `/role-select` is the entry gate into /auth.
+const Landing = lazy(() => import("./pages/Landing.tsx"));
 const RoleSelect = lazy(() => import("./pages/RoleSelect.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Patient pages
 const PatientHome = lazy(() => import("./pages/patient/Home.tsx"));
-const AITriage = lazy(() => import("./pages/patient/AITriage.tsx"));
 const Facilities = lazy(() => import("./pages/patient/Facilities.tsx"));
 const Appointments = lazy(() => import("./pages/patient/Appointments.tsx"));
 const BookAppointment = lazy(() => import("./pages/patient/BookAppointment.tsx"));
@@ -137,13 +137,12 @@ createRoot(document.getElementById("root")!).render(
               <Suspense fallback={<RouteLoading />}>
                 <Routes>
                   {/* Public Routes */}
-                  <Route path="/" element={<RoleSelect />} />
+                  <Route path="/" element={<Landing />} />
                   <Route path="/role-select" element={<RoleSelect />} />
                   <Route path="/auth" element={<AuthPage />} />
 
                   {/* Patient Routes */}
                   <Route path="/patient/dashboard" element={<RequireAuth allowedRoles={['patient']}><App><PatientHome /></App></RequireAuth>} />
-                  <Route path="/patient/ai-triage" element={<RequireAuth allowedRoles={['patient']}><App><AITriage /></App></RequireAuth>} />
                   <Route path="/patient/facilities" element={<RequireAuth allowedRoles={['patient']}><App><Facilities /></App></RequireAuth>} />
                   <Route path="/patient/appointments" element={<RequireAuth allowedRoles={['patient']}><App><Appointments /></App></RequireAuth>} />
                   <Route path="/patient/book-appointment" element={<RequireAuth allowedRoles={['patient']}><App><BookAppointment /></App></RequireAuth>} />
@@ -181,7 +180,6 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="/district-admin/analytics" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
                   <Route path="/district-admin/hospitals" element={<RequireAuth allowedRoles={['gov_admin']}><App><HospitalManagement /></App></RequireAuth>} />
                   <Route path="/district-admin/facilities" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
-                  <Route path="/district-admin/reports" element={<RequireAuth allowedRoles={['gov_admin']}><App><GovDashboard /></App></RequireAuth>} />
 
                   {/* Overall Administrator Routes */}
                   <Route path="/master-admin/dashboard" element={<RequireAuth allowedRoles={['overall_admin']}><App><MasterAdminDashboard /></App></RequireAuth>} />

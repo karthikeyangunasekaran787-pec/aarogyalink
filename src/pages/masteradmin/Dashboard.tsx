@@ -704,18 +704,18 @@ export default function MasterAdminDashboard() {
         </Card>
       )}
 
-      {/* ── Demo data ────────────────────────────────────────── */}
+      {/* ── Initial System Data ──────────────────────────────── */}
       {view === 'dashboard' && (
         <Card>
           <CardContent className="p-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-foreground">Demo dataset</p>
+              <p className="text-sm font-medium text-foreground">Initial System Data</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Restore the original prototype fixtures (Pudukkottai + Tiruchirappalli hospitals, staff, patients and referrals) across every device.
+                Reload the initial system records (Pudukkottai and Tiruchirappalli hospitals, staff, patients and referrals) across every device.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => { resetDemoData(); flash('Demo data restored and syncing to every device.'); }}>
-              <RefreshCw className="h-4 w-4 mr-1.5" /> Restore Demo Data
+            <Button variant="outline" size="sm" onClick={() => { resetDemoData(); flash('Initial system data restored and syncing to every device.'); }}>
+              <RefreshCw className="h-4 w-4 mr-1.5" /> Restore initial data
             </Button>
           </CardContent>
         </Card>

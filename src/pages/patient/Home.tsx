@@ -20,7 +20,7 @@ import {
 
 export default function PatientHome() {
   const { language, currentUser } = useApp();
-  const { patients, referrals, appointments, facilities, hospitals, getReferralsForPatient, getConsultationsForPatient, doctors } = useData();
+  const { patients, appointments, facilities, hospitals, getReferralsForPatient, getConsultationsForPatient, doctors } = useData();
   // Never fall back to another patient's record: an unlinked account must not
   // see someone else's health data.
   const patient = patients.find(p => p.id === currentUser?.patientId);
@@ -39,7 +39,7 @@ export default function PatientHome() {
   };
 
   const quickActions = [
-    { label: t('aiAssistant', language), path: '/patient/ai-triage', icon: Stethoscope, color: 'bg-primary/10 text-primary' },
+    { label: t('myReferrals', language), path: '/patient/referrals', icon: Stethoscope, color: 'bg-primary/10 text-primary' },
     { label: t('findFacilities', language), path: '/patient/facilities', icon: MapPin, color: 'bg-emerald-50 text-emerald-600' },
     { label: t('emergency', language), path: '/patient/emergency', icon: Phone, color: 'bg-red-50 text-red-600' },
     { label: t('myHealthCard', language), path: '/patient/health-card', icon: CreditCard, color: 'bg-violet-50 text-violet-600' },

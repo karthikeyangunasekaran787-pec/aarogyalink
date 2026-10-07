@@ -10,15 +10,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Users, FileText, Clock, AlertTriangle, TrendingUp, Activity,
-  Building2, MapPin, Lightbulb, CheckCircle2, Heart
+  Building2, MapPin, CheckCircle2, Heart
 } from 'lucide-react';
 
 export default function GovDashboard() {
   const { language, currentUser } = useApp();
   const {
     patients, referrals, followups, currentFacilities, villageAccessScores,
-    medicineStock, diagnostics,
-    districtAnalytics: liveAnalytics, referralFunnel, aiInsights,
+    districtAnalytics: liveAnalytics, referralFunnel,
   } = useData();
 
   // This console covers exactly ONE district: the backend scopes the data it
@@ -371,34 +370,6 @@ export default function GovDashboard() {
         </Card>
       </div>
 
-      {/* ── AI Insights ──────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Lightbulb className="h-[1.125rem] w-[1.125rem] text-primary" />
-            AI-Generated Operational Insights
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {aiInsights.map(insight => (
-            <div key={insight.id} className={`p-3 rounded-lg border ${
-              insight.priority === 'high' ? 'border-red-200 bg-red-50/30' :
-              insight.priority === 'medium' ? 'border-amber-200 bg-amber-50/30' :
-              'border-border bg-muted/30'
-            }`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{insight.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{insight.description}</p>
-                </div>
-                {insight.metric && (
-                  <Badge variant="outline" className="text-[10px] ml-2 flex-shrink-0">{insight.metric}</Badge>
-                )}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -143,7 +143,6 @@ export default function RoleSelect() {
                 key={option.role}
                 index={index}
                 label={option.label}
-                description={option.description}
                 icon={ROLE_ICONS[option.role]}
                 tint={option.tint}
                 selected={selected === option.role}

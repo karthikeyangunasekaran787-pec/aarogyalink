@@ -6,8 +6,8 @@
  * here instead of showing a white screen in the browser.
  *
  * The expectations are derived from `@/lib/role-options` rather than retyped,
- * so the page cannot drift from the six roles, their labels or their one-line
- * descriptions without this test failing.
+ * so the page cannot drift from the six roles or their names without this
+ * test failing.
  *
  * The Three.js backdrop is mocked: WebGL cannot run in this environment and the
  * scene is lazy + decorative, so what matters here is the page itself.
@@ -96,12 +96,51 @@ describe('RoleSelect content', () => {
     expect(html).toContain('/aarogyalink-logo.jpeg');
     expect(text).toContain('Continue');
 
-    // Every role, with its exact label and short description.
+    // Every role, by name.
     for (const option of ROLE_OPTIONS) {
       expect(text).toContain(option.label);
-      expect(text).toContain(option.description);
     }
     expect(ROLE_OPTIONS.length).toBe(6);
+  });
+
+  test('a card carries the role name and no other copy', () => {
+    currentRole = null;
+    const text = visibleText(render());
+
+    // Per-role explanations were removed by request.
+    for (const phrase of [
+      'Access your care',
+      'Register & refer patients',
+      'Consult & manage care',
+      'Manage referrals & staff',
+      'Monitor district healthcare',
+      'Manage system & districts',
+    ]) {
+      expect(text).not.toContain(phrase);
+    }
+
+    // Strict version of the same rule: every word on the page must be one of
+    // the brand, the heading, a role name or Continue — nothing else.
+    const allowed = new Set([
+      'AarogyaLink',
+      'Closing',
+      'the',
+      'Rural',
+      'Healthcare',
+      'Loop',
+      'Select',
+      'your',
+      'role',
+      'Continue',
+      ...ROLE_OPTIONS.flatMap(option => option.label.split(' ')),
+    ]);
+    const unexpected = text
+      .split(/\s+/)
+      .map(word => word.replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, ''))
+      .filter(Boolean)
+      .filter(word => !allowed.has(word));
+
+    expect(unexpected).toEqual([]);
   });
 
   test('carries none of the promotional, AI, demo or statistics copy', () => {

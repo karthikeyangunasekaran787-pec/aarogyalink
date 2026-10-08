@@ -56,8 +56,8 @@ export function RoleIcon({ icon: Icon, tint, selected }: RoleIconProps) {
 }
 
 export interface RoleCardProps {
+  /** The role name — the only text the card carries. */
   label: string;
-  description: string;
   icon: LucideIcon;
   tint: RoleTint;
   selected: boolean;
@@ -68,7 +68,6 @@ export interface RoleCardProps {
 
 export function RoleCard({
   label,
-  description,
   icon,
   tint,
   selected,
@@ -108,9 +107,6 @@ export function RoleCard({
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-semibold leading-snug text-slate-900">
             {label}
-          </span>
-          <span className="mt-0.5 block truncate text-[13px] leading-snug text-slate-500">
-            {description}
           </span>
         </span>
 

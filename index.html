@@ -43,33 +43,13 @@
       font-weight: 500;
       color: #0f766e;
     }
-    #boot-splash .boot-spinner {
-      margin-top: 6px;
-      flex: 1;
-      border-radius: 9999px;
-      background: rgba(13, 148, 136, 0.18);
-    }
-    #boot-splash .boot-spinner::before {
-      content: "";
-      border-radius: inherit;
-      background: conic-gradient(
-        rgba(13, 148, 136, 0.9) 0deg,
-        rgba(13, 148, 136, 0.15) 120deg,
-        rgba(13, 148, 136, 0.9) 240deg,
-        rgba(13, 148, 136, 0.15) 360deg
-      );
-      animation: boot-fill 1.1s linear infinite;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      #boot-splash .boot-spinner::before {
-        animation-duration: 3s;
-      }
-    }
-    @keyframes boot-fill {
-      to {
-        background-position: 360deg;
-      }
-    }
+    /*
+     * No spinner, no progress bar: entering the app must not read as "loading".
+     * The frame below is a static branded paint that React replaces the moment
+     * it mounts — the entry routes are bundled eagerly, so there is no chunk
+     * fetch to wait on and no loading fallback behind this frame. Only the
+     * failure path below swaps it for a message.
+     */
     #boot-splash .boot-error {
       margin: 4px 0 0;
       font-size: 14px;
@@ -164,7 +144,6 @@
       <img src="/aarogyalink-logo.jpeg" alt="" onerror="this.style.display='none'" />
       <div class="boot-name">AarogyaLink</div>
       <div class="boot-tag">Closing the Rural Healthcare Loop</div>
-      <div class="boot-spinner"></div>
     </div>
   </div>
   <script type="module" src="/src/main.tsx"></script>

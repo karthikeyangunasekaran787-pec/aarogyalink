@@ -11,10 +11,14 @@ import { AppProvider } from "@/contexts/AppContext";
 import { DataProvider } from "@/contexts/DataContext";
 import "./index.css";
 
-// Lazy load route components
-// `/` is the public product page; `/role-select` is the entry gate into /auth.
+// The entry gateway is imported EAGERLY (not `lazy`): `/` must paint the
+// role-selection page straight from the entry chunk instead of flashing a
+// loading fallback while a second request resolves.
+import RoleSelect from "./pages/RoleSelect.tsx";
+
+// Route components — everything behind the gate stays lazy so it costs
+// nothing until it is visited.
 const Landing = lazy(() => import("./pages/Landing.tsx"));
-const RoleSelect = lazy(() => import("./pages/RoleSelect.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -136,10 +140,13 @@ createRoot(document.getElementById("root")!).render(
             <DataProvider>
               <Suspense fallback={<RouteLoading />}>
                 <Routes>
-                  {/* Public Routes */}
-                  <Route path="/" element={<Landing />} />
-                  <Route path="/role-select" element={<RoleSelect />} />
-                  <Route path="/auth" element={<AuthPage />} />
+                {/* Public Routes */}
+                {/* `/` IS the redesigned role-selection gateway — entering the
+                    app shows it immediately, with no route-level fallback. */}
+                <Route path="/" element={<RoleSelect />} />
+                <Route path="/role-select" element={<RoleSelect />} />
+                <Route path="/home" element={<Landing />} />
+                <Route path="/auth" element={<AuthPage />} />
 
                   {/* Patient Routes */}
                   <Route path="/patient/dashboard" element={<RequireAuth allowedRoles={['patient']}><App><PatientHome /></App></RequireAuth>} />

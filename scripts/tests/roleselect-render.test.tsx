@@ -13,6 +13,8 @@
  * scene is lazy + decorative, so what matters here is the page itself.
  */
 import { describe, expect, mock, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 
@@ -45,6 +47,39 @@ const visibleText = (html: string) =>
     .replace(/&#x27;|&#39;/g, "'")
     .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ');
+
+describe('Entry experience wiring', () => {
+  // A page can be perfectly correct and still never be seen: `/` is what the
+  // browser requests first, so these pin the two entry-level requirements —
+  // the front door IS the gateway, and entering shows no loading state.
+  test('entering `/` renders the gateway eagerly, with no loading screen', () => {
+    const main = readFileSync(resolve(import.meta.dir, '../../src/main.tsx'), 'utf8');
+
+    // The front door is the redesigned role-selection gateway...
+    expect(main).toMatch(/<Route path="\/" element=\{<RoleSelect \/>\}/);
+
+    // ...imported eagerly. A `lazy()` entry route would wait on a chunk fetch
+    // and flash the RouteLoading spinner before anything painted.
+    expect(main).not.toMatch(/RoleSelect = lazy\(/);
+
+    // The frame covering module evaluation is static: no spinner, no progress
+    // animation, no "loading" wording.
+    const html = readFileSync(resolve(import.meta.dir, '../../index.html'), 'utf8');
+    expect(html).not.toContain('boot-spinner');
+    expect(html).not.toContain('@keyframes boot-fill');
+    expect(html).not.toMatch(/>\s*Loading[^<]*<\//i);
+  });
+
+  test('the branded entry frame keeps its failure message and retry', () => {
+    // Removing the spinner must not remove the error path: if the bundle
+    // never loads, the visitor still gets a readable message instead of a
+    // silent frozen page.
+    const html = readFileSync(resolve(import.meta.dir, '../../index.html'), 'utf8');
+    expect(html).toContain('boot-error');
+    expect(html).toContain('boot-retry');
+    expect(html).toContain('unhandledrejection');
+  });
+});
 
 describe('RoleSelect content', () => {
   test('shows only the brand, the heading, six roles and Continue', () => {

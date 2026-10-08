@@ -96,12 +96,14 @@ export default function RoleSelect() {
         <Suspense fallback={null}>
           <HealthcareNetwork3D className="absolute inset-0" activeNode={nodeForRole(selected)} />
         </Suspense>
-        {/* Guarantees legibility regardless of the scene behind it. */}
+        {/* Guarantees legibility without erasing the scene: a light core sits
+            under the brand, heading and cards, while the outer band where the
+            network lives stays clear enough to read. */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(70% 55% at 50% 52%, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.78) 45%, rgba(246,250,251,0.42) 72%, rgba(246,250,251,0.18) 100%)',
+              'radial-gradient(62% 56% at 50% 50%, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.78) 50%, rgba(246,250,251,0.38) 76%, rgba(246,250,251,0.10) 100%)',
           }}
         />
       </div>

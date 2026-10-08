@@ -47,17 +47,25 @@ const { createRoot } = await import('react-dom/client');
 const { MemoryRouter, Route, Routes } = await import('react-router');
 const { default: RoleSelect } = await import('../../src/pages/RoleSelect');
 
-let container: HTMLDivElement;
-let root: Root;
+let container: HTMLDivElement | undefined;
+let root: Root | undefined;
+
+/** The mounted host — fails clearly if a test forgot to call mount(). */
+function shell(): HTMLDivElement {
+  if (!container) throw new Error('test did not mount RoleSelect — call mount() first');
+  return container;
+}
 
 /** Mount the page at /role-select with the real /auth route alongside it. */
 async function mount() {
-  container = document.createElement('div');
-  document.body.appendChild(container);
-  root = createRoot(container);
+  const element = document.createElement('div');
+  document.body.appendChild(element);
+  const mountedRoot = createRoot(element);
+  container = element;
+  root = mountedRoot;
 
   await act(async () => {
-    root.render(
+    mountedRoot.render(
       <MemoryRouter initialEntries={['/role-select']}>
         <Routes>
           <Route path="/role-select" element={<RoleSelect />} />
@@ -73,7 +81,7 @@ async function mount() {
 }
 
 function cards(): HTMLButtonElement[] {
-  return Array.from(container.querySelectorAll<HTMLButtonElement>('button[aria-pressed]'));
+  return Array.from(shell().querySelectorAll<HTMLButtonElement>('button[aria-pressed]'));
 }
 
 function cardFor(label: string): HTMLButtonElement {
@@ -83,7 +91,7 @@ function cardFor(label: string): HTMLButtonElement {
 }
 
 function continueButton(): HTMLButtonElement {
-  const found = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button =>
+  const found = Array.from(shell().querySelectorAll<HTMLButtonElement>('button')).find(button =>
     button.textContent?.includes('Continue'),
   );
   if (!found) throw new Error('No Continue button');
@@ -105,9 +113,22 @@ beforeEach(() => {
   published.length = 0;
 });
 
-afterEach(() => {
-  act(() => root.unmount());
-  container.remove();
+afterEach(async () => {
+  const mountedRoot = root;
+  const mountedContainer = container;
+  root = undefined;
+  container = undefined;
+
+  if (mountedRoot) {
+    // Let the entrance animations finish before tearing down. Unmounting a
+    // `motion` component mid-animation makes happy-dom reject that animation's
+    // promise (AbortError); those unhandled rejections poison React's act()
+    // scope and fail unrelated later tests. Real browsers cancel silently, so
+    // this is a harness concern, not a product one.
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    act(() => mountedRoot.unmount());
+  }
+  mountedContainer?.remove();
 });
 
 describe('RoleSelect behaviour', () => {
@@ -167,6 +188,27 @@ describe('RoleSelect behaviour', () => {
 
     expect(published).toEqual(ROLE_OPTIONS.map(option => option.role));
     expect(continueButton().disabled).toBe(false);
+  });
+
+  test('the empty entry frame is removed on mount, so it never covers the app', async () => {
+    // index.html ships an EMPTY #boot-splash — fixed, inset:0, opaque — so the
+    // entry shows no logo. This proves React clears those pre-existing
+    // children on mount; otherwise that frame would sit on top of the app and
+    // the preview would look permanently blank.
+    const shell = document.createElement('div');
+    shell.innerHTML = '<div id="boot-splash"></div>';
+    document.body.appendChild(shell);
+    const shellRoot = createRoot(shell);
+
+    await act(async () => {
+      shellRoot.render(<div>APP_SHELL</div>);
+    });
+
+    expect(shell.textContent).toBe('APP_SHELL');
+    expect(shell.querySelector('#boot-splash')).toBeNull();
+
+    await act(async () => shellRoot.unmount());
+    shell.remove();
   });
 
   test('the page still works with reduced motion enabled', async () => {

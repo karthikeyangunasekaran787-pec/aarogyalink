@@ -68,6 +68,13 @@ describe('Entry experience wiring', () => {
     expect(html).not.toContain('boot-spinner');
     expect(html).not.toContain('@keyframes boot-fill');
     expect(html).not.toMatch(/>\s*Loading[^<]*<\//i);
+
+    // The visitor must not be shown a logo (or any image) while the app loads:
+    // the entry frame's markup is empty apart from its container.
+    const body = html.slice(html.indexOf('<body>'));
+    expect(body).not.toContain('<img');
+    expect(body).not.toContain('aarogyalink-logo');
+    expect(body).not.toContain('boot-name');
   });
 
   test('the branded entry frame keeps its failure message and retry', () => {

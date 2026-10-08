@@ -1,7 +1,6 @@
 import '@vly-ai/integrations';
 import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
-import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import React, { StrictMode, useEffect, lazy, Suspense } from "react";
@@ -15,6 +14,13 @@ import "./index.css";
 // role-selection page straight from the entry chunk instead of flashing a
 // loading fallback while a second request resolves.
 import RoleSelect from "./pages/RoleSelect.tsx";
+
+// The preview toolbar (element picker + screenshots) drags in a screenshot
+// library and is not needed to render the app, so it loads after first paint
+// instead of holding up the entry. It keeps its own error boundary.
+const VlyToolbar = lazy(() =>
+  import("../vly-toolbar-readonly.tsx").then(module => ({ default: module.VlyToolbar })),
+);
 
 // Route components — everything behind the gate stays lazy so it costs
 // nothing until it is visited.
@@ -131,7 +137,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RootErrorBoundary>
       <ToolbarErrorBoundary>
-        <VlyToolbar />
+        <Suspense fallback={null}>
+          <VlyToolbar />
+        </Suspense>
       </ToolbarErrorBoundary>
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>

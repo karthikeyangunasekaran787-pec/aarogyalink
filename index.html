@@ -9,10 +9,13 @@
   <title>AarogyaLink</title>
   <style>
     /*
-     * Entry splash. The app's module graph (providers + route bundle) has to
-     * load before React can mount, so this paints branded content immediately
-     * instead of a blank white screen while those modules arrive. React
-     * replaces #root's children on mount, so it clears itself with no cleanup.
+     * The entry container is EMPTY on purpose: entering the app must not show
+     * a logo, a spinner or any branded loader while the module graph arrives —
+     * the visitor asked to see the page itself. React clears #root's children
+     * on mount, so nothing here paints at any point.
+     *
+     * It is only populated by the failure path below, if the entry module
+     * never runs: then it becomes a readable message instead of a blank page.
      */
     #root > #boot-splash {
       position: fixed;
@@ -38,17 +41,11 @@
       letter-spacing: -0.01em;
       color: #0f172a;
     }
-    #boot-splash .boot-tag {
-      font-size: 13px;
-      font-weight: 500;
-      color: #0f766e;
-    }
     /*
-     * No spinner, no progress bar: entering the app must not read as "loading".
-     * The frame below is a static branded paint that React replaces the moment
-     * it mounts — the entry routes are bundled eagerly, so there is no chunk
-     * fetch to wait on and no loading fallback behind this frame. Only the
-     * failure path below swaps it for a message.
+     * No spinner, no progress bar, no branded loader: entering the app must not
+     * read as "loading". The container below stays empty until React mounts —
+     * the entry routes are bundled eagerly, so there is no chunk fetch to wait
+     * on behind it. Only the failure path fills it with a message.
      */
     #boot-splash .boot-error {
       margin: 4px 0 0;
@@ -140,11 +137,8 @@
 
 <body>
   <div id="root">
-    <div id="boot-splash">
-      <img src="/aarogyalink-logo.jpeg" alt="" onerror="this.style.display='none'" />
-      <div class="boot-name">AarogyaLink</div>
-      <div class="boot-tag">Closing the Rural Healthcare Loop</div>
-    </div>
+    <!-- Empty: no logo, no spinner, no splash while the app loads. -->
+    <div id="boot-splash"></div>
   </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

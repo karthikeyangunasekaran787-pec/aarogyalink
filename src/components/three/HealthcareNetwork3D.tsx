@@ -16,7 +16,8 @@
 //   • the card grid area stays clean apart from one faint, far-away hub;
 //   • answering a selection is the only "event": that node brightens and lifts
 //     while everything else stays calm;
-//   • core three only — no post-processing, no textures, no add-ons;
+//   • core three only — no post-processing, no external assets (the soft glow
+//     is a radial gradient drawn into a canvas at runtime), no add-ons;
 //   • the loop pauses when the tab is hidden or the canvas is off-screen;
 //   • prefers-reduced-motion paints a single static frame per selection;
 //   • WebGL unavailable → renders nothing (the page must not depend on it).
@@ -24,10 +25,10 @@
 
 import { useEffect, useRef } from 'react';
 import {
-  AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, Clock,
-  DirectionalLight, Line, LineBasicMaterial, Mesh, MeshBasicMaterial,
+  AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, CanvasTexture, Clock,
+  DirectionalLight, FogExp2, Line, LineBasicMaterial, Mesh, MeshBasicMaterial,
   MeshStandardMaterial, PerspectiveCamera, Points, PointsMaterial, Scene,
-  SphereGeometry, Vector3, WebGLRenderer,
+  Sprite, SpriteMaterial, SphereGeometry, Vector3, WebGLRenderer,
 } from 'three';
 import {
   COORDINATING_NODES, NETWORK_NODES, PATHWAY_NODES,
@@ -60,16 +61,54 @@ const NODE_POSITIONS: Record<NetworkNodeKey, [number, number, number]> = (() => 
 const RING_RADIUS = 0.17;
 const HUB_RADIUS = 0.24;
 
-/** Resting appearance of each node, before any selection. */
+/**
+ * Resting appearance of each node: a gentle gradient along the care pathway,
+ * from deep clinical teal at the patient end to open sky at follow-up, so the
+ * chain reads as one continuous journey instead of nine identical dots.
+ * The coordinating nodes stay distinct — blue for the district layer, brand
+ * teal for the AarogyaLink hub.
+ */
+const PATHWAY_COLORS = [
+  0x0d9488, 0x0fa396, 0x14b8a6, 0x06b6d4, 0x0ea5e9, 0x38bdf8, 0x7dd3fc,
+];
+
 function restColor(key: NetworkNodeKey): number {
   if (key === 'hub') return 0x0f766e;
   if (key === 'district') return 0x2563eb;
-  if (key === 'treatment' || key === 'followup') return 0x0ea5e9;
-  return 0x0d9488;
+  const index = PATHWAY_NODES.indexOf(key);
+  return PATHWAY_COLORS[index] ?? 0x0d9488;
 }
 
 /** Brightened appearance when a node answers the current selection. */
 const ACTIVE_COLOR = 0x22d3ee;
+
+/**
+ * A soft radial falloff drawn into a canvas at runtime — nothing is fetched,
+ * and it gives every node a bloom without a post-processing pass.
+ */
+function createGlowTexture(): CanvasTexture | null {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+  const gradient = context.createRadialGradient(
+    size / 2,
+    size / 2,
+    0,
+    size / 2,
+    size / 2,
+    size / 2,
+  );
+  gradient.addColorStop(0, 'rgba(255,255,255,0.98)');
+  gradient.addColorStop(0.22, 'rgba(255,255,255,0.55)');
+  gradient.addColorStop(0.5, 'rgba(255,255,255,0.18)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+  return new CanvasTexture(canvas);
+}
 
 export interface HealthcareNetwork3DProps {
   /** Node to highlight, derived from the selected role. */
@@ -125,7 +164,14 @@ export default function HealthcareNetwork3D({
     rimLight.position.set(-4, -1.5, -3);
     scene.add(rimLight);
 
+    // Depth: the far end of the chain dissolves into the page's own background,
+    // so the scene reads as atmosphere behind the cards, never as a diagram.
+    scene.fog = new FogExp2(0xf4fafb, 0.05);
+
     const disposables: { dispose: () => void }[] = [];
+
+    const glowTexture = createGlowTexture();
+    if (glowTexture) disposables.push(glowTexture);
 
     const ringGeometry = new SphereGeometry(RING_RADIUS, isSmallScreen ? 14 : 20, isSmallScreen ? 10 : 14);
     disposables.push(ringGeometry);
@@ -139,6 +185,9 @@ export default function HealthcareNetwork3D({
       // Generics are pinned so `material` keeps its concrete type below.
       mesh: Mesh<SphereGeometry, MeshStandardMaterial>;
       halo: Mesh<SphereGeometry, MeshBasicMaterial>;
+      /** Soft aura sprite — the node's bloom. */
+      glow: Sprite;
+      glowScale: number;
       restColor: number;
       haloScale: number;
       base: Vector3;
@@ -184,10 +233,29 @@ export default function HealthcareNetwork3D({
       halo.scale.setScalar((isHub ? HUB_RADIUS : RING_RADIUS) * haloScale);
       scene.add(halo);
 
+      // A soft aura reading as bloom without a post-processing pass. Normal
+      // blending (not additive) keeps it coloured instead of washing this
+      // light page toward white.
+      const glowMaterial = new SpriteMaterial({
+        map: glowTexture,
+        color,
+        transparent: true,
+        opacity: isHub ? 0.3 : 0.44,
+        depthWrite: false,
+      });
+      disposables.push(glowMaterial);
+      const glow = new Sprite(glowMaterial);
+      glow.position.copy(base);
+      const glowScale = (isHub ? HUB_RADIUS : RING_RADIUS) * (isHub ? 7 : 6);
+      glow.scale.setScalar(glowScale);
+      scene.add(glow);
+
       nodes.push({
         key: node.key,
         mesh,
         halo,
+        glow,
+        glowScale,
         restColor: color,
         haloScale,
         base,
@@ -229,6 +297,83 @@ export default function HealthcareNetwork3D({
       scene.add(new Line(geometry, material));
     }
 
+    // ── The hub: concentric rings radiating from the AarogyaLink node ─────
+    const hubRingLines: Line[] = [];
+    const ringSpecs = [
+      { radius: 0.8, opacity: 0.17 },
+      { radius: 1.3, opacity: 0.11 },
+      { radius: 1.9, opacity: 0.06 },
+    ];
+    for (const { radius, opacity } of ringSpecs) {
+      const ringPoints: Vector3[] = [];
+      const ringSegments = 64;
+      for (let i = 0; i <= ringSegments; i += 1) {
+        const angle = (i / ringSegments) * Math.PI * 2;
+        // Squashed flat so it reads as a network footprint on the ground.
+        ringPoints.push(new Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.42, 0));
+      }
+      const ringGeometry = new BufferGeometry().setFromPoints(ringPoints);
+      disposables.push(ringGeometry);
+      const ringMaterial = new LineBasicMaterial({
+        color: 0x14b8a6,
+        transparent: true,
+        opacity,
+        blending: AdditiveBlending,
+      });
+      disposables.push(ringMaterial);
+      const ring = new Line(ringGeometry, ringMaterial);
+      ring.position.set(...NODE_POSITIONS.hub);
+      scene.add(ring);
+      hubRingLines.push(ring);
+    }
+
+    // ── Travelling pulses: care moving around the loop ───────────────────
+    const pathwayPoints = PATHWAY_NODES.map(key => new Vector3(...NODE_POSITIONS[key]));
+    const pathwaySegments: { from: Vector3; to: Vector3; length: number; start: number }[] = [];
+    let pathwayLength = 0;
+    for (let i = 0; i < pathwayPoints.length - 1; i += 1) {
+      const from = pathwayPoints[i];
+      const to = pathwayPoints[i + 1];
+      const length = from.distanceTo(to);
+      pathwaySegments.push({ from, to, length, start: pathwayLength });
+      pathwayLength += length;
+    }
+
+    /** Position along the pathway polyline for a given arc-length distance. */
+    function positionAlongPath(distance: number, out: Vector3) {
+      const d = ((distance % pathwayLength) + pathwayLength) % pathwayLength;
+      let segment = pathwaySegments[pathwaySegments.length - 1];
+      for (const candidate of pathwaySegments) {
+        if (d >= candidate.start && d <= candidate.start + candidate.length) {
+          segment = candidate;
+          break;
+        }
+      }
+      const t = segment.length > 0 ? (d - segment.start) / segment.length : 0;
+      out.copy(segment.from).lerp(segment.to, t);
+    }
+
+    const pulseCount = isSmallScreen ? 2 : 5;
+    const pulseGeometry = new SphereGeometry(0.045, 8, 6);
+    disposables.push(pulseGeometry);
+    const pulses: { mesh: Mesh; offset: number }[] = [];
+    for (let i = 0; i < pulseCount; i += 1) {
+      const material = new MeshBasicMaterial({
+        color: 0xa5f3fc,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false,
+        blending: AdditiveBlending,
+      });
+      disposables.push(material);
+      const mesh = new Mesh(pulseGeometry, material);
+      // Staggered along the chain so several read as one continuous flow.
+      mesh.position.copy(pathwayPoints[0]);
+      scene.add(mesh);
+      pulses.push({ mesh, offset: (i / pulseCount) * pathwayLength });
+    }
+    const pulseScratch = new Vector3();
+
     // ── Particles ──────────────────────────────────────────────────────────
     const particleCount = isSmallScreen ? 40 : 110;
     const particlePositions = new Float32Array(particleCount * 3);
@@ -248,7 +393,31 @@ export default function HealthcareNetwork3D({
       depthWrite: false,
     });
     disposables.push(particleMaterial);
-    scene.add(new Points(particleGeometry, particleMaterial));
+    const particleField = new Points(particleGeometry, particleMaterial);
+    scene.add(particleField);
+
+    // A closer, brighter layer of slow motes for parallax depth.
+    const moteCount = isSmallScreen ? 8 : 22;
+    const motePositions = new Float32Array(moteCount * 3);
+    for (let i = 0; i < moteCount; i += 1) {
+      motePositions[i * 3] = (Math.random() - 0.5) * 14;
+      motePositions[i * 3 + 1] = (Math.random() - 0.5) * 8;
+      motePositions[i * 3 + 2] = Math.random() * 3 + 0.5;
+    }
+    const moteGeometry = new BufferGeometry();
+    moteGeometry.setAttribute('position', new BufferAttribute(motePositions, 3));
+    disposables.push(moteGeometry);
+    const moteMaterial = new PointsMaterial({
+      color: 0x67e8f9,
+      size: 0.075,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+      blending: AdditiveBlending,
+    });
+    disposables.push(moteMaterial);
+    const moteField = new Points(moteGeometry, moteMaterial);
+    scene.add(moteField);
 
     // ── Sizing ─────────────────────────────────────────────────────────────
     function resize() {
@@ -296,9 +465,37 @@ export default function HealthcareNetwork3D({
         node.halo.scale.setScalar(baseRadius * node.haloScale * (1 + node.active * 0.35));
         node.halo.material.opacity = (node.key === 'hub' ? 0.05 : 0.09) + node.active * 0.3;
         node.halo.material.color.setHex(highlighted ? ACTIVE_COLOR : node.restColor);
+
+        // The aura follows the node and answers the selection.
+        node.glow.position.set(node.base.x, node.base.y + bob, node.base.z);
+        node.glow.scale.setScalar(node.glowScale * (1 + node.active * 0.5));
+        node.glow.material.opacity = (node.key === 'hub' ? 0.3 : 0.44) + node.active * 0.3;
+        node.glow.material.color.setHex(highlighted ? ACTIVE_COLOR : node.restColor);
+      }
+
+      // Pulses travel the pathway — the care loop in motion. Under reduced
+      // motion they are placed once at their offsets and stay still.
+      for (const pulse of pulses) {
+        positionAlongPath(reduceMotion ? pulse.offset : pulse.offset + t * 0.62, pulseScratch);
+        pulse.mesh.position.copy(pulseScratch);
       }
 
       if (!reduceMotion) {
+        // A pulse's brightness breathes as it travels.
+        for (const pulse of pulses) {
+          const pulseMaterial = pulse.mesh.material as MeshBasicMaterial;
+          pulseMaterial.opacity = 0.5 + Math.sin(t * 2.4 + pulse.offset) * 0.2;
+        }
+
+        // The hub rings turn outward, very slowly.
+        hubRingLines[0].rotation.z = t * 0.05;
+        hubRingLines[1].rotation.z = -t * 0.035;
+        hubRingLines[2].rotation.z = t * 0.022;
+
+        // Drifting dust — the only other continuous motion.
+        particleField.rotation.y = t * 0.012;
+        moteField.rotation.y = -t * 0.02;
+
         // Very light drift, plus pointer parallax for depth.
         camera.position.x = cameraHome.x + Math.sin(t * 0.07) * 0.16 + pointer.x * 0.34;
         camera.position.y = cameraHome.y + Math.sin(t * 0.1) * 0.08 - pointer.y * 0.22;

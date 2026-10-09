@@ -50,6 +50,10 @@ function shell(): HTMLDivElement {
   return container;
 }
 
+function waitFrame(): Promise<void> {
+  return new Promise(resolve => requestAnimationFrame(resolve));
+}
+
 async function mount(routes?: React.ReactNode) {
   const element = document.createElement('div');
   document.body.appendChild(element);
@@ -69,6 +73,8 @@ async function mount(routes?: React.ReactNode) {
     );
   });
   await act(async () => {
+    await new Promise<void>(resolve => requestAnimationFrame(resolve));
+    await new Promise<void>(resolve => requestAnimationFrame(resolve));
     await Promise.resolve();
   });
 }
@@ -187,24 +193,30 @@ describe('RoleSelect stress behaviour', () => {
   });
 
   test('every role routes to /auth and publishes the right role', async () => {
+    // Each iteration mounts its own tree so remount/unmount cannot race the
+    // previous navigation or the Frameloop teardown.
     for (const option of ROLE_OPTIONS) {
       published.length = 0;
 
       await mount();
 
+      // Frameloop teardown from the previous `afterEach` can still be
+      // processing when this iteration's first assertion runs. Yield twice
+      // before asserting navigation so the teardown has flushed.
+      await act(async () => {
+        await waitFrame();
+        await waitFrame();
+      });
+
       await click(cardFor(option.label));
       await click(continueButton());
 
-      // After Continue, the router should be on /auth.
-      const outlet = shell().querySelector('main');
-      expect(outlet?.textContent).toContain('AUTH_ROUTE');
-
-      // Give the motion teardown time to settle between iterations.
-      await act(async () => {
-        await new Promise<void>(resolve => setTimeout(resolve, 1500));
-      });
-
-      expect(published.at(-1)).toBe(option.role);
+      // After Continue, the router should be on /auth and the role should
+      // have flowed through AppContext to Auth.
+      const outlet = document.querySelector('main') ?? shell();
+      expect(outlet.textContent).toContain('AUTH_ROUTE');
+      expect(published.length).toBe(1);
+      expect(published[0]).toBe(option.role);
     }
   });
 

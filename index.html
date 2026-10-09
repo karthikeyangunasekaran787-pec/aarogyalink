@@ -30,23 +30,21 @@
       background: #f6f9fa;
       font-family: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
-    #boot-splash img {
-      height: 72px;
-      width: auto;
-      opacity: 0.9;
-    }
+
+    /*
+     * No spinner, no progress bar, no branded loader, no image: entering the
+     * app must not read as "loading" and the entry frame must not paint a
+     * logo while the module graph arrives. The container below stays empty
+     * until React mounts — the entry routes are bundled eagerly, so there is
+     * no chunk fetch to wait on behind it. Only the failure path fills it with
+     * a message.
+     */
     #boot-splash .boot-name {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
+      margin: 4px 0 0;
+      font-size: 14px;
+      font-weight: 600;
       color: #0f172a;
     }
-    /*
-     * No spinner, no progress bar, no branded loader: entering the app must not
-     * read as "loading". The container below stays empty until React mounts —
-     * the entry routes are bundled eagerly, so there is no chunk fetch to wait
-     * on behind it. Only the failure path fills it with a message.
-     */
     #boot-splash .boot-error {
       margin: 4px 0 0;
       font-size: 14px;
@@ -106,9 +104,6 @@
           splash.appendChild(node);
           return node;
         }
-        var logo = add("img", "", "");
-        logo.src = "/aarogyalink-logo.jpeg";
-        logo.alt = "";
         add("div", "boot-name", "AarogyaLink");
         add("p", "boot-error", "The app could not finish starting.");
         add("p", "boot-hint", detail);

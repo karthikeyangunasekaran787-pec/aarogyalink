@@ -10,7 +10,7 @@
 // ============================================================================
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, Check, type LucideIcon } from 'lucide-react';
+import { Check, type LucideIcon } from 'lucide-react';
 
 import type { RoleTint } from '@/lib/role-options';
 
@@ -110,21 +110,20 @@ export function RoleCard({
           </span>
         </span>
 
-        {/* Check indicator — a non-colour signal that this card is selected. */}
-        {selected ? (
-          <span
-            data-testid="role-card-check"
-            aria-hidden="true"
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-          >
-            <Check className="h-3.5 w-3.5" strokeWidth={3} />
-          </span>
-        ) : (
-          <ArrowRight
-            aria-hidden="true"
-            className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ease-out group-hover:translate-x-1 group-hover:text-primary"
-          />
-        )}
+        {/* Trailing slot is always reserved so selecting a card never shifts
+            the label. It carries ONLY the selected check — no directional
+            arrow, chevron or other decorative icon. */}
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+          {selected && (
+            <span
+              data-testid="role-card-check"
+              aria-hidden="true"
+              className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground"
+            >
+              <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            </span>
+          )}
+        </span>
       </button>
     </motion.div>
   );

@@ -1105,11 +1105,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [staffUsersList, setStaffUsersList] = useState<User[]>(() => loadFromStorage('staffUsers', initStaffUsers));
 
   const addStaffUser = useCallback((data: Omit<User, 'id' | 'createdAt'>) => {
+    // A District Administrator can only exist for a district that is already
+    // stored, and only one per district. Enforced here (the single write path
+    // for staff accounts) as well as in the UI and on the backend, so the
+    // dependency cannot be bypassed by a crafted call.
+    if (data.role === 'gov_admin') {
+      const district = districtsList.find(d => d.districtId === data.districtId);
+      if (!district) {
+        throw new Error('A District Administrator must be created from an existing district.');
+      }
+      if (staffUsersList.some(u => u.role === 'gov_admin' && u.districtId === district.districtId)) {
+        throw new Error(`${district.displayName} already has a District Administrator.`);
+      }
+    }
     const id = `ustaff-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const user: User = { ...data, id, createdAt: now().split('T')[0] };
     setStaffUsersList(prev => [...prev, user]);
     return user;
-  }, []);
+  }, [districtsList, staffUsersList]);
 
   const updateStaffUser = useCallback((userId: string, data: Partial<User>) => {
     setStaffUsersList(prev => prev.map(u => u.id === userId ? { ...u, ...data } : u));
@@ -1286,9 +1299,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     { key: 'patients', get: () => patients, set: (xs) => setPatients(xs as Patient[]) },
     { key: 'doctors', get: () => doctorsList, set: (xs) => setDoctorsList(xs as Doctor[]) },
     { key: 'healthWorkers', get: () => healthWorkersList, set: (xs) => setHealthWorkersList(xs as HealthWorker[]) },
+    // Districts are pushed BEFORE staff: the backend accepts a District
+    // Administrator only when its district already exists, so the district
+    // record has to reach the server first (see src/convex/authz.ts).
+    { key: 'districts', get: () => districtsList, set: (xs) => setDistrictsList(xs as District[]) },
     { key: 'staffUsers', get: () => staffUsersList, set: (xs) => setStaffUsersList(xs as User[]) },
     { key: 'hospitals', get: () => hospitalsList, set: (xs) => setHospitalsList(xs as Hospital[]) },
-    { key: 'districts', get: () => districtsList, set: (xs) => setDistrictsList(xs as District[]) },
     { key: 'referrals', get: () => referrals, set: (xs) => setReferrals(xs as Referral[]) },
     { key: 'appointments', get: () => appointments, set: (xs) => setAppointments(xs as Appointment[]) },
     { key: 'followups', get: () => followups, set: (xs) => setFollowups(xs as Followup[]) },

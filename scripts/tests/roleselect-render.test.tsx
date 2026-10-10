@@ -193,6 +193,31 @@ describe('RoleSelect content', () => {
     }
   });
 
+  test('no directional arrow, chevron or CSS arrow remains inside a role card', () => {
+    currentRole = null;
+    const html = render();
+
+    // Every role card is a <button aria-pressed=...>; none of them may carry a
+    // right-arrow, chevron-right or similar directional icon.
+    const cards = html.match(/<button[^>]*aria-pressed=[\s\S]*?<\/button>/g) ?? [];
+    expect(cards.length).toBe(ROLE_OPTIONS.length);
+    for (const card of cards) {
+      expect(card).not.toMatch(/lucide-arrow/i);
+      expect(card).not.toMatch(/lucide-chevron/i);
+      expect(card).not.toContain('&#8594;');
+      expect(card).not.toContain('→');
+    }
+
+    // Static guard for the SELECTED state too: SSR cannot click a card, so the
+    // component itself must not import or render a directional icon at all.
+    const source = readFileSync(
+      resolve(import.meta.dir, '../../src/components/roleselect/RoleCard.tsx'),
+      'utf8',
+    );
+    expect(source).not.toMatch(/\bArrow[A-Za-z]*\b/);
+    expect(source).not.toMatch(/\bChevron[A-Za-z]*\b/);
+  });
+
   test('starts with nothing selected and Continue disabled', () => {
     currentRole = null;
     const html = render();

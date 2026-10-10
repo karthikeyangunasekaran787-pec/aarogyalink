@@ -629,6 +629,35 @@ export interface WriteScope {
   foreignReferralIds?: Set<string>;
   /** Authenticated actor, used to overwrite audit fields on referral events. */
   actor?: WriteActor;
+  /**
+   * District ids that already exist in the STORED districts collection. Used by
+   * the Overall Administrator's staff write to refuse a District Administrator
+   * for a district that has not been created yet.
+   */
+  districtIds?: Set<string>;
+}
+
+/**
+ * An administrator account is only valid when its district already exists.
+ *
+ * The district relationship is the district's database id (`DIST-<CODE>`), never
+ * a name typed into a form, and the district has to have been stored first —
+ * which is what makes "create the district, then create its administrator" a
+ * real dependency rather than a UI convention. Returns the incoming staff list
+ * with any administrator whose district is unknown removed, so the stored
+ * collection (and every other account in the payload) is left intact.
+ */
+export function dropAdminsForUnknownDistricts(
+  incoming: unknown[],
+  districtIds: Set<string> | undefined,
+): unknown[] {
+  // No scope information (older deploy / unit caller): do not filter.
+  if (!districtIds) return incoming;
+  return incoming.filter(record => {
+    if (!isRecord(record) || str(record.role) !== 'gov_admin') return true;
+    const districtId = str(record.districtId);
+    return !!districtId && districtIds.has(districtId);
+  });
 }
 
 /**
@@ -901,8 +930,13 @@ export function mergeAuthorizedWrite(
   // No binding → no writes at all; whatever is stored stays untouched.
   if (!scope) return stored;
 
-  // The Overall Administrator owns the whole platform.
-  if (scope.kind === 'overall') return incoming;
+  // The Overall Administrator owns the whole platform, with one dependency the
+  // workflow itself requires: a District Administrator can only belong to a
+  // district that has already been created.
+  if (scope.kind === 'overall') {
+    if (key === 'staffUsers') return dropAdminsForUnknownDistricts(incoming, write?.districtIds);
+    return incoming;
+  }
 
   // Deletion tombstones are scope-independent and additive — every role must be
   // able to publish its own deletes, and no device may drop another's. (This is

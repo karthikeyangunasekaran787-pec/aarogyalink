@@ -63,7 +63,25 @@ async function readItems(ctx: Ctx, key: string): Promise<unknown[]> {
  * sending a crafted payload.
  */
 async function writeScopeFor(ctx: Ctx, key: string, scope: SessionScope | null): Promise<WriteScope | undefined> {
-  if (!scope || (scope.kind !== "hospital" && scope.kind !== "district")) return undefined;
+  if (!scope) return undefined;
+
+  // The Overall Administrator writes whole collections, but a District
+  // Administrator account still has to be bound to a district that exists.
+  // The scope carries the STORED district ids so the merge can refuse an
+  // administrator for a district that was never created.
+  if (scope.kind === "overall") {
+    if (key !== "staffUsers") return undefined;
+    const districts = await readItems(ctx, "districts");
+    return {
+      districtIds: new Set(
+        districts
+          .map(d => (d as { districtId?: unknown }).districtId)
+          .filter((id): id is string => typeof id === "string"),
+      ),
+    };
+  }
+
+  if (scope.kind !== "hospital" && scope.kind !== "district") return undefined;
 
   const needsPatients = CLINICAL_COLLECTIONS.has(key) || key === "patients";
   // Referrals themselves (workflow transitions) and their audit trail both need

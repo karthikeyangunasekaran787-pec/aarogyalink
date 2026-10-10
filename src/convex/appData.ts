@@ -4,6 +4,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import {
   CLINICAL_COLLECTIONS,
+  authorizedPatientIdsForHospital,
   districtFacilityIds,
   mergeAuthorizedWrite,
   parseEnvelope,
@@ -13,7 +14,6 @@ import {
   scopeFromBinding,
   serializeEnvelope,
   writablePatientIdsForFacilities,
-  writablePatientIdsForHospital,
   type SessionScope,
   type WriteScope,
 } from "./authz";
@@ -91,11 +91,18 @@ async function writeScopeFor(ctx: Ctx, key: string, scope: SessionScope | null):
       );
     }
   } else if (needsPatients) {
-    write.writablePatientIds = writablePatientIdsForHospital(
+    // Includes walk-in patients whose Health Card was scanned at this hospital
+    // (the clinical team treating them may record their data).
+    const grants = await ctx.db
+      .query("careAccessGrants")
+      .withIndex("by_hospital", q => q.eq("hospitalId", scope.hospitalId))
+      .collect();
+    write.writablePatientIds = authorizedPatientIdsForHospital(
       patients,
       referrals,
       appointments,
       scope.hospitalId,
+      grants.map(grant => grant.patientId),
     );
   }
 
@@ -133,7 +140,19 @@ export const getAll = query({
     // An authenticated caller without a session binding receives nothing; the
     // app keeps running from its offline cache until the binding is created.
     if (!scope) return {};
-    return scopeCollectionsForRead(raw, scope);
+
+    // Walk-in access: a Health Card scanned at this hospital opened that
+    // patient's record (see appCare.ts). The grants are read from the STORED
+    // table so the read scope matches the authorization the scan recorded.
+    let grantedPatientIds: Set<string> | undefined;
+    if (scope.kind === "hospital") {
+      const grants = await ctx.db
+        .query("careAccessGrants")
+        .withIndex("by_hospital", q => q.eq("hospitalId", scope.hospitalId))
+        .collect();
+      grantedPatientIds = new Set(grants.map(grant => grant.patientId));
+    }
+    return scopeCollectionsForRead(raw, scope, grantedPatientIds);
   },
 });
 

@@ -10,12 +10,13 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { useData } from '@/contexts/DataContext';
 import { t, type TranslationKey } from '@/lib/i18n';
 import { OfflineIndicator } from '@/components/shared/OfflineIndicator';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Button } from '@/components/ui/button';
 import {
   Heart, Menu, X, Globe, Wifi, WifiOff, LogOut,
   Home, FileText,
   Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
-  Pill, TestTube, BarChart3, UserPlus,
+  Pill, TestTube, BarChart3, UserPlus, ScanLine, FileHeart,
   Package, TrendingUp, Inbox, Clock, Users, Building2
 } from 'lucide-react';
 
@@ -29,6 +30,7 @@ const PATIENT_NAV: NavItem[] = [
   { label: 'home', path: '/patient/dashboard', icon: Home },
   { label: 'findFacilities', path: '/patient/facilities', icon: MapPin },
   { label: 'myAppointments', path: '/patient/appointments', icon: Calendar },
+  { label: 'myReports', path: '/patient/reports', icon: FileHeart },
   { label: 'myReferrals', path: '/patient/referrals', icon: FileText },
   { label: 'myHealthCard', path: '/patient/health-card', icon: CreditCard },
   { label: 'myTimeline', path: '/patient/timeline', icon: Clock },
@@ -47,6 +49,7 @@ const HW_NAV: NavItem[] = [
 
 const DOCTOR_NAV: NavItem[] = [
   { label: 'dashboard', path: '/doctor/dashboard', icon: Home },
+  { label: 'scanHealthCard', path: '/doctor/scan', icon: ScanLine },
   { label: 'appointmentQueue', path: '/doctor/appointments', icon: Calendar },
   { label: 'myReferrals', path: '/doctor/referrals', icon: FileText },
   { label: 'followUpReminders', path: '/doctor/followups', icon: Bell },
@@ -168,15 +171,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
 
-        {/* Logo */}
+        {/* Brand: the AarogyaLink emblem (no tagline in the app header). */}
         <Link to={ROLE_PATH_MAP[currentRole] || '/patient/dashboard'} className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <Heart className="h-4 w-4 text-primary-foreground" fill="currentColor" />
-          </div>
-          <div className="hidden sm:block">
-            <span className="text-base font-bold text-foreground tracking-tight">Aarogya</span>
-            <span className="text-base font-bold text-primary tracking-tight ml-0">Link</span>
-          </div>
+          <BrandLogo size={32} />
+          <span className="text-base font-bold tracking-tight text-foreground">
+            Aarogya<span className="text-primary">Link</span>
+          </span>
         </Link>
 
         <div className="flex-1" />

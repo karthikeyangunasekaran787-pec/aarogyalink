@@ -65,6 +65,29 @@ const schema = defineSchema(
     })
       .index("by_token", ["token"])
       .index("by_user", ["convexUserId"]),
+
+    // Care-access grants opened by a Health Card scan.
+    //
+    // A patient does not need an appointment for a doctor to open their record:
+    // showing a valid AarogyaLink Health Card is itself the authorization. The
+    // grant is written HERE (server-side, from the stored session binding) so the
+    // authorization is decided by the backend and audited, and it is what later
+    // allows the report-file lookup to resolve for that hospital. Created or
+    // refreshed at most once per (patientId, hospitalId) pair.
+    careAccessGrants: defineTable({
+      patientId: v.string(),
+      hospitalId: v.string(),
+      healthCardId: v.optional(v.string()),
+      /** How access was opened, e.g. 'health_card_scan'. */
+      source: v.string(),
+      doctorStaffUserId: v.optional(v.string()),
+      doctorName: v.optional(v.string()),
+      createdAt: v.number(),
+      lastUsedAt: v.number(),
+      useCount: v.number(),
+    })
+      .index("by_hospital", ["hospitalId"])
+      .index("by_patient", ["patientId"]),
   },
   {
     schemaValidation: false,

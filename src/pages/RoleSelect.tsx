@@ -25,6 +25,7 @@ import {
 
 import { RoleCard } from '@/components/roleselect/RoleCard';
 import { ContinueButton } from '@/components/roleselect/ContinueButton';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { useApp } from '@/contexts/AppContext';
 import { ROLE_OPTIONS } from '@/lib/role-options';
 import { nodeForRole } from '@/lib/role-network';
@@ -32,14 +33,6 @@ import type { Role } from '@/types';
 
 // Three.js is heavy, so the background loads in its own chunk after paint.
 const HealthcareNetwork3D = lazy(() => import('@/components/three/HealthcareNetwork3D'));
-
-/** Existing logo asset, with the other common extensions as fallbacks. */
-const LOGO_SOURCES = [
-  '/aarogyalink-logo.jpeg',
-  '/aarogyalink-logo.jpg',
-  '/aarogyalink-logo.png',
-  '/aarogyalink-logo.webp',
-];
 
 /**
  * Icons for the six roles, keyed by role so the card order and copy live in
@@ -61,8 +54,6 @@ export default function RoleSelect() {
   const reduceMotion = useReducedMotion();
 
   const [selected, setSelected] = useState<Role | null>(null);
-  const [logoAttempt, setLogoAttempt] = useState(0);
-  const logoSrc = logoAttempt < LOGO_SOURCES.length ? LOGO_SOURCES[logoAttempt] : null;
 
   const handleSelect = useCallback(
     (role: Role) => {
@@ -111,24 +102,10 @@ export default function RoleSelect() {
       {/* ── Content ───────────────────────────────────────────────────────── */}
       <div className="relative z-10 flex min-h-screen flex-col items-center px-5 py-10 sm:px-6 sm:py-12">
         <main className="flex w-full max-w-4xl flex-1 flex-col items-center justify-center">
-          {/* Brand — kept compact */}
+          {/* Brand — the new AarogyaLink lockup (emblem + wordmark + tagline in
+              the artwork itself), so no wordmark is printed under it. */}
           <motion.div {...fade(0)} className="flex flex-col items-center text-center">
-            {logoSrc && (
-              <img
-                key={logoSrc}
-                src={logoSrc}
-                alt="AarogyaLink logo"
-                onError={() => setLogoAttempt(attempt => attempt + 1)}
-                draggable={false}
-                className="h-14 w-auto max-w-[220px] select-none object-contain sm:h-16"
-              />
-            )}
-            <h1 className="mt-3 text-[26px] font-bold tracking-tight text-slate-900 sm:text-[30px]">
-              AarogyaLink
-            </h1>
-            <p className="mt-1 text-[13px] font-medium tracking-wide text-primary sm:text-sm">
-              Closing the Rural Healthcare Loop
-            </p>
+            <BrandLogo variant="full" size={64} />
           </motion.div>
 
           <motion.h2

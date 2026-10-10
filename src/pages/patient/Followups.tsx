@@ -66,7 +66,7 @@ export default function Followups() {
                   {f.missedFollowupRisk !== undefined && f.missedFollowupRisk > 40 && (
                     <div className="mt-2 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
                       <AlertTriangle className="h-3 w-3" />
-                      <span>AI predicts {f.missedFollowupRisk}% risk of missing this follow-up</span>
+                      <span>Flagged for a reminder call — {f.missedFollowupRisk}% of follow-ups like this one are missed</span>
                     </div>
                   )}
                   <Button

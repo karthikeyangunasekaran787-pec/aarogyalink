@@ -100,6 +100,7 @@ const PATIENT_LINKED = new Set([
   'patients',
   'vitals',
   'healthRecords',
+  'medicalReports',
   'consultations',
   'followups',
   'appointments',
@@ -115,6 +116,11 @@ const PATIENT_LINKED = new Set([
 export const CLINICAL_COLLECTIONS = new Set([
   'vitals',
   'healthRecords',
+  // Medical reports carry only a patientId (plus the uploading facility for
+  // audit), so a doctor at the receiving hospital sees the reports uploaded
+  // anywhere in the patient's journey — the patient link decides access, not the
+  // uploading hospital.
+  'medicalReports',
   'consultations',
   'followups',
   'notifications',
@@ -137,6 +143,7 @@ const READ_ORDER = [
   'followups',
   'vitals',
   'healthRecords',
+  'medicalReports',
   'consultations',
   'notifications',
   'staffUsers',
@@ -313,6 +320,28 @@ export function writablePatientIdsForHospital(
 }
 
 /**
+ * Everything a hospital staff member may act on for a patient:
+ *   • patients registered at their hospital,
+ *   • patients referred or booked into it, and
+ *   • patients whose Health Card was scanned at it (a walk-in), which is the
+ *     stored `careAccessGrants` row created by appCare.ts.
+ *
+ * The caller loads the grant list from the STORED table, so this stays a pure
+ * function and a client cannot widen it.
+ */
+export function authorizedPatientIdsForHospital(
+  patients: unknown[],
+  referrals: unknown[],
+  appointments: unknown[],
+  hospitalId: string,
+  grantedPatientIds?: Iterable<string>,
+): Set<string> {
+  const ids = writablePatientIdsForHospital(patients, referrals, appointments, hospitalId);
+  for (const id of grantedPatientIds ?? []) ids.add(id);
+  return ids;
+}
+
+/**
  * Is this referral tied to the caller's scope? District callers pass the set
  * of their district's facility ids.
  */
@@ -469,6 +498,12 @@ export function scopeItemsForRead(
   items: unknown[],
   scope: SessionScope | null,
   context: Record<string, unknown[]> = {},
+  /**
+   * Patients whose Health Card was scanned at this hospital (walk-ins). Loaded
+   * by appData.ts from the STORED careAccessGrants rows, so the read scope and
+   * the scan authorization can never disagree.
+   */
+  grantedPatientIds?: Set<string>,
 ): unknown[] | null {
   // Authenticated but no session binding yet: nothing is shared.
   if (!scope) return null;
@@ -502,7 +537,10 @@ export function scopeItemsForRead(
       return items.filter(r => recordHospitalIds(key, r).includes(scope.hospitalId));
     }
     if (key === 'patients') {
-      return items.filter(r => patientVisibleToHospital(r, scope.hospitalId, context));
+      return items.filter(r =>
+        patientVisibleToHospital(r, scope.hospitalId, context) ||
+        (grantedPatientIds !== undefined && grantedPatientIds.has(str(isRecord(r) ? r.id : undefined) ?? '')),
+      );
     }
     // Clinical records carry only a patientId, so they follow the patients the
     // hospital is allowed to see (owned + shared + referred/booked in).
@@ -543,6 +581,8 @@ export function scopeItemsForRead(
 export function scopeCollectionsForRead(
   raw: Record<string, string>,
   scope: SessionScope | null,
+  /** Walk-in scan grants for a hospital caller (see scopeItemsForRead). */
+  grantedPatientIds?: Set<string>,
 ): Record<string, string> {
   const parsed: Record<string, Envelope> = {};
   for (const [key, data] of Object.entries(raw)) {
@@ -559,7 +599,7 @@ export function scopeCollectionsForRead(
   const out: Record<string, string> = {};
   const visible: Record<string, unknown[]> = {};
   for (const key of keys) {
-    const items = scopeItemsForRead(key, parsed[key].items, scope, visible);
+    const items = scopeItemsForRead(key, parsed[key].items, scope, visible, grantedPatientIds);
     if (items === null) continue;
     visible[key] = items;
     out[key] = serializeEnvelope(parsed[key].v, items);
@@ -930,6 +970,11 @@ export function mergeAuthorizedWrite(
 
   // Patient scope: only their own records.
   if (!PATIENT_LINKED.has(key)) return stored;
+  // Medical reports are READ-ONLY for the patient: a patient views and
+  // downloads their own reports, but never adds one. Reports are written by the
+  // authorized upload path (convex/appReports.ts) from hospital staff only, so
+  // a crafted client payload cannot inject a report into anyone's history.
+  if (key === 'medicalReports') return stored;
   const storedByKey = new Map<string, unknown>();
   for (const record of stored) storedByKey.set(mergeKeyOf(record), record);
 

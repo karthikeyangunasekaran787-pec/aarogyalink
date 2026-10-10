@@ -94,13 +94,17 @@ describe('RoleSelect content', () => {
     const html = render();
     const text = visibleText(html);
 
-    // Brand block, kept compact.
-    expect(text).toContain('AarogyaLink');
-    expect(text).toContain('Closing the Rural Healthcare Loop');
+    // Brand block, kept compact. The official AarogyaLink lockup carries the
+    // wordmark and tagline itself, so they are the image's accessible name
+    // instead of being printed again underneath it.
+    expect(html).toContain('AarogyaLink');
+    expect(html).toContain('Closing the Rural Healthcare Loop');
     // Heading must be the spec wording.
     expect(text).toContain('Select your role');
-    // The existing logo asset, with fallbacks, is used (no new branding).
-    expect(html).toContain('/aarogyalink-logo.jpeg');
+    // The NEW brand lockup is used, and the retired circular-network logo files
+    // are no longer referenced anywhere.
+    expect(html).toContain('/assets/aarogyalink-logo-full.png');
+    expect(html).not.toContain('aarogyalink-logo.jpeg');
     expect(text).toContain('Continue');
 
     // Every role, by name.
@@ -127,7 +131,8 @@ describe('RoleSelect content', () => {
     }
 
     // Strict version of the same rule: every word on the page must be one of
-    // the brand, the heading, a role name or Continue — nothing else.
+    // the heading, a role name or Continue — nothing else (the brand is the
+    // lockup image, so it contributes no extra words).
     const allowed = new Set([
       'AarogyaLink',
       'Closing',

@@ -35,6 +35,7 @@ const Appointments = lazy(() => import("./pages/patient/Appointments.tsx"));
 const BookAppointment = lazy(() => import("./pages/patient/BookAppointment.tsx"));
 const Referrals = lazy(() => import("./pages/patient/Referrals.tsx"));
 const HealthCard = lazy(() => import("./pages/patient/HealthCard.tsx"));
+const PatientReports = lazy(() => import("./pages/patient/Reports.tsx"));
 const Timeline = lazy(() => import("./pages/patient/Timeline.tsx"));
 const Medicines = lazy(() => import("./pages/patient/Medicines.tsx"));
 const DiagnosticsPage = lazy(() => import("./pages/patient/Diagnostics.tsx"));
@@ -48,6 +49,7 @@ const HWRegisterPatient = lazy(() => import("./pages/healthworker/RegisterPatien
 
 // Doctor pages
 const DoctorDashboard = lazy(() => import("./pages/doctor/Dashboard.tsx"));
+const ScanHealthCard = lazy(() => import("./pages/doctor/ScanHealthCard.tsx"));
 
 // Hospital Admin pages
 const HospitalAdminDashboard = lazy(() => import("./pages/hospitaladmin/Dashboard.tsx"));
@@ -164,6 +166,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="/patient/referrals" element={<RequireAuth allowedRoles={['patient']}><App><Referrals /></App></RequireAuth>} />
                   <Route path="/patient/referrals/:id" element={<RequireAuth allowedRoles={['patient']}><App><Referrals /></App></RequireAuth>} />
                   <Route path="/patient/health-card" element={<RequireAuth allowedRoles={['patient']}><App><HealthCard /></App></RequireAuth>} />
+                  <Route path="/patient/reports" element={<RequireAuth allowedRoles={['patient']}><App><PatientReports /></App></RequireAuth>} />
                   <Route path="/patient/timeline" element={<RequireAuth allowedRoles={['patient']}><App><Timeline /></App></RequireAuth>} />
                   <Route path="/patient/medicines" element={<RequireAuth allowedRoles={['patient']}><App><Medicines /></App></RequireAuth>} />
                   <Route path="/patient/diagnostics" element={<RequireAuth allowedRoles={['patient']}><App><DiagnosticsPage /></App></RequireAuth>} />
@@ -179,6 +182,9 @@ createRoot(document.getElementById("root")!).render(
 
                   {/* Doctor Routes */}
                   <Route path="/doctor/dashboard" element={<RequireAuth allowedRoles={['doctor']}><App><DoctorDashboard /></App></RequireAuth>} />
+                  {/* Health Card / walk-in access is an INDEPENDENT path into a
+                      patient record — it never depends on the appointment list. */}
+                  <Route path="/doctor/scan" element={<RequireAuth allowedRoles={['doctor']}><App><ScanHealthCard /></App></RequireAuth>} />
                   <Route path="/doctor/appointments" element={<RequireAuth allowedRoles={['doctor']}><App><DoctorDashboard /></App></RequireAuth>} />
                   <Route path="/doctor/referrals" element={<RequireAuth allowedRoles={['doctor']}><App><DoctorDashboard /></App></RequireAuth>} />
                   <Route path="/doctor/followups" element={<RequireAuth allowedRoles={['doctor']}><App><DoctorDashboard /></App></RequireAuth>} />

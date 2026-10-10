@@ -193,6 +193,7 @@ export interface Appointment {
 
 export interface Consultation {
   id: string;
+  /** Scheduled appointment this consultation belongs to. Empty for a walk-in. */
   appointmentId: string;
   patientId: string;
   doctorId: string;
@@ -203,6 +204,69 @@ export interface Consultation {
   followupRequired: boolean;
   followupDate?: string;
   createdAt: string;
+  /**
+   * How the patient reached the doctor. Absent on records created before the
+   * health-card workflow existed, which are read as an appointment visit.
+   * A WALK_IN consultation is recorded on its own — it never invents an
+   * appointment or a referral for the patient.
+   */
+  consultationType?: ConsultationType;
+  /** Calendar day of the visit (YYYY-MM-DD) — set for every new record. */
+  consultationDate?: string;
+  /** Wall-clock time of the visit (HH:mm) — set for walk-in visits. */
+  consultationTime?: string;
+  /** Hospital/facility the consultation happened at. */
+  facilityId?: string;
+  facilityName?: string;
+  /** Doctor's display name, captured so history survives staff changes. */
+  doctorName?: string;
+}
+
+export type ConsultationType = 'APPOINTMENT' | 'WALK_IN';
+
+/**
+ * Medical report types shown in the report filters (All + these five).
+ */
+export type ReportType =
+  | 'lab_report'
+  | 'imaging'
+  | 'prescription'
+  | 'discharge_summary'
+  | 'medical_certificate'
+  | 'other';
+
+/**
+ * A longitudinal medical report for one patient.
+ *
+ * The FILE itself lives in Convex file storage; this record is the metadata
+ * (append-only — an existing report is never overwritten, so the patient's
+ * history stays intact).
+ */
+export interface MedicalReport {
+  id: string;
+  /** Human-readable report id, e.g. RPT-2026-000123. */
+  reportId: string;
+  patientId: string;
+  healthCardId: string;
+  title: string;
+  type: ReportType;
+  /** Date on the report itself (YYYY-MM-DD). */
+  reportDate: string;
+  uploadedAt: string;
+  uploadedBy: string;
+  uploadedByUserId?: string;
+  uploadedByRole?: Role;
+  /** Hospital/facility the uploader belongs to. */
+  hospitalId?: string;
+  facilityName?: string;
+  /** Convex file storage reference — never the file bytes. */
+  fileStorageId?: string;
+  fileName: string;
+  mimeType: string;
+  fileSize?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Vitals {

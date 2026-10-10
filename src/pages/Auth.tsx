@@ -23,7 +23,8 @@ import type { Role } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Heart, Mail, LogIn, AlertCircle, CheckCircle2, User, Lock, KeyRound, ShieldCheck } from 'lucide-react';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { Mail, LogIn, AlertCircle, CheckCircle2, User, Lock, KeyRound, ShieldCheck } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   patient: 'Patient',
@@ -530,16 +531,12 @@ export default function AuthPage() {
         <Link to="/role-select" className="text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
           ← Change Role
         </Link>
-        <div className="flex items-center gap-2.5 mb-2">
-          <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
-            <Heart className="h-5 w-5 text-primary-foreground" fill="currentColor" />
-          </div>
-          <div>
-            <span className="text-lg font-bold text-foreground tracking-tight">Aarogya</span>
-            <span className="text-lg font-bold text-primary tracking-tight ml-0">Link</span>
-          </div>
+        <div className="flex items-center gap-2.5 mb-6">
+          <BrandLogo size={40} />
+          <span className="text-lg font-bold tracking-tight text-foreground">
+            Aarogya<span className="text-primary">Link</span>
+          </span>
         </div>
-        <p className="text-sm text-muted-foreground mb-6">Connecting Rural Patients to the Right Care — Until Recovery.</p>
 
         <Card className="w-full max-w-md">
           <CardContent className="p-6 space-y-5">
@@ -608,19 +605,9 @@ export default function AuthPage() {
         ← Change Role
       </Link>
 
-      <div className="flex items-center gap-2.5 mb-2">
-        <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
-          <Heart className="h-5 w-5 text-primary-foreground" fill="currentColor" />
-        </div>
-        <div>
-          <span className="text-lg font-bold text-foreground tracking-tight">Aarogya</span>
-          <span className="text-lg font-bold text-primary tracking-tight ml-0">Link</span>
-        </div>
+      <div className="mb-6 flex flex-col items-center gap-2.5 text-center">
+        <BrandLogo variant="full" size={56} />
       </div>
-
-      <p className="text-sm text-muted-foreground mb-6">
-        Connecting Rural Patients to the Right Care — Until Recovery.
-      </p>
 
       <Card className="w-full max-w-md">
         <CardContent className="p-6 space-y-5">
@@ -801,15 +788,7 @@ export default function AuthPage() {
                   <Input
                     value={username}
                     onChange={(e) => { setUsername(e.target.value); setError(''); }}
-                    placeholder={
-                      currentRole === 'doctor'
-                        ? 'e.g. arun.pdk001'
-                        : currentRole === 'health_worker'
-                          ? 'e.g. suganthi.pdk001'
-                          : currentRole === 'gov_admin'
-                            ? 'e.g. distadmin_pdk'
-                            : 'e.g. rajesh.pdk001'
-                    }
+                    placeholder="Enter username"
                     className="pl-9 h-11"
                     autoFocus
                     required
@@ -825,7 +804,7 @@ export default function AuthPage() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Enter password"
                     className="pl-9 h-11"
                   />
                 </div>

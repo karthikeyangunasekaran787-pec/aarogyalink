@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import type { Doctor } from '@/types';
 import { recordsOrCache, resolveDoctor } from '@/lib/resolve-staff';
 import { destinationLabel, referralTargets } from '@/lib/care-destinations';
@@ -17,9 +18,10 @@ import { Input } from '@/components/ui/input';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
+import { ReportList } from '@/components/reports/ReportList';
 import {
   Calendar, Users, FileText, Clock, Stethoscope, Activity,
-  CheckCircle2, PlayCircle, PenLine, ChevronRight
+  CheckCircle2, PlayCircle, PenLine, ChevronRight, ScanLine
 } from 'lucide-react';
 
 /**
@@ -61,7 +63,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
   const {
     patients, referrals, referralEvents, followups, facilities, hospitals,
     getAppointmentsForDoctor, getReferralsForPatient, getVitalsForPatient,
-    getConsultationsForPatient,
+    getConsultationsForPatient, getReportsForPatient, consultations,
     startConsultation, completeConsultation, scheduleFollowup, closeReferral,
     addConsultation: addConsultationToData, createReferral, addNotification,
     completeAppointment
@@ -83,6 +85,12 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
     )
   );
   const doctorFollowups = followups.filter(f => f.doctorId === doctor.id);
+  // Walk-in visits this doctor recorded from a scanned Health Card. They are
+  // their own record type — no appointment or referral was invented for them.
+  const walkInPatients = consultations
+    .filter(c => c.consultationType === 'WALK_IN' && (c.doctorId === doctor.id || c.doctorId === doctor.userId))
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+    .slice(0, 5);
 
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [consultationNotes, setConsultationNotes] = useState('');
@@ -127,6 +135,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
   const patientVitals = patient ? getVitalsForPatient(patient.id) : [];
   const patientReferrals = patient ? getReferralsForPatient(patient.id) : [];
   const patientConsultations = patient ? getConsultationsForPatient(patient.id) : [];
+  const patientReports = patient ? getReportsForPatient(patient.id) : [];
 
   // The Referral Closure Engine validates every step server-side, so the
   // doctor's screen shows exactly why a step was accepted or refused.
@@ -249,6 +258,22 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
         </div>
         <Button size="sm" className="gap-1.5" onClick={() => setShowReferralForm(!showReferralForm)}>
           <PenLine className="h-3.5 w-3.5" /> Create Referral
+        </Button>
+      </div>
+
+      {/* Two ways into a patient record: an appointment, or the patient's Health
+          Card. The Health Card path is always available — even with an empty
+          appointment queue. */}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button asChild className="gap-2 sm:w-auto">
+          <Link to="/doctor/scan">
+            <ScanLine className="h-4 w-4" /> Scan Health Card
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="gap-2 sm:w-auto">
+          <Link to="/doctor/appointments">
+            <Calendar className="h-4 w-4" /> Appointments
+          </Link>
         </Button>
       </div>
 
@@ -505,6 +530,44 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
             </CardContent>
           </Card>
 
+          {/* Walk-in Patients — arrived with a Health Card instead of an appointment */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ScanLine className="h-[1.125rem] w-[1.125rem] text-primary" />
+                Walk-in Patients
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {walkInPatients.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  No walk-in visits recorded. Scan a patient&apos;s Health Card to open their record.
+                </p>
+              ) : walkInPatients.map(consultation => {
+                const walkInPatient = patients.find(p => p.id === consultation.patientId);
+                return (
+                  <div key={consultation.id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{walkInPatient?.name || 'Patient'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {consultation.consultationDate ?? consultation.createdAt}
+                          {consultation.consultationTime ? ` • ${consultation.consultationTime}` : ''}
+                          {walkInPatient?.healthCardId ? ` • ${walkInPatient.healthCardId}` : ''}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{consultation.diagnosis}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] border-amber-200 bg-amber-50 text-amber-700">Walk-in</Badge>
+                    </div>
+                  </div>
+                );
+              })}
+              <Button asChild variant="outline" size="sm" className="h-8 w-full gap-1.5 text-xs">
+                <Link to="/doctor/scan"><ScanLine className="h-3.5 w-3.5" /> Scan Health Card</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Referral Closure Engine metrics (this doctor's authorised referrals) */}
           <ReferralClosureStats
             referrals={referrals.filter(r => r.doctorId === doctor.id || r.destinationFacilityId === doctor.facilityId)}
@@ -659,6 +722,23 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Medical Reports — current and previous, newest first. The
+                  backend authorizes every file lookup. */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-[1.125rem] w-[1.125rem] text-primary" />
+                    Medical Reports
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ReportList
+                    reports={patientReports}
+                    emptyMessage="No medical reports have been uploaded for this patient."
+                  />
+                </CardContent>
+              </Card>
 
               {/* Vitals History */}
               {patientVitals.length > 0 && (

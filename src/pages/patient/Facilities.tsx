@@ -179,7 +179,7 @@ export default function Facilities() {
                   <span>{facility.address}</span>
                 </div>
 
-                {/* CareMatch Score */}
+                {/* Facility readiness score (stored district metric) */}
                 <div className="rounded-lg bg-primary/5 border border-primary/10 p-3 text-center">
                   <p className="text-xs text-muted-foreground mb-1">{t('careMatchScore', language)}</p>
                   <p className="text-3xl font-bold text-primary">{facility.careMatchScore}</p>

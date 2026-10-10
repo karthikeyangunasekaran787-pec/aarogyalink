@@ -22,8 +22,8 @@ import {
 } from '@/convex/referralStatus';
 import type {
   Patient, Doctor, Facility, Referral, Appointment, Followup,
-  HealthWorker, Vitals, HealthRecord, MedicineStock, Diagnostic,
-  VillageAccessScore, Notification, ReferralEvent, Consultation,
+  HealthWorker, Vitals, HealthRecord, MedicalReport, ReportType, MedicineStock,
+  Diagnostic, VillageAccessScore, Notification, ReferralEvent, Consultation,
   ReferralPrediction, ReferralStatus, AppointmentStatus, FollowupStatus,
   DistrictAnalytics, ReferralFunnelStage, Role, User, Hospital, District
 } from '@/types';
@@ -83,6 +83,12 @@ interface DataContextValue {
   healthWorkers: HealthWorker[];
   vitals: Vitals[];
   healthRecords: HealthRecord[];
+  /**
+   * Longitudinal medical reports. Append-only, like the backend: a report is
+   * never overwritten, so the patient's history stays complete. No fixtures
+   * are seeded — a report only exists once authorised staff upload one.
+   */
+  medicalReports: MedicalReport[];
   medicineStock: MedicineStock[];
   diagnostics: Diagnostic[];
   villageAccessScores: VillageAccessScore[];
@@ -173,6 +179,16 @@ interface DataContextValue {
   getVitalsForPatient: (patientId: string) => Vitals[];
   getHealthRecordsForPatient: (patientId: string) => HealthRecord[];
   getConsultationsForPatient: (patientId: string) => Consultation[];
+  getReportsForPatient: (patientId: string) => MedicalReport[];
+
+  // Medical reports (upload is server-authorised; the file lives in Convex
+  // file storage, never in the record)
+  uploadMedicalReport: (
+    input: ReportUploadInput,
+    onProgress?: (percent: number) => void,
+  ) => Promise<ReportUploadResult>;
+  /** On-demand, authorised URL for one report file. */
+  getReportFileUrl: (reportId: string) => Promise<ReportFileResult>;
   getPredictionForReferral: (referralId: string) => ReferralPrediction | undefined;
   // District administration (Overall Administrator)
   addDistrict: (data: { name: string; code: string; state?: string; headquarters?: string }) => District;
@@ -180,6 +196,68 @@ interface DataContextValue {
   getHospitalsForDistrict: (districtId: string) => Hospital[];
   /** Re-push the pristine prototype fixtures (Overall Administrator only). */
   resetDemoData: () => void;
+}
+
+/** What the report upload form supplies. Metadata only — plus the file. */
+export interface ReportUploadInput {
+  patientId: string;
+  title: string;
+  type: ReportType;
+  reportDate: string;
+  notes?: string;
+  file: File;
+}
+
+/**
+ * Outcome of an upload. `ok:false` is always truthful: a file that never reached
+ * the backend is reported as failed, never as uploaded.
+ */
+export interface ReportUploadResult {
+  ok: boolean;
+  message: string;
+  report?: MedicalReport;
+}
+
+export interface ReportFileResult {
+  ok: boolean;
+  message: string;
+  url?: string;
+  fileName?: string;
+}
+
+/**
+ * PUT the report file to its Convex upload ticket, reporting real progress.
+ * XMLHttpRequest (not fetch) because only it surfaces upload progress events.
+ * Resolves with the storage id the upload ticket returns.
+ */
+function uploadFileWithProgress(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('POST', uploadUrl, true);
+    request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    request.upload.onprogress = event => {
+      if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onload = () => {
+      if (request.status < 200 || request.status >= 300) {
+        reject(new Error(`upload_failed_${request.status}`));
+        return;
+      }
+      try {
+        const parsed = JSON.parse(request.responseText) as { storageId?: string };
+        if (!parsed.storageId) throw new Error('missing_storage_id');
+        resolve(parsed.storageId);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error('invalid_upload_response'));
+      }
+    };
+    request.onerror = () => reject(new Error('upload_network_error'));
+    request.send(file);
+  });
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -360,12 +438,12 @@ function saveToStorage<T>(key: string, data: T) {
 type CloudCollectionKey =
   | 'patients' | 'doctors' | 'healthWorkers' | 'staffUsers' | 'hospitals' | 'districts'
   | 'referrals' | 'appointments' | 'followups' | 'notifications' | 'referralEvents'
-  | 'consultations' | 'vitals' | 'healthRecords' | 'medicineStock'
+  | 'consultations' | 'vitals' | 'healthRecords' | 'medicalReports' | 'medicineStock'
   | 'diagnostics' | 'villageAccessScores' | 'referralPredictions';
 
 export function DataProvider({ children }: { children: ReactNode }) {
   // Signed-in application user — used to attribute referral audit events.
-  const { currentUser } = useApp();
+  const { currentUser, isOffline } = useApp();
   const [patients, setPatients] = useState<Patient[]>(() => loadFromStorage('patients', initPatients));
   const [doctorsList, setDoctorsList] = useState<Doctor[]>(() => loadFromStorage('doctors', initDoctors));
   const [healthWorkersList, setHealthWorkersList] = useState<HealthWorker[]>(() => loadFromStorage('healthWorkers', initHealthWorkers));
@@ -377,6 +455,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [consultations, setConsultations] = useState<Consultation[]>(() => loadFromStorage('consultations', initConsultations));
   const [vitalsList, setVitalsList] = useState<Vitals[]>(() => loadFromStorage('vitals', initVitals));
   const [healthRecordsList, setHealthRecordsList] = useState<HealthRecord[]>(() => loadFromStorage('healthRecords', initHealthRecords));
+  // Medical reports have no seeded fixtures: an empty list is the truth until a
+  // health worker actually uploads one.
+  const [medicalReportsList, setMedicalReportsList] = useState<MedicalReport[]>(() => loadFromStorage<MedicalReport[]>('medicalReports', []));
   const [medicineStockList, setMedicineStockList] = useState<MedicineStock[]>(() => loadFromStorage('medicineStock', initMedicineStock));
   const [diagnosticsList, setDiagnosticsList] = useState<Diagnostic[]>(() => loadFromStorage('diagnostics', initDiagnostics));
   const [villageScoresList, setVillageScoresList] = useState<VillageAccessScore[]>(() => loadFromStorage('villageAccessScores', initVillageScores));
@@ -418,6 +499,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // QR arrival check are validated and recorded by the backend.
   const transitionReferralMutation = useMutation(api.appReferral.transitionReferral);
   const verifyArrivalMutation = useMutation(api.appReferral.verifyArrival);
+  // Medical reports: the file goes to Convex file storage, the metadata row is
+  // written by the backend (append-only) and then adopted here.
+  const reportUploadUrlMutation = useMutation(api.appReports.generateReportUploadUrl);
+  const saveMedicalReportMutation = useMutation(api.appReports.saveMedicalReport);
+  const reportFileUrlMutation = useMutation(api.appReports.requestReportFileUrl);
   const cloudReady = cloudRaw !== undefined;
 
   /** Push the FULL tombstone set (local + cloud) to the cloud, debounced. */
@@ -1155,6 +1241,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setReferrals(initReferrals); setAppointments(initAppointments); setFollowups(initFollowups);
     setNotifications(initNotifications); setReferralEvents(initReferralEvents);
     setConsultations(initConsultations); setVitalsList(initVitals); setHealthRecordsList(initHealthRecords);
+    // Reports are real clinical documents, never fixtures: a reset clears them.
+    setMedicalReportsList([]);
     setMedicineStockList(initMedicineStock); setDiagnosticsList(initDiagnostics);
     setVillageScoresList(initVillageScores); setPredictionsList(initPredictions);
     deletedIdsRef.current = new Map();
@@ -1209,6 +1297,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     { key: 'consultations', get: () => consultations, set: (xs) => setConsultations(xs as Consultation[]) },
     { key: 'vitals', get: () => vitalsList, set: (xs) => setVitalsList(xs as Vitals[]) },
     { key: 'healthRecords', get: () => healthRecordsList, set: (xs) => setHealthRecordsList(xs as HealthRecord[]) },
+    { key: 'medicalReports', get: () => medicalReportsList, set: (xs) => setMedicalReportsList(xs as MedicalReport[]) },
     { key: 'medicineStock', get: () => medicineStockList, set: (xs) => setMedicineStockList(xs as MedicineStock[]) },
     { key: 'diagnostics', get: () => diagnosticsList, set: (xs) => setDiagnosticsList(xs as Diagnostic[]) },
     { key: 'villageAccessScores', get: () => villageScoresList, set: (xs) => setVillageScoresList(xs as VillageAccessScore[]) },
@@ -1327,7 +1416,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patients, doctorsList, healthWorkersList, staffUsersList, hospitalsList, districtsList,
      referrals, appointments, followups, notifications, referralEvents,
-     consultations, vitalsList, healthRecordsList, medicineStockList,
+     consultations, vitalsList, healthRecordsList, medicalReportsList, medicineStockList,
      diagnosticsList, villageScoresList, predictionsList,
      cloudReady, boundToBackend, saveCollection]);
 
@@ -1346,6 +1435,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage('consultations', consultations); }, [consultations]);
   useEffect(() => { saveToStorage('vitals', vitalsList); }, [vitalsList]);
   useEffect(() => { saveToStorage('healthRecords', healthRecordsList); }, [healthRecordsList]);
+  useEffect(() => { saveToStorage('medicalReports', medicalReportsList); }, [medicalReportsList]);
   useEffect(() => { saveToStorage('medicineStock', medicineStockList); }, [medicineStockList]);
   useEffect(() => { saveToStorage('diagnostics', diagnosticsList); }, [diagnosticsList]);
   useEffect(() => { saveToStorage('villageAccessScores', villageScoresList); }, [villageScoresList]);
@@ -1374,12 +1464,99 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const getReferralEvents = useCallback((referralId: string) => referralEvents.filter(e => e.referralId === referralId).sort((a, b) => a.timestamp.localeCompare(b.timestamp)), [referralEvents]);
   const getVitalsForPatient = useCallback((patientId: string) => vitalsList.filter(v => v.patientId === patientId), [vitalsList]);
   const getHealthRecordsForPatient = useCallback((patientId: string) => healthRecordsList.filter(r => r.patientId === patientId), [healthRecordsList]);
+  // Newest first — the patient reads their reports chronologically.
+  const getReportsForPatient = useCallback(
+    (patientId: string) => medicalReportsList
+      .filter(r => r.patientId === patientId)
+      .sort((a, b) => b.reportDate.localeCompare(a.reportDate) || b.uploadedAt.localeCompare(a.uploadedAt)),
+    [medicalReportsList],
+  );
+
+  /**
+   * Upload a medical report for an authorized patient.
+   *
+   *   file bytes → Convex file storage (real progress reported)
+   *   metadata   → backend, append-only, then adopted into the local cache so it
+   *                syncs to every device like the other collections
+   *
+   * Offline handling is deliberately truthful: the file itself cannot reach the
+   * backend without a connection, so the upload is refused with a clear message
+   * rather than queued and reported as done. Report METADATA already stored is
+   * read from the offline cache as usual.
+   */
+  const uploadMedicalReport = useCallback(async (
+    input: ReportUploadInput,
+    onProgress?: (percent: number) => void,
+  ): Promise<ReportUploadResult> => {
+    if (isOffline) {
+      return { ok: false, message: 'You are offline. Report uploads need a connection — reconnect and try again.' };
+    }
+    if (!boundToBackend) {
+      return { ok: false, message: 'Report storage is still connecting. Please try again in a moment.' };
+    }
+    // One key per attempt, so a retry after a timeout cannot store the report
+    // twice (the backend is idempotent on it).
+    const idempotencyKey = `upl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    try {
+      onProgress?.(0);
+      const uploadUrl = await reportUploadUrlMutation({});
+      if (typeof uploadUrl !== 'string' || uploadUrl.length === 0) {
+        return { ok: false, message: 'Report upload failed. Please try again.' };
+      }
+      const storageId = await uploadFileWithProgress(uploadUrl, input.file, percent => onProgress?.(percent));
+      const result = await saveMedicalReportMutation({
+        patientId: input.patientId,
+        title: input.title,
+        type: input.type,
+        reportDate: input.reportDate,
+        storageId,
+        fileName: input.file.name,
+        mimeType: input.file.type || 'application/octet-stream',
+        fileSize: input.file.size,
+        notes: input.notes,
+        idempotencyKey,
+      });
+      if (!result.ok) {
+        return { ok: false, message: result.message };
+      }
+      const report = result.report as MedicalReport;
+      setMedicalReportsList(prev => (prev.some(r => r.id === report.id) ? prev : [...prev, report]));
+      onProgress?.(100);
+      return { ok: true, message: result.duplicate ? 'This report was already uploaded.' : 'Report uploaded successfully', report };
+    } catch {
+      // No partial success is reported: the record only exists once the backend
+      // wrote it, so nothing is shown as uploaded here.
+      return { ok: false, message: 'Report upload failed. Please try again.' };
+    }
+  }, [isOffline, boundToBackend, reportUploadUrlMutation, saveMedicalReportMutation]);
+
+  /** Authorised, short-lived URL for one report file (View / Download). */
+  const getReportFileUrl = useCallback(async (reportId: string): Promise<ReportFileResult> => {
+    try {
+      const result = await reportFileUrlMutation({ reportId });
+      if (!result.ok) {
+        return { ok: false, message: result.message };
+      }
+      if (!result.url) {
+        return { ok: false, message: 'The report file is not available for download.' };
+      }
+      return { ok: true, message: '', url: result.url, fileName: result.fileName };
+    } catch {
+      return {
+        ok: false,
+        message: isOffline
+          ? 'You are offline. Please reconnect to access the latest patient record.'
+          : 'Could not open the report file. Please try again.',
+      };
+    }
+  }, [reportFileUrlMutation, isOffline]);
   const getConsultationsForPatient = useCallback((patientId: string) => consultations.filter(c => c.patientId === patientId), [consultations]);
   const getPredictionForReferral = useCallback((referralId: string) => predictionsList.find(p => p.referralId === referralId), [predictionsList]);
 
   const value: DataContextValue = {
     patients, doctors: doctorsList, facilities: allFacilities, referrals, appointments, followups,
     healthWorkers: healthWorkersList, vitals: vitalsList, healthRecords: healthRecordsList,
+    medicalReports: medicalReportsList, uploadMedicalReport, getReportFileUrl,
     medicineStock: medicineStockList, diagnostics: diagnosticsList,
     villageAccessScores: villageScoresList, notifications, referralEvents, consultations,
     referralPredictions: predictionsList, aiInsights: initInsights,
@@ -1401,7 +1578,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     getAppointmentsForDoctor, getAppointmentsForPatient,
     getFollowupsForPatient, getFollowupsForDoctor,
     getReferralEvents, getVitalsForPatient, getHealthRecordsForPatient,
-    getConsultationsForPatient, getPredictionForReferral,
+    getConsultationsForPatient, getReportsForPatient, getPredictionForReferral,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

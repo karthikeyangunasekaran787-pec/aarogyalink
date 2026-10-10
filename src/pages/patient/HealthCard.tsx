@@ -7,13 +7,16 @@ import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { QRCode } from '@/components/shared/QRCode';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { UnlinkedPatientNotice } from '@/components/shared/UnlinkedPatientNotice';
 import { useData } from '@/contexts/DataContext';
 import { downloadTextFile, safeFilePart, shareText } from '@/lib/download';
-import { CreditCard, Download, Share2, Heart, Droplets, Phone, AlertTriangle, Shield } from 'lucide-react';
+import { healthCardQrPayload } from '@/lib/health-card';
+import { downloadHealthCardPdf } from '@/lib/health-card-pdf';
+import { CreditCard, Download, Share2, Droplets, Phone, AlertTriangle, Shield, FileDown } from 'lucide-react';
 
 export default function HealthCard() {
-  const { patients } = useData();
+  const { patients, getFacilityById } = useData();
   const { language, currentUser } = useApp();
   const [feedback, setFeedback] = useState<string | null>(null);
   // Never fall back to another patient's record (private health data).
@@ -40,6 +43,28 @@ export default function HealthCard() {
   const handleDownload = () => {
     downloadTextFile(`health-card-${safeFilePart(patient.healthCardId)}.txt`, cardText);
     setFeedback('Health card downloaded');
+  };
+
+  // The printable card is a real PDF built on the device (offline-friendly).
+  const handleDownloadPdf = async () => {
+    setFeedback('Preparing your health card…');
+    try {
+      await downloadHealthCardPdf({
+        name: patient.name,
+        healthCardId: patient.healthCardId,
+        age: patient.age,
+        gender: patient.gender,
+        bloodGroup: patient.bloodGroup,
+        facilityName: patient.registeredByFacilityId ? getFacilityById(patient.registeredByFacilityId)?.name : undefined,
+        phone: patient.phone,
+        emergencyContact: patient.emergencyContact,
+        village: patient.village,
+        district: patient.district,
+      });
+      setFeedback('Health card downloaded as PDF');
+    } catch {
+      setFeedback('Could not build the health card PDF on this device. Please try again.');
+    }
   };
 
   const handleShare = async () => {
@@ -71,15 +96,16 @@ export default function HealthCard() {
         <div className="bg-gradient-to-r from-primary to-primary/80 p-5 text-primary-foreground">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <Heart className="h-5 w-5" fill="currentColor" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
+                <BrandLogo size={26} />
               </div>
               <div>
                 <p className="text-lg font-bold">AarogyaLink</p>
                 <p className="text-xs text-primary-foreground/80">Government of Tamil Nadu · Digital Health Card</p>
               </div>
             </div>
-            <QRCode data={`AAROGYALINK|${patient.healthCardId}|${patient.id}`} size={80} />
+            {/* The QR carries the Health Card reference only — no medical data. */}
+            <QRCode data={healthCardQrPayload(patient.healthCardId)} size={80} />
           </div>
         </div>
 
@@ -155,6 +181,11 @@ export default function HealthCard() {
           {feedback}
         </p>
       )}
+      <Button className="w-full gap-2" onClick={() => void handleDownloadPdf()}>
+        <FileDown className="h-4 w-4" />
+        {language === 'ta' ? 'சுகாதார அட்டையைப் பதிவிறக்கு (PDF)' : language === 'hi' ? 'स्वास्थ्य कार्ड डाउनलोड करें (PDF)' : 'Download Health Card (PDF)'}
+      </Button>
+
       <div className="flex gap-3">
         <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
           <Download className="h-4 w-4" />

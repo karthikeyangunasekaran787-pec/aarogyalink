@@ -18,11 +18,12 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
+import { ReportUploadDialog } from '@/components/reports/ReportUploadDialog';
 import {
   Users, AlertTriangle, FileText, Bell, UserPlus,
   Search, Activity, Stethoscope, PenLine, ChevronRight,
   Clock, CheckCircle2, XCircle, Eye, X, MapPin, Calendar,
-  Heart, Thermometer, Droplets, Ruler, Edit2, Save
+  Heart, Thermometer, Droplets, Ruler, Edit2, Save, FileUp
 } from 'lucide-react';
 
 const REFERRAL_STEPS = [
@@ -141,7 +142,13 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
   const guardVitals = useSubmitGuard();
   const guardReferral = useSubmitGuard();
 
-  const showVitalsFeedback = (msg: string) => {
+  // ── Medical report upload ───────────────────────────────────
+  // Reports belong to the patient's health card and are added only for patients
+  // this health worker's hospital is responsible for (enforced by the backend).
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportPatientId, setReportPatientId] = useState<string | undefined>(undefined);
+
+  const showActionFeedback = (msg: string) => {
     setVitalsFeedback(msg);
     setTimeout(() => setVitalsFeedback(null), 3000);
   };
@@ -155,7 +162,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
 
     if (editingVitalsId) {
       // Update existing vitals — we'll add a new record (append-only model)
-      showVitalsFeedback('Previous vitals updated with new reading.');
+      showActionFeedback('Previous vitals updated with new reading.');
     }
 
     addVitals({
@@ -175,7 +182,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
     setVitalsForm({ systolic: '', diastolic: '', heartRate: '', temperature: '', spO2: '', weight: '', height: '', bloodSugar: '' });
     setVitalsPatientId(null);
     setEditingVitalsId(null);
-    showVitalsFeedback(`Vitals recorded for ${patient.name} successfully!`);
+    showActionFeedback(`Vitals recorded for ${patient.name} successfully!`);
   };
 
   const handleEditVitals = (patientId: string) => {
@@ -380,6 +387,17 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
               <Heart className="h-5 w-5 text-emerald-600" />
             </div>
             <span className="text-xs font-medium text-foreground">Record Vitals</span>
+          </CardContent>
+        </Card>
+        <Card
+          className="hover:shadow-md transition-shadow cursor-pointer h-full"
+          onClick={() => { setReportPatientId(undefined); setReportDialogOpen(true); }}
+        >
+          <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <FileUp className="h-5 w-5 text-primary" />
+            </div>
+            <span className="text-xs font-medium text-foreground">Upload Medical Report</span>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow cursor-pointer h-full" onClick={() => setShowReferralForm(true)}>
@@ -661,6 +679,14 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                     onClick={() => handleEditVitals(p.id)}
                   >
                     <Edit2 className="h-3 w-3" /> Edit Latest
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => { setReportPatientId(p.id); setReportDialogOpen(true); }}
+                  >
+                    <FileUp className="h-3 w-3" /> Upload Report
                   </Button>
                   <Button
                     size="sm"
@@ -1052,6 +1078,18 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
           </Card>
         </div>
       )}
+
+      {/* Upload Medical Report — opens for one patient or the whole register.
+          The key remounts the form when the target patient changes, so a
+          pre-selected patient never leaks into the next upload. */}
+      <ReportUploadDialog
+        key={reportPatientId ?? 'all-patients'}
+        open={reportDialogOpen}
+        onOpenChange={open => { setReportDialogOpen(open); if (!open) setReportPatientId(undefined); }}
+        patients={hwPatients}
+        defaultPatientId={reportPatientId}
+        onUploaded={() => showActionFeedback('Report uploaded successfully')}
+      />
     </div>
   );
 }

@@ -1,7 +1,14 @@
 // ============================================================================
-// QR Code - Simple visual placeholder for demo
+// QR Code — a real, scannable QR (not a decorative pattern)
+// ----------------------------------------------------------------------------
+// The Health Card QR and the referral QR must actually scan with a camera, so
+// this renders a genuine QR symbol through the `qrcode` encoder. While the
+// symbol is being generated the box stays empty; it never shows a fake pattern
+// that a scanner could not read.
 // ============================================================================
 
+import { useEffect, useState } from 'react';
+import QRCodeEncoder from 'qrcode';
 import { cn } from '@/lib/utils';
 
 interface QRCodeProps {
@@ -11,74 +18,41 @@ interface QRCodeProps {
   label?: string;
 }
 
-// Simple deterministic QR-like pattern generator for demo
-function generatePattern(data: string, gridSize: number): boolean[][] {
-  const grid: boolean[][] = [];
-  let seed = 0;
-  for (let i = 0; i < data.length; i++) {
-    seed = ((seed << 5) - seed + data.charCodeAt(i)) | 0;
-  }
-
-  for (let row = 0; row < gridSize; row++) {
-    grid[row] = [];
-    for (let col = 0; col < gridSize; col++) {
-      // Position detection patterns (corners)
-      const isCorner =
-        (row < 7 && col < 7) ||
-        (row < 7 && col >= gridSize - 7) ||
-        (row >= gridSize - 7 && col < 7);
-
-      if (isCorner) {
-        const isOuter =
-          row < 7 && col < 7
-            ? row === 0 || row === 6 || col === 0 || col === 6 ||
-              (row >= 2 && row <= 4 && col >= 2 && col <= 4)
-            : row < 7 && col >= gridSize - 7
-            ? row === 0 || row === 6 || col === gridSize - 7 || col === gridSize - 1 ||
-              (row >= 2 && row <= 4 && col >= gridSize - 5 && col <= gridSize - 3)
-            : row === gridSize - 7 || row === gridSize - 1 || col === 0 || col === 6 ||
-              (row >= gridSize - 5 && row <= gridSize - 3 && col >= 2 && col <= 4);
-        grid[row][col] = isOuter;
-      } else {
-        seed = ((seed * 1103515245 + 12345) & 0x7fffffff);
-        grid[row][col] = (seed % 3) === 0;
-      }
-    }
-  }
-  return grid;
-}
-
 export function QRCode({ data, size = 128, className, label }: QRCodeProps) {
-  const gridSize = 21; // Standard QR size
-  const pattern = generatePattern(data, gridSize);
-  const cellSize = size / gridSize;
+  const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
+    // `width` is the rendered pixel size; twice the display size keeps the
+    // modules crisp on high-density screens and when scanned off a screen.
+    QRCodeEncoder.toDataURL(data, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: size * 2,
+      color: { dark: '#0f172a', light: '#ffffff' },
+    })
+      .then(url => { if (!cancelled) setSrc(url); })
+      .catch(() => { if (!cancelled) { setSrc(null); setFailed(true); } });
+    return () => { cancelled = true; };
+  }, [data, size]);
 
   return (
     <div className={cn('flex flex-col items-center gap-2', className)}>
       <div
-        className="bg-white p-2 rounded-lg shadow-sm border border-border"
+        className="flex items-center justify-center rounded-lg border border-border bg-white p-2 shadow-sm"
         style={{ width: size + 16, height: size + 16 }}
       >
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          {pattern.map((row, rowIdx) =>
-            row.map((cell, colIdx) =>
-              cell ? (
-                <rect
-                  key={`${rowIdx}-${colIdx}`}
-                  x={colIdx * cellSize}
-                  y={rowIdx * cellSize}
-                  width={cellSize}
-                  height={cellSize}
-                  fill="black"
-                />
-              ) : null
-            )
-          )}
-        </svg>
+        {src ? (
+          <img src={src} width={size} height={size} alt="QR code" className="block" />
+        ) : (
+          <span className="px-2 text-center text-[10px] text-muted-foreground">
+            {failed ? 'QR unavailable' : ''}
+          </span>
+        )}
       </div>
-      {label && (
-        <p className="text-xs text-muted-foreground font-mono">{label}</p>
-      )}
+      {label && <p className="font-mono text-xs text-muted-foreground">{label}</p>}
     </div>
   );
 }

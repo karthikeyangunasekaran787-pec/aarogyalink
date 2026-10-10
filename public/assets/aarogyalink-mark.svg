@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="AarogyaLink">
+  <defs>
+    <linearGradient id="alBlue" x1="0.05" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#1E40DD"/>
+      <stop offset="50%" stop-color="#1D6FF2"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+    <linearGradient id="alTeal" x1="0.1" y1="0" x2="0.95" y2="1">
+      <stop offset="0%" stop-color="#2DD4BF"/>
+      <stop offset="55%" stop-color="#14A8A0"/>
+      <stop offset="100%" stop-color="#0B8F86"/>
+    </linearGradient>
+    <linearGradient id="alLeaf" x1="0.15" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#0F766E"/>
+    </linearGradient>
+    <clipPath id="alHeartClip">
+      <path d="M256 486C256 486 34 356 34 198 34 106 104 34 178 34c40 0 66 17 78 36 12-19 38-36 78-36 74 0 144 72 144 164 0 158-222 288-222 288Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Heart -->
+  <path d="M256 486C256 486 34 356 34 198 34 106 104 34 178 34c40 0 66 17 78 36 12-19 38-36 78-36 74 0 144 72 144 164 0 158-222 288-222 288Z"
+        fill="url(#alBlue)"/>
+  <!-- Teal half, clipped to the heart so the left lobe stays blue -->
+  <g clip-path="url(#alHeartClip)">
+    <rect x="256" y="0" width="256" height="512" fill="url(#alTeal)"/>
+  </g>
+
+  <!-- Medical cross -->
+  <rect x="228" y="132" width="56" height="156" rx="16" fill="#FFFFFF"/>
+  <rect x="178" y="182" width="156" height="56" rx="16" fill="#FFFFFF"/>
+
+  <!-- Leaf (health + growth), separated from the heart by a white gap -->
+  <g transform="translate(0 6)">
+    <path d="M300 300c86 4 138 62 148 148-86 12-152-32-166-108-4-24 4-38 18-40Z" fill="#FFFFFF"/>
+    <path d="M314 318c70 6 114 54 124 122-72 8-126-28-138-92-3-18 2-28 14-30Z" fill="url(#alLeaf)"/>
+    <path d="M330 336c30 18 52 48 62 86-34-6-58-28-70-56-6-15-4-26 8-30Z" fill="#ECFDF5" opacity="0.45"/>
+    <path d="M446 452c-56-64-96-106-136-128" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

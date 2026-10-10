@@ -63,7 +63,10 @@ export default function Timeline() {
     if (patientId) {
       const consultations = getConsultationsForPatient(patientId);
       consultations.forEach(c => {
-        const doctor = doctors.find(d => d.id === c.doctorId);
+        // Consultations store either the staff user id or the doctor record id
+        // (a walk-in recorded from a scanned Health Card stores the former), so
+        // match both — and prefer the names captured on the record itself.
+        const doctor = doctors.find(d => d.id === c.doctorId || d.userId === c.doctorId);
         const facility = doctor ? facilities.find(f => f.id === doctor.facilityId) : null;
         entries.push({
           id: c.id,
@@ -71,8 +74,8 @@ export default function Timeline() {
           type: 'treatment',
           title: `Treatment — ${c.diagnosis}`,
           description: c.notes || 'Consultation completed',
-          facilityName: facility?.name,
-          doctorName: doctor?.name,
+          facilityName: c.facilityName ?? facility?.name,
+          doctorName: c.doctorName ?? doctor?.name,
           prescription: c.prescription,
           source: 'consultation',
         });

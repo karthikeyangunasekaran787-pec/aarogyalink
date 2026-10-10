@@ -1,66 +1,67 @@
 import '@vly-ai/integrations';
-import { Toaster } from "@/components/ui/sonner";
-import { RequireAuth } from "@/components/RequireAuth";
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { ConvexReactClient } from "convex/react";
-import React, { StrictMode, useEffect, lazy, Suspense } from "react";
-import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router";
-import { AppProvider } from "@/contexts/AppContext";
-import { DataProvider } from "@/contexts/DataContext";
-import "./index.css";
+import { Toaster } from '@/components/ui/sonner';
+import { RequireAuth } from '@/components/RequireAuth';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { ConvexAuthProvider } from '@convex-dev/auth/react';
+import { ConvexReactClient } from 'convex/react';
+import React, { StrictMode, useEffect, lazy, Suspense } from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router';
+import { AppProvider } from '@/contexts/AppContext';
+import { DataProvider } from '@/contexts/DataContext';
+import './index.css';
 
 // The entry gateway is imported EAGERLY (not `lazy`): `/` must paint the
-// role-selection page straight from the entry chunk instead of flashing a
+// roleselection page straight from the entry chunk instead of flashing a
 // loading fallback while a second request resolves.
-import RoleSelect from "./pages/RoleSelect.tsx";
+import RoleSelect from './pages/RoleSelect.tsx';
 
 // The preview toolbar (element picker + screenshots) drags in a screenshot
 // library and is not needed to render the app, so it loads after first paint
 // instead of holding up the entry. It keeps its own error boundary.
 const VlyToolbar = lazy(() =>
-  import("../vly-toolbar-readonly.tsx").then(module => ({ default: module.VlyToolbar })),
+  import('../vly-toolbar-readonly.tsx').then(module => ({ default: module.VlyToolbar })),
 );
 
 // Route components — everything behind the gate stays lazy so it costs
 // nothing until it is visited.
-const Landing = lazy(() => import("./pages/Landing.tsx"));
-const AuthPage = lazy(() => import("./pages/Auth.tsx"));
-const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+const Landing = lazy(() => import('./pages/Landing.tsx'));
+const AuthPage = lazy(() => import('./pages/Auth.tsx'));
+const NotFound = lazy(() => import('./pages/NotFound.tsx'));
 
 // Patient pages
-const PatientHome = lazy(() => import("./pages/patient/Home.tsx"));
-const Facilities = lazy(() => import("./pages/patient/Facilities.tsx"));
-const Appointments = lazy(() => import("./pages/patient/Appointments.tsx"));
-const BookAppointment = lazy(() => import("./pages/patient/BookAppointment.tsx"));
-const Referrals = lazy(() => import("./pages/patient/Referrals.tsx"));
-const HealthCard = lazy(() => import("./pages/patient/HealthCard.tsx"));
-const PatientReports = lazy(() => import("./pages/patient/Reports.tsx"));
-const Timeline = lazy(() => import("./pages/patient/Timeline.tsx"));
-const Medicines = lazy(() => import("./pages/patient/Medicines.tsx"));
-const DiagnosticsPage = lazy(() => import("./pages/patient/Diagnostics.tsx"));
-const Followups = lazy(() => import("./pages/patient/Followups.tsx"));
-const Privacy = lazy(() => import("./pages/patient/Privacy.tsx"));
-const Emergency = lazy(() => import("./pages/patient/Emergency.tsx"));
+const PatientHome = lazy(() => import('./pages/patient/Home.tsx'));
+const Facilities = lazy(() => import('./pages/patient/Facilities.tsx'));
+const Appointments = lazy(() => import('./pages/patient/Appointments.tsx'));
+const BookAppointment = lazy(() => import('./pages/patient/BookAppointment.tsx'));
+const Referrals = lazy(() => import('./pages/patient/Referrals.tsx'));
+const HealthCard = lazy(() => import('./pages/patient/HealthCard.tsx'));
+const PatientReports = lazy(() => import('./pages/patient/Reports.tsx'));
+const Timeline = lazy(() => import('./pages/patient/Timeline.tsx'));
+const Medicines = lazy(() => import('./pages/patient/Medicines.tsx'));
+const DiagnosticsPage = lazy(() => import('./pages/patient/Diagnostics.tsx'));
+const Followups = lazy(() => import('./pages/patient/Followups.tsx'));
+const Privacy = lazy(() => import('./pages/patient/Privacy.tsx'));
+const Emergency = lazy(() => import('./pages/patient/Emergency.tsx'));
 
 // Health Worker pages
-const HWDashboard = lazy(() => import("./pages/healthworker/Dashboard.tsx"));
-const HWRegisterPatient = lazy(() => import("./pages/healthworker/RegisterPatient.tsx"));
+const HWDashboard = lazy(() => import('./pages/healthworker/Dashboard.tsx'));
+const HWRegisterPatient = lazy(() => import('./pages/healthworker/RegisterPatient.tsx'));
 
 // Doctor pages
-const DoctorDashboard = lazy(() => import("./pages/doctor/Dashboard.tsx"));
-const ScanHealthCard = lazy(() => import("./pages/doctor/ScanHealthCard.tsx"));
+const DoctorDashboard = lazy(() => import('./pages/doctor/Dashboard.tsx'));
+const ScanHealthCard = lazy(() => import('./pages/doctor/ScanHealthCard.tsx'));
 
 // Hospital Admin pages
-const HospitalAdminDashboard = lazy(() => import("./pages/hospitaladmin/Dashboard.tsx"));
-const StaffManagement = lazy(() => import("./pages/hospitaladmin/StaffManagement.tsx"));
+const HospitalAdminDashboard = lazy(() => import('./pages/hospitaladmin/Dashboard.tsx'));
+const StaffManagement = lazy(() => import('./pages/hospitaladmin/StaffManagement.tsx'));
 
 // Government Admin pages
-const GovDashboard = lazy(() => import("./pages/govadmin/Dashboard.tsx"));
-const HospitalManagement = lazy(() => import("./pages/govadmin/HospitalManagement.tsx"));
+const GovDashboard = lazy(() => import('./pages/govadmin/Dashboard.tsx'));
+const HospitalManagement = lazy(() => import('./pages/govadmin/HospitalManagement.tsx'));
 
 // Overall (master) Administrator pages
-const MasterAdminDashboard = lazy(() => import("./pages/masteradmin/Dashboard.tsx"));
+const MasterAdminDashboard = lazy(() => import('./pages/masteradmin/Dashboard.tsx'));
 
 // Loading fallback
 function RouteLoading() {
@@ -81,33 +82,81 @@ class ToolbarErrorBoundary extends React.Component<
 > {
   state = { hasError: false };
   static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(err: Error) { console.warn("[VlyToolbar] Caught error:", err.message); }
+  componentDidCatch(err: Error) { console.warn('[VlyToolbar] Caught error:', err.message); }
   render() { return this.state.hasError ? null : this.props.children; }
+}
+
+class NonFatalErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; warns: Array<{ err: Error; ts: number }> }
+> {
+  state = { hasError: false, warns: [] };
+  static getDerivedStateFromError(error: Error) {
+    // Only fatal React errors reach the root fallback. Non-fatal warnings
+    // during startup are captured here so the console still has them.
+    return { hasError: false, warns: [...(this.state.warns ?? []), { err, ts: performance.now() }] };
+  }
+  render() {
+    if (this.state.hasError) {
+      return <RootFallback hasError={this.state.hasError} error={this.state.warn ?? null} />;
+    }
+    return this.props.children;
+  }
+}
+
+interface RootFallbackProps {
+  hasError: boolean;
+  error: Error | string | null;
+}
+
+/** Minimal screen shown only when React crashes during startup. */
+function RootFallback({ hasError, error }: RootFallbackProps) {
+  if (!hasError) return null;
+
+  const message =
+    (error instanceof Error ? error.message : typeof error === 'string' ? error : null) ??
+    'The preview failed to load. Please refresh or reload the page to try again.';
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-6">
+      <div className="max-w-lg text-center">
+        <p className="text-sm font-semibold">Preview runtime error</p>
+        <p className="mt-2 text-xs text-muted-foreground break-words">{message}</p>
+        <button
+          type="button"
+          className="mt-4 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          onClick={() => { window.location.reload(); }}
+        >
+          Reload page
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** Root error boundary */
 class RootErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean; message: string; stack: string }
+  { hasError: boolean; error: Error | string | null }
 > {
-  state = { hasError: false, message: "", stack: "" };
+  state = { hasError: false, error: null };
   static getDerivedStateFromError(error: Error) {
-    return { hasError: true, message: error.message || "Unknown error", stack: error.stack || "" };
+    return { hasError: true, error };
   }
-  componentDidCatch(err: Error) { console.error("[Preview] Root crash:", err); }
+  componentDidCatch(err: Error) {
+    console.error('[Preview] Root crash:', err);
+    this.setState(state => ({ error: err }));
+  }
   render() {
     if (this.state.hasError) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-6">
-          <div className="max-w-lg text-center">
-            <p className="text-sm font-semibold">Preview runtime error</p>
-            <p className="mt-2 text-xs text-muted-foreground break-words">{this.state.message}</p>
-          </div>
-        </div>
-      );
+      return <RootFallback hasError={this.state.hasError} error={this.state.error} />;
     }
     return this.props.children;
   }
+}
+
+function App({ children }: { children: React.ReactNode }) {
+  return <AppLayout>{children}</AppLayout>;
 }
 
 // `VITE_CONVEX_URL` is published by the platform's Convex dev process, so a
@@ -121,28 +170,42 @@ class RootErrorBoundary extends React.Component<
 const convexUrl = (import.meta.env.VITE_CONVEX_URL as string | undefined)?.trim();
 if (!convexUrl) {
   console.warn(
-    "[convex] VITE_CONVEX_URL is not set yet — starting on the local cache. " +
-      "Cloud sync resumes automatically once Convex dev publishes the URL.",
+    '[convex] VITE_CONVEX_URL is not set yet — starting on the local cache. ' +
+      'Cloud sync resumes automatically once Convex dev publishes the URL.',
   );
 }
-const convex = new ConvexReactClient(convexUrl || "https://convex-unconfigured.invalid");
+const convex = new ConvexReactClient(convexUrl || 'https://convex-unconfigured.invalid');
 
 function RouteSyncer() {
   const location = useLocation();
   useEffect(() => {
-    window.parent.postMessage({ type: "iframe-route-change", path: location.pathname }, "*");
+    window.parent.postMessage({ type: 'iframe-route-change', path: location.pathname }, '*');
   }, [location.pathname]);
   return null;
 }
 
-createRoot(document.getElementById("root")!).render(
+// Visible to the browser before React mounts, so a white crash during the
+// transition has something readable to fall back to.
+if (typeof document !== 'undefined') {
+  window.__AL_rootFallbackHTML = `
+    <div id="al-root-fallback" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f6f9fa;text-align:center;padding:24px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+      <p style="font-size:14px;font-weight:600;color:#0f172a;margin:0">The preview failed to load.</p>
+      <p style="font-size:12px;color:#64748b;margin:0;max-width:34rem">If this keeps happening, try reloading the page or reopening the editor to start over.</p>
+    </div>
+  `;
+}
+
+// Visible to tests and the console: the environment the entry detected.
+export const rootIsInBrowser = typeof document !== 'undefined' && typeof window !== 'undefined';
+
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <RootErrorBoundary>
-      <ToolbarErrorBoundary>
+      <NonFatalErrorBoundary>
         <Suspense fallback={null}>
           <VlyToolbar />
         </Suspense>
-      </ToolbarErrorBoundary>
+      </NonFatalErrorBoundary>
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
           <RouteSyncer />
@@ -219,9 +282,3 @@ createRoot(document.getElementById("root")!).render(
     </RootErrorBoundary>
   </StrictMode>,
 );
-
-// Simple wrapper that adds AppLayout
-import { AppLayout } from "@/components/layout/AppLayout";
-function App({ children }: { children: React.ReactNode }) {
-  return <AppLayout>{children}</AppLayout>;
-}

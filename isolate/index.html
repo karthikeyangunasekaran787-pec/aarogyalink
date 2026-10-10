@@ -3,21 +3,144 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+  <link rel="icon" type="image/svg+xml" href="/assets/aarogyalink-mark.svg" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AarogyaLink</title>
-  <script type="module" crossorigin src="/assets/index-qIgqppnv.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/react-vendor-LcU9Zt0-.js">
-  <link rel="modulepreload" crossorigin href="/assets/framer-motion-MCf8IeLM.js">
-  <link rel="modulepreload" crossorigin href="/assets/radix-ui-D0-KLakK.js">
-  <link rel="modulepreload" crossorigin href="/assets/charts-Br6xGdF_.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-AqbIA2cG.css">
+  <style>
+    /*
+     * The entry container is EMPTY on purpose: entering the app must not show
+     * a logo, a spinner or any branded loader while the module graph arrives —
+     * the visitor asked to see the page itself. React clears #root's children
+     * on mount, so nothing here paints at any point.
+     *
+     * It is only populated by the failure path below, if the entry module
+     * never runs: then it becomes a readable message instead of a blank page.
+     */
+    #root > #boot-splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 24px;
+      text-align: center;
+      background: #f6f9fa;
+      font-family: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /*
+     * No spinner, no progress bar, no branded loader, no image: entering the
+     * app must not read as "loading" and the entry frame must not paint a
+     * logo while the module graph arrives. The container below stays empty
+     * until React mounts — the entry routes are bundled eagerly, so there is
+     * no chunk fetch to wait on behind it. Only the failure path fills it with
+     * a message.
+     */
+    #boot-splash .boot-name {
+      margin: 4px 0 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    #boot-splash .boot-error {
+      margin: 4px 0 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    #boot-splash .boot-hint {
+      margin: 0;
+      max-width: 34rem;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #64748b;
+    }
+    #boot-splash .boot-retry {
+      margin-top: 8px;
+      padding: 8px 18px;
+      border: 0;
+      border-radius: 8px;
+      background: #0d9488;
+      color: #fff;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #boot-splash .boot-retry:hover {
+      background: #0f766e;
+    }
+  </style>
+  <script>
+    /*
+     * If the entry module never runs — Vite still warming up, a transform
+     * failure, or an exception during module evaluation — React never mounts
+     * and the splash above would spin forever. Swap it for a readable message
+     * instead of leaving a permanently blank page.
+     *
+     * This is a no-op once the app is live: React removes the splash when it
+     * mounts, and the guard only acts while that element is still present.
+     */
+    (function () {
+      var shown = false;
+      function fail(detail) {
+        var splash = document.getElementById("boot-splash");
+        if (!splash || shown) return;
+        shown = true;
+        // React removes the splash when it mounts, so an empty shell is the
+        // only safe starting state — nil-out everything the loop leaves behind.
+        splash.textContent = "";
+        // Clear every appended child: keep removing from the end until each
+        // has been handed off (avoids self-referential splice loops).
+        while (splash.firstChild) splash.removeChild(splash.firstChild);
+        function add(tag, className, text) {
+          var node = document.createElement(tag);
+          if (className) node.className = className;
+          // textContent, never innerHTML: the detail string is never parsed.
+          node.textContent = text;
+          splash.appendChild(node);
+          return node;
+        }
+        add("div", "boot-name", "AarogyaLink");
+        add("p", "boot-error", "The app could not finish starting.");
+        add("p", "boot-hint", detail);
+        add("button", "boot-retry", "Retry").addEventListener("click", function () {
+          location.reload();
+        });
+      }
+      window.addEventListener(
+        "error",
+        function (event) {
+          var target = event.target;
+          if (target && target !== window && (target.tagName === "SCRIPT" || target.tagName === "LINK")) {
+            fail("A required file failed to load. Check your connection and retry.");
+          } else if (event.message) {
+            fail(String(event.message));
+          }
+        },
+        true,
+      );
+      window.addEventListener("unhandledrejection", function () {
+        fail("An unexpected error interrupted startup.");
+      });
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/index-BD9B5Y2Y.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/react-vendor-CTTlQSpB.js">
+  <link rel="modulepreload" crossorigin href="/assets/framer-motion-CZK8rsoK.js">
+  <link rel="modulepreload" crossorigin href="/assets/radix-ui-CcSAZs1S.js">
+  <link rel="modulepreload" crossorigin href="/assets/charts-DIXvMIGn.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-BFTcv32N.css">
 </head>
 
-
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <!-- Empty: no logo, no spinner, no splash while the app loads. -->
+    <div id="boot-splash"></div>
+  </div>
 </body>
 
 </html>

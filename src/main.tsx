@@ -94,11 +94,12 @@ class NonFatalErrorBoundary extends React.Component<
   static getDerivedStateFromError(error: Error) {
     // Only fatal React errors reach the root fallback. Non-fatal warnings
     // during startup are captured here so the console still has them.
-    return { hasError: false, warns: [...(this.state.warns ?? []), { err, ts: performance.now() }] };
+    const warns = (this as unknown as NonFatalErrorBoundary).state.warns ?? [];
+    return { hasError: false, warns: [...warns, { err: error, ts: performance.now() }] };
   }
   render() {
     if (this.state.hasError) {
-      return <RootFallback hasError={this.state.hasError} error={this.state.warn ?? null} />;
+      return <RootFallback hasError={this.state.hasError} error={null} />;
     }
     return this.props.children;
   }
@@ -187,7 +188,7 @@ function RouteSyncer() {
 // Visible to the browser before React mounts, so a white crash during the
 // transition has something readable to fall back to.
 if (typeof document !== 'undefined') {
-  window.__AL_rootFallbackHTML = `
+  (window as unknown as Record<string, unknown>).__AL_rootFallbackHTML = `
     <div id="al-root-fallback" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f6f9fa;text-align:center;padding:24px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
       <p style="font-size:14px;font-weight:600;color:#0f172a;margin:0">The preview failed to load.</p>
       <p style="font-size:12px;color:#64748b;margin:0;max-width:34rem">If this keeps happening, try reloading the page or reopening the editor to start over.</p>

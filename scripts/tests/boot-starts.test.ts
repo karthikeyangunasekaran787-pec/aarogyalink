@@ -66,15 +66,17 @@ describe('AarogyaLink boot starts on a mocked platform path', () => {
   test('NonFatalErrorBoundary keeps the root app mounted on recoverable warnings', () => {
     // The NonFatalErrorBoundary is the sibling boundary that catches
     // non-fatal startup warnings so the root app stays mounted.
-    expect(entryHtml).toMatch(/(\bNonFatalErrorBoundary\b.*\bhasError: false\b.*\brender\(\) \{/s|\bclass NonFatalErrorBoundary extends React\.Component.*\bNonFatalErrorBoundary\b/s)/);
-  });
+    const m = /class NonFatalErrorBoundary extends React\.Component[\s\S]*?render\(\) \{[\s\S]*?\}\s*\}/s.exec(entryHtml);
+    expect(m).not.toBeNull();
+    expect(m?.[0]).toContain('NonFatalErrorBoundary');
+    expect(m?.[0]).toContain('hasError: false');
   });
 
   test('the safe fallback exports rootIsInBrowser and safe start markup', () => {
     // The boot entry gives tests two seams they can assert without rendering
     // the full app inline: a browser flag and the safe start markup.
     expect(entryHtml).toContain('export const rootIsInBrowser');
-    expect(entryHtml).toContain('window.__AL_rootFallbackHTML');
+    expect(entryHtml).toContain('(window as unknown as Record<string, unknown>).__AL_rootFallbackHTML');
     expect(entryHtml).toContain('al-root-fallback');
     expect(entryHtml).toContain('The preview failed to load.');
   });

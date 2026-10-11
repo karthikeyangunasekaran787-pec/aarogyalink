@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
-import { t } from '@/lib/i18n';
+import { t, languages } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -15,16 +15,23 @@ import {
 
 export default function GovDashboard() {
   const { language, currentUser } = useApp();
-  const {
-    patients, referrals, followups, currentFacilities, villageAccessScores,
-    districtAnalytics: liveAnalytics, referralFunnel,
-  } = useData();
+  const districtId = currentUser?.districtId;
+  const districtName = currentUser?.districtName;
 
   // This console covers exactly ONE district: the backend scopes the data it
   // hands over (convex/authz.ts) and `currentFacilities` is scoped to the
   // signed-in district administrator's district as well.
+  // District Admin / District Command Center Dashboard  const {
+    patients, referrals, followups, currentFacilities, villageAccessScores,
+    districtAnalytics: liveAnalytics, referralFunnel,
+  } = useData();
+
   const districtId = currentUser?.districtId;
   const districtName = currentUser?.districtName;
+
+  // This console covers exactly ONE district: the backend scopes the data it
+  // hands over (convex/authz.ts) and `currentFacilities` is scoped to the
+  // signed-in district administrator's district as well.
   const scopedFacilities = currentFacilities;
 
   // Compute facility performance from actual referrals. Uses the dynamic
@@ -75,10 +82,10 @@ export default function GovDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          {language === 'ta' ? 'மாவட்ட கட்டுப்பாட்டு மையம்' : language === 'hi' ? 'जिला कमांड सेंटर' : 'District Command Center'}
+          {t('districtCommandCenterTitle', language)}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {districtName ? `${districtName} District` : 'District'} • {districtId || '—'} • {scopedFacilities.length} Facilities • {patients.length} Registered Patients
+          {districtName ? `${districtName} District` : t('districtInfoPlaceholder', language)} • {districtId || '—'} • {scopedFacilities.length} {t('facilitiesUnit', language)} • {patients.length} {t('registeredPatientsUnit', language)}
         </p>
       </div>
 

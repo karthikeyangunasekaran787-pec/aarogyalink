@@ -23,8 +23,10 @@ import {
   validateDistrictDraft,
 } from '../../src/lib/district-admin';
 import { dropAdminsForUnknownDistricts } from '../../src/convex/authz';
-import { t } from '../../src/lib/i18n';
 import type { District, User } from '../../src/types';
+import { t } from '../../src/lib/i18n';
+
+const _ = t;
 
 const pdk: District = {
   id: 'dist-pdk',

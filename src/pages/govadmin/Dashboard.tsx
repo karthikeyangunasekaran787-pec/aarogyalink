@@ -21,23 +21,15 @@ export default function GovDashboard() {
   // This console covers exactly ONE district: the backend scopes the data it
   // hands over (convex/authz.ts) and `currentFacilities` is scoped to the
   // signed-in district administrator's district as well.
-  // District Admin / District Command Center Dashboard  const {
-    patients, referrals, followups, currentFacilities, villageAccessScores,
-    districtAnalytics: liveAnalytics, referralFunnel,
+  const {
+    patients, referrals, followups, currentFacilities,
+    villageAccessScores, districtAnalytics: liveAnalytics, referralFunnel,
   } = useData();
-
-  const districtId = currentUser?.districtId;
-  const districtName = currentUser?.districtName;
-
-  // This console covers exactly ONE district: the backend scopes the data it
-  // hands over (convex/authz.ts) and `currentFacilities` is scoped to the
-  // signed-in district administrator's district as well.
-  const scopedFacilities = currentFacilities;
 
   // Compute facility performance from actual referrals. Uses the dynamic
   // facility list so hospitals added by the District Administrator appear here.
   const facilityPerformance = useMemo(() => {
-    return scopedFacilities.map(f => {
+    return currentFacilities.map(f => {
       const fReferrals = referrals.filter(r => r.destinationFacilityId === f.id);
       const closed = fReferrals.filter(r => r.status === 'closed').length;
       const closureRate = fReferrals.length > 0 ? Math.round((closed / fReferrals.length) * 100) : 0;
@@ -49,7 +41,7 @@ export default function GovDashboard() {
         totalReferrals: fReferrals.length,
       };
     });
-  }, [scopedFacilities, referrals]);
+  }, [currentFacilities, referrals]);
 
   // Compute monthly trends from actual referral dates
   const monthlyTrends = useMemo(() => {
@@ -76,7 +68,73 @@ export default function GovDashboard() {
     }));
   }, [referrals, followups]);
 
-  const maxMonthlyCreated = Math.max(...monthlyTrends.map(m => m.created), 1);
+  const maxMonthlyCreated = Math.max(0, ...monthlyTrends.map((m) => m.created));
+
+  // This console covers exactly ONE district: the backend scopes the data it
+  // hands over (convex/authz.ts) and `currentFacilities` is scoped to the
+  // signed-in district administrator's district as well.
+  const scopedFacilities = currentFacilities;
+
+  // Keep the same computed analytics shape the template expected, but scoped to
+  // the district's current facility + referral + follow-up counts.  const scopedDistrictAnalytics = useMemo(() => {
+    const base = liveAnalytics;
+    const scopedTotalReferrals = referrals.length;
+    const scopedClosed = referrals.filter((r) => r.status === 'closed').length;
+    const scopedClosureRate = scopedTotalReferrals > 0
+      ? Math.round((scopedClosed / scopedTotalReferrals) * 100)
+      : base.referralClosureRate;
+    return {
+      ...base,
+      totalReferrals: scopedTotalReferrals,
+      referralClosureRate: scopedClosureRate,
+    };
+  }, [liveAnalytics, referrals]);
+
+  const maxMonthlyCreated = Math.max(...monthlyTrends.map((m) => m.created), 1);
+
+  // Compute facility performance from actual referrals. Uses the dynamic
+  // facility list so hospitals added by the District Administrator appear here.
+  const facilityPerformance = useMemo(() => {
+    return currentFacilities.map((f) => {
+      const fReferrals = referrals.filter((r) => r.destinationFacilityId === f.id);
+      const closed = fReferrals.filter((r) => r.status === 'closed').length;
+      const closureRate = fReferrals.length > 0 ? Math.round((closed / fReferrals.length) * 100) : 0;
+      return {
+        facility: f.name,
+        closureRate,
+        avgWait: f.averageWaitTime,
+        referrals: fReferrals.length,
+        totalReferrals: fReferrals.length,
+      };
+    });
+  }, [currentFacilities, referrals]);
+
+  // Compute monthly trends from actual referral dates
+  const monthlyTrends = useMemo(() => {
+    const monthMap: Record<string, { created: number; closed: number; missed: number }> = {};
+    referrals.forEach((r) => {
+      const d = new Date(r.createdAt);
+      const key = d.toLocaleString('en-US', { month: 'short' });
+      if (!monthMap[key]) monthMap[key] = { created: 0, closed: 0, missed: 0 };
+      monthMap[key].created++;
+      if (r.status === 'closed') monthMap[key].closed++;
+    });
+    followups.forEach((f) => {
+      if (f.status === 'missed') {
+        const d = new Date(f.createdAt);
+        const key = d.toLocaleString('en-US', { month: 'short' });
+        if (monthMap[key]) monthMap[key].missed++;
+      }
+    });
+    // Show in chronological order
+    const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
+    return monthOrder.filter((m) => monthMap[m]).map((m) => ({
+      month: m,
+      ...monthMap[m],
+    }));
+  }, [referrals, followups]);
+
+
 
   return (
     <div className="space-y-6">

@@ -27,6 +27,7 @@ import { RoleCard } from '@/components/roleselect/RoleCard';
 import { ContinueButton } from '@/components/roleselect/ContinueButton';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { useApp } from '@/contexts/AppContext';
+import { useTranslation } from '@/hooks/use-translation';
 import { ROLE_OPTIONS } from '@/lib/role-options';
 import { nodeForRole } from '@/lib/role-network';
 import type { Role } from '@/types';
@@ -52,6 +53,7 @@ export default function RoleSelect() {
   const { setCurrentRole } = useApp();
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
+  const { t } = useTranslation();
 
   const [selected, setSelected] = useState<Role | null>(null);
 
@@ -112,7 +114,7 @@ export default function RoleSelect() {
             {...fade(0.1)}
             className="mt-9 text-center text-xl font-semibold tracking-tight text-slate-900 sm:text-[26px]"
           >
-            Select your role
+            {t('selectYourRole')}
           </motion.h2>
 
           {/* Six role cards: 3×2 desktop, 2×3 tablet, single column mobile. */}
@@ -121,7 +123,7 @@ export default function RoleSelect() {
               <RoleCard
                 key={option.role}
                 index={index}
-                label={option.label}
+                label={t(option.labelKey)}
                 icon={ROLE_ICONS[option.role]}
                 tint={option.tint}
                 selected={selected === option.role}

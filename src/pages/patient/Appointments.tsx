@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { useApp } from '@/contexts/AppContext';
-import { t } from '@/lib/i18n';
+import { useTranslation } from '@/hooks/use-translation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function Appointments() {
   const { appointments, facilities, hospitals } = useData();
-  const { language, currentUser } = useApp();
+  const { t } = useTranslation();
+  const { currentUser } = useApp();
   const patientAppointments = appointments.filter(a => a.patientId === currentUser?.patientId);
   const upcoming = patientAppointments.filter(a => a.status === 'scheduled');
   const past = patientAppointments.filter(a => a.status === 'completed');
@@ -32,18 +33,14 @@ export default function Appointments() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Calendar className="h-6 w-6 text-primary" />
-            {t('myAppointments', language)}
+            {t('myAppointments')}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {language === 'ta' ? 'உங்கள் சந்திப்புகளை நிர்வகிக்கவும்' :
-             language === 'hi' ? 'अपनी अपॉइंटमेंट प्रबंधित करें' :
-             'Manage your upcoming and past appointments'}
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">{t('appointmentsSubtitle')}</p>
         </div>
         <Link to="/patient/book-appointment">
           <Button className="gap-1.5">
             <Plus className="h-4 w-4" />
-            {t('bookAppointment', language)}
+            {t('bookAppointment')}
           </Button>
         </Link>
       </div>
@@ -51,13 +48,14 @@ export default function Appointments() {
       {/* Upcoming */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">
-          {language === 'ta' ? 'வரவிருக்கும்' : language === 'hi' ? 'आगामी' : 'Upcoming'} ({upcoming.length})
+          {t('upcoming')} ({upcoming.length})
         </h3>
         <div className="space-y-3">
           {upcoming.length === 0 ? (
             <Card>
-              <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                No upcoming appointments
+              <CardContent className="py-8 text-center">
+                <p className="text-sm font-medium text-foreground">{t('noAppointmentsYet')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('noAppointmentsHint')}</p>
               </CardContent>
             </Card>
           ) : (
@@ -73,7 +71,7 @@ export default function Appointments() {
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="text-sm font-semibold text-foreground">{apt.department}</h4>
                           <Badge className={`text-[10px] ${STATUS_COLORS[apt.status]}`}>
-                            {apt.status}
+                            {t('scheduled')}
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">{apt.reason}</p>
@@ -102,9 +100,16 @@ export default function Appointments() {
       {/* Past */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">
-          {language === 'ta' ? 'கடந்த' : language === 'hi' ? 'पिछली' : 'Past'} ({past.length})
+          {t('past')} ({past.length})
         </h3>
         <div className="space-y-3">
+          {past.length === 0 && (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                {t('noAppointmentsPast')}
+              </CardContent>
+            </Card>
+          )}
           {past.map(apt => (
             <Card key={apt.id} className="opacity-70">
               <CardContent className="p-4">
@@ -115,7 +120,7 @@ export default function Appointments() {
                   </div>
                   <div className="text-right">
                     <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                      Completed
+                      {t('completed')}
                     </Badge>
                     <p className="text-xs text-muted-foreground mt-1">{apt.date}</p>
                   </div>

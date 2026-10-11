@@ -3,8 +3,9 @@
 // ============================================================================
 
 import { useState } from 'react';
+import { useParams } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
-import { t } from '@/lib/i18n';
+import { useTranslation } from '@/hooks/use-translation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,8 +20,13 @@ import {
 
 export default function Referrals() {
   const { referrals, referralEvents } = useData();
-  const { language, currentUser } = useApp();
-  const [selectedReferral, setSelectedReferral] = useState<string | null>(null);
+  const { currentUser } = useApp();
+  const { t, language } = useTranslation();
+  // The dashboard links straight to one referral (/patient/referrals/:id), so
+  // the route parameter opens that referral instead of dropping the patient on
+  // an unselected list.
+  const { id: routeReferralId } = useParams<{ id: string }>();
+  const [selectedReferral, setSelectedReferral] = useState<string | null>(routeReferralId ?? null);
 
   const patientReferrals = referrals.filter(r => r.patientId === currentUser?.patientId);
   const activeReferrals = patientReferrals.filter(r => r.status !== 'closed');
@@ -34,13 +40,9 @@ export default function Referrals() {
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <FileText className="h-6 w-6 text-primary" />
-          {t('referralTracker', language)}
+          {t('myReferrals')}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {language === 'ta' ? 'உங்கள் பரிந்துரைகளின் நிலையைக் கண்காணிக்கவும்' :
-           language === 'hi' ? 'अपने रेफरल की स्थिति ट्रैक करें' :
-           'Track the progress of your referrals end-to-end'}
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t('referralSubtitle')}</p>
       </div>
 
       {/* Summary Cards */}
@@ -48,13 +50,13 @@ export default function Referrals() {
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-primary">{activeReferrals.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">Active Referrals</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('activeReferralsLabel')}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-emerald-600">{completedReferrals.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">Completed</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('completed')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -62,7 +64,7 @@ export default function Referrals() {
             <p className="text-2xl font-bold text-amber-600">
               {patientReferrals.filter(r => r.isOverdue).length}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">Overdue</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('overdueLabel')}</p>
           </CardContent>
         </Card>
       </div>
@@ -71,7 +73,7 @@ export default function Referrals() {
         {/* Referral List */}
         <div className="lg:col-span-1 space-y-2">
           <h3 className="text-sm font-semibold text-foreground mb-2">
-            {activeReferrals.length > 0 ? 'Active' : 'All'} Referrals
+            {activeReferrals.length > 0 ? t('activeReferralsLabel') : t('allReferrals')}
           </h3>
           {patientReferrals.map((ref) => (
             <div
@@ -84,14 +86,12 @@ export default function Referrals() {
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-sm font-medium text-foreground">{ref.referralId}</span>
                 {ref.isOverdue ? (
-                  <Badge variant="destructive" className="text-[10px]">
-                    <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
-                    Overdue
+                  <Badge variant="destructive" className="text-[10px]">                      <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                    {t('overdueLabel')}
                   </Badge>
                 ) : ref.status === 'closed' ? (
-                  <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                    <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
-                    Closed
+                  <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">                      <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
+                    {t('closed')}
                   </Badge>
                 ) : null}
               </div>
@@ -127,7 +127,7 @@ export default function Referrals() {
                     onClick={() => document.getElementById(`referral-qr-${selected.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                   >
                     <QrCode className="h-3.5 w-3.5" />
-                    QR Code
+                    {t('qrCode')}
                   </Button>
                 </div>
               </CardHeader>
@@ -144,37 +144,37 @@ export default function Referrals() {
                 {/* Details grid */}
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-lg bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">{t('sourceFacility', language)}</p>
+                    <p className="text-xs text-muted-foreground">{t('sourceFacility')}</p>
                     <p className="font-medium mt-0.5">{selected.sourceFacilityName}</p>
                   </div>
                   <div className="rounded-lg bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">{t('destinationFacility', language)}</p>
+                    <p className="text-xs text-muted-foreground">{t('destinationFacility')}</p>
                     <p className="font-medium mt-0.5">{selected.destinationFacilityName}</p>
                   </div>
                   <div className="rounded-lg bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">{t('department', language)}</p>
+                    <p className="text-xs text-muted-foreground">{t('department')}</p>
                     <p className="font-medium mt-0.5">{selected.department}</p>
                   </div>
                   <div className="rounded-lg bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Doctor</p>
-                    <p className="font-medium mt-0.5">{selected.doctorName || 'To be assigned'}</p>
+                    <p className="text-xs text-muted-foreground">{t('doctor')}</p>
+                    <p className="font-medium mt-0.5">{selected.doctorName || t('toBeAssigned')}</p>
                   </div>
                   {selected.appointmentDate && (
                     <div className="rounded-lg bg-muted/30 p-3">
-                      <p className="text-xs text-muted-foreground">{t('date', language)}</p>
+                      <p className="text-xs text-muted-foreground">{t('date')}</p>
                       <p className="font-medium mt-0.5">{selected.appointmentDate} at {selected.appointmentTime}</p>
                     </div>
                   )}
                   <div className="rounded-lg bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Created</p>
-                    <p className="font-medium mt-0.5">{new Date(selected.createdAt).toLocaleDateString()}</p>
+                    <p className="text-xs text-muted-foreground">{t('created')}</p>
+                    <p className="font-medium mt-0.5">{new Date(selected.createdAt).toLocaleDateString(language === 'ta' ? 'ta-IN' : language === 'hi' ? 'hi-IN' : 'en-IN')}</p>
                   </div>
                 </div>
 
                 {/* Visual Timeline */}
                 <div>
                   <h4 className="text-sm font-semibold text-foreground mb-3">
-                    {t('referralTimeline', language)}
+                    {t('referralTimeline')}
                   </h4>
                   <ReferralTimeline
                     currentStatus={selected.status}
@@ -187,7 +187,7 @@ export default function Referrals() {
                 {/* Event History */}
                 {selectedEvents.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-3">Activity History</h4>
+                    <h4 className="text-sm font-semibold text-foreground mb-3">{t('activityHistory')}</h4>
                     <div className="space-y-2">
                       {selectedEvents.map((event) => (
                         <div key={event.id} className="flex gap-3 text-sm">
@@ -198,7 +198,7 @@ export default function Referrals() {
                           <div className="pb-3">
                             <p className="text-foreground">{event.description}</p>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                              by {event.performedBy} • {new Date(event.timestamp).toLocaleString()}
+                              {t('byPerson', { name: event.performedBy })} • {new Date(event.timestamp).toLocaleString(language === 'ta' ? 'ta-IN' : language === 'hi' ? 'hi-IN' : 'en-IN')}
                             </p>
                           </div>
                         </div>
@@ -212,11 +212,8 @@ export default function Referrals() {
             <Card>
               <CardContent className="flex flex-col items-center py-16 text-center">
                 <FileText className="h-12 w-12 text-muted-foreground/20 mb-3" />
-                <p className="text-sm text-muted-foreground">
-                  {language === 'ta' ? 'ஒரு பரிந்துரையைத் தேர்ந்தெடுக்கவும்' :
-                   language === 'hi' ? 'रेफरल चुनें' :
-                   'Select a referral to view its timeline and details'}
-                </p>
+                <p className="text-sm font-medium text-foreground">{t('noReferralsYet')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('selectReferral')}</p>
               </CardContent>
             </Card>
           )}

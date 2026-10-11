@@ -12,6 +12,8 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '@/convex/_generated/api';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
+import { useTranslation } from '@/hooks/use-translation';
+import type { TranslationKey } from '@/lib/i18n';
 import {
   clearPendingLogin,
   rememberPendingLogin,
@@ -26,13 +28,14 @@ import { Input } from '@/components/ui/input';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Mail, LogIn, AlertCircle, CheckCircle2, User, Lock, KeyRound, ShieldCheck } from 'lucide-react';
 
-const ROLE_LABELS: Record<string, string> = {
-  patient: 'Patient',
-  health_worker: 'Health Worker',
-  doctor: 'Doctor',
-  hospital_admin: 'Hospital Administrator',
-  gov_admin: 'District Administrator',
-  overall_admin: 'Overall Administrator',
+// Role names as translation keys, so "Login as …" follows the language.
+const ROLE_LABEL_KEYS: Record<string, TranslationKey> = {
+  patient: 'rolePatient',
+  health_worker: 'roleHealthWorker',
+  doctor: 'roleDoctor',
+  hospital_admin: 'roleHospitalAdmin',
+  gov_admin: 'roleDistrictAdmin',
+  overall_admin: 'roleOverallAdmin',
 };
 
 const ROLE_ROUTES: Record<string, string> = {
@@ -60,6 +63,7 @@ interface StaffIdentity {
 export default function AuthPage() {
   const { currentRole, loginPatient, loginStaff, currentUser, isAuthenticated, isAuthLoading } = useApp();
   const { getPatientByEmail, staffUsers, facilities, hospitals, updateStaffUser } = useData();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -118,7 +122,7 @@ export default function AuthPage() {
     setError('');
     setMasterInfo('');
     if (!masterEmail.includes('@')) {
-      setError('Enter the master administrator email address.');
+      setError(t('errEnterMasterEmail'));
       return;
     }
     setLoading(true);
@@ -126,12 +130,12 @@ export default function AuthPage() {
       await signIn('email-otp', { email: masterEmail.trim() });
       setMasterStage('code');
       setMasterCode('');
-      setMasterInfo(`A one-time verification code was sent to ${masterEmail.trim()}. Each code works once and expires in 15 minutes, so enter the newest one.`);
+      setMasterInfo(t('codeSentTo', { email: masterEmail.trim() }));
     } catch {
-      setError('Could not send the verification code. Check the address and your connection, then retry.');
+      setError(t('errSendCodeFailed'));
     }
     setLoading(false);
-  }, [masterEmail, signIn]);
+  }, [masterEmail, signIn, t]);
 
   /**
    * Ask for a fresh code without leaving the code step. A code is single-use,
@@ -143,19 +147,19 @@ export default function AuthPage() {
     try {
       await signIn('email-otp', { email: masterEmail.trim() });
       setMasterCode('');
-      setMasterInfo(`A new code was sent to ${masterEmail.trim()}. Use only the newest code.`);
+      setMasterInfo(t('codeResentTo', { email: masterEmail.trim() }));
     } catch {
-      setError('Could not send a new code. Check your connection and try again.');
+      setError(t('errResendCodeFailed'));
     }
     setLoading(false);
-  }, [masterEmail, signIn]);
+  }, [masterEmail, signIn, t]);
 
   // Step 2 verifies the code and asks the server to open the master binding.
   const handleMasterVerify = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (masterCode.trim().length < 4) {
-      setError('Enter the verification code from the email.');
+      setError(t('errEnterCode'));
       return;
     }
     setLoading(true);
@@ -254,7 +258,7 @@ export default function AuthPage() {
       // session, and on success the master session is already live.
       setAnonymousAuthSuspended(false);
     }
-  }, [masterEmail, masterCode, signIn, signOut, loginOverallSession, loginStaff, navigate]);
+  }, [masterEmail, masterCode, signIn, signOut, loginOverallSession, loginStaff, navigate, t]);
 
   // ── Patient Login: look up by email ───────────────────────────
   const handlePatientLogin = useCallback(async (e: React.FormEvent) => {
@@ -263,7 +267,7 @@ export default function AuthPage() {
     setFoundPatient(null);
 
     if (!emailValue || !emailValue.includes('@')) {
-      setError('Please enter the email address used during registration.');
+      setError(t('errEnterEmail'));
       return;
     }
 
@@ -295,7 +299,7 @@ export default function AuthPage() {
       const patient = getPatientByEmail(emailValue);
       if (!patient) {
         setLoading(false);
-        setError('Patient not registered. Please contact your Health Worker to register your account first.');
+        setError(t('errPatientNotRegistered'));
         return;
       }
       // Keep the credentials in memory so the backend binding can be created
@@ -328,7 +332,7 @@ export default function AuthPage() {
     setTimeout(() => {
       navigate(returnTo, { replace: true });
     }, 800);
-  }, [emailValue, getPatientByEmail, loginPatient, loginPatientSession, navigate, returnTo]);
+  }, [emailValue, getPatientByEmail, loginPatient, loginPatientSession, navigate, returnTo, t]);
 
   // ── Staff Login: validate username against staffUsers ─────────
   const handleStaffLogin = useCallback(async (e: React.FormEvent) => {
@@ -336,12 +340,12 @@ export default function AuthPage() {
     setError('');
 
     if (!username.trim()) {
-      setError('Please enter your username.');
+      setError(t('errEnterUsername'));
       return;
     }
 
     if (!password) {
-      setError('Please enter your password.');
+      setError(t('errEnterPassword'));
       return;
     }
 
@@ -433,19 +437,22 @@ export default function AuthPage() {
 
     if (disabled) {
       setLoading(false);
-      setError('Your account has been disabled. Please contact your Hospital Administrator.');
+      setError(t('errAccountDisabled'));
       return;
     }
 
     if (!identity) {
       setLoading(false);
-      setError('Invalid username or password. Please check your credentials or contact your Hospital Administrator.');
+      setError(t('errInvalidCredentials'));
       return;
     }
 
     if (identity.role !== currentRole) {
       setLoading(false);
-      setError(`This account is registered as ${ROLE_LABELS[identity.role]}, not ${ROLE_LABELS[currentRole]}.`);
+      setError(t('errWrongRole', {
+        actual: t(ROLE_LABEL_KEYS[identity.role] ?? 'rolePatient'),
+        expected: t(ROLE_LABEL_KEYS[currentRole] ?? 'rolePatient'),
+      }));
       return;
     }
 
@@ -477,7 +484,7 @@ export default function AuthPage() {
     setLoading(false);
 
     navigate(returnTo, { replace: true });
-  }, [username, password, currentRole, staffUsers, loginStaff, loginStaffSession, navigate, returnTo, facilities, hospitals]);
+  }, [username, password, currentRole, staffUsers, loginStaff, loginStaffSession, navigate, returnTo, facilities, hospitals, t]);
 
   // Handle force password change submission
   const handlePasswordChange = useCallback(async (e: React.FormEvent) => {
@@ -544,20 +551,20 @@ export default function AuthPage() {
               <div className="h-12 w-12 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-3">
                 <KeyRound className="h-6 w-6 text-amber-600" />
               </div>
-              <h1 className="text-xl font-bold text-foreground">Change Your Password</h1>
-              <p className="text-xs text-muted-foreground mt-1">This is your first login. Please set a new password to continue.</p>
+              <h1 className="text-xl font-bold text-foreground">{t('changePasswordTitle')}</h1>
+              <p className="text-xs text-muted-foreground mt-1">{t('changePasswordSubtitle')}</p>
             </div>
 
             <form onSubmit={handlePasswordChange} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">New Password</label>
+                <label className="text-sm font-medium text-foreground">{t('newPassword')}</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="password"
                     value={pendingPasswordChange.newPassword}
                     onChange={(e) => { setPendingPasswordChange(p => p ? { ...p, newPassword: e.target.value } : null); setPwError(''); }}
-                    placeholder="Enter new password (min 6 characters)"
+                    placeholder={t('newPasswordPlaceholder')}
                     className="pl-9 h-11"
                     autoFocus
                     required
@@ -565,14 +572,14 @@ export default function AuthPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Confirm New Password</label>
+                <label className="text-sm font-medium text-foreground">{t('confirmNewPassword')}</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="password"
                     value={pendingPasswordChange.confirmPassword}
                     onChange={(e) => { setPendingPasswordChange(p => p ? { ...p, confirmPassword: e.target.value } : null); setPwError(''); }}
-                    placeholder="Confirm new password"
+                    placeholder={t('confirmNewPasswordPlaceholder')}
                     className="pl-9 h-11"
                     required
                   />
@@ -602,7 +609,7 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8">
       <Link to="/role-select" className="text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
-        ← Change Role
+        ← {t('changeRole')}
       </Link>
 
       <div className="mb-6 flex flex-col items-center gap-2.5 text-center">
@@ -612,13 +619,15 @@ export default function AuthPage() {
       <Card className="w-full max-w-md">
         <CardContent className="p-6 space-y-5">
           <div className="text-center">
-            <h1 className="text-xl font-bold text-foreground">Login as {ROLE_LABELS[currentRole]}</h1>
+            <h1 className="text-xl font-bold text-foreground">
+              {t('loginAsRole', { role: t(ROLE_LABEL_KEYS[currentRole] ?? 'rolePatient') })}
+            </h1>
             <p className="text-xs text-muted-foreground mt-1">
               {isPatient
-                ? 'Enter the email registered by your Health Worker'
+                ? t('patientLoginHint')
                 : isOverallAdmin
-                  ? 'Verify the master email with the one-time code we send you'
-                  : 'Enter your assigned username and password'
+                  ? t('masterLoginHint')
+                  : t('staffLoginHint')
               }
             </p>
           </div>
@@ -627,14 +636,14 @@ export default function AuthPage() {
           {isPatient && (
             <form onSubmit={handlePatientLogin} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Registered Email</label>
+                <label className="text-sm font-medium text-foreground">{t('registeredEmail')}</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="email"
                     value={emailValue}
                     onChange={(e) => { setEmailValue(e.target.value); setError(''); setFoundPatient(null); }}
-                    placeholder="your-email@example.com"
+                    placeholder={t('emailPlaceholder')}
                     className="pl-9 h-11"
                     autoFocus
                     required
@@ -663,24 +672,24 @@ export default function AuthPage() {
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                    Verifying...
+                    {t('verifying')}
                   </span>
                 ) : foundPatient ? (
                   <span className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4" />
-                    Signing in...
+                    {t('signingIn')}
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
                     <LogIn className="h-4 w-4" />
-                    Sign In
+                    {t('signIn')}
                   </span>
                 )}
               </Button>
 
               <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg p-3 space-y-1">
-                <p className="font-medium text-foreground">How to get access</p>
-                <p>Ask your local Health Worker to register you on AarogyaLink. They will create your account with your email address. You can then log in here.</p>
+                <p className="font-medium text-foreground">{t('howToGetAccess')}</p>
+                <p>{t('howToGetAccessBody')}</p>
               </div>
             </form>
           )}
@@ -689,14 +698,14 @@ export default function AuthPage() {
           {isOverallAdmin && (
             <form onSubmit={masterStage === 'email' ? handleMasterRequestCode : handleMasterVerify} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Master Administrator Email</label>
+                <label className="text-sm font-medium text-foreground">{t('masterAdminEmail')}</label>
                 <div className="relative">
                   <ShieldCheck className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="email"
                     value={masterEmail}
                     onChange={(e) => { setMasterEmail(e.target.value); setError(''); setMasterInfo(''); setMasterStage('email'); }}
-                    placeholder="master-email@example.com"
+                    placeholder={t('masterEmailPlaceholder')}
                     className="pl-9 h-11"
                     autoFocus
                     required
@@ -707,14 +716,14 @@ export default function AuthPage() {
 
               {masterStage === 'code' && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">One-Time Verification Code</label>
+                  <label className="text-sm font-medium text-foreground">{t('oneTimeCode')}</label>
                   <div className="relative">
                     <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       inputMode="numeric"
                       value={masterCode}
                       onChange={(e) => { setMasterCode(e.target.value.replace(/\D/g, '').slice(0, 8)); setError(''); }}
-                      placeholder="6-digit code"
+                      placeholder={t('codePlaceholder')}
                       className="pl-9 h-11 tracking-[0.3em]"
                       autoFocus
                       required
@@ -772,8 +781,8 @@ export default function AuthPage() {
               )}
 
               <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg p-3 space-y-1">
-                <p className="font-medium text-foreground">Master account</p>
-                <p>The Overall Administrator is the platform owner. Access is verified by a one-time code sent to the registered master email; only this account can create districts and District Administrators.</p>
+                <p className="font-medium text-foreground">{t('masterAccountTitle')}</p>
+                <p>{t('masterAccountBody')}</p>
               </div>
             </form>
           )}
@@ -782,13 +791,13 @@ export default function AuthPage() {
           {!isPatient && !isOverallAdmin && (
             <form onSubmit={handleStaffLogin} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Username</label>
+                <label className="text-sm font-medium text-foreground">{t('username')}</label>
                 <div className="relative">
                   <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={username}
                     onChange={(e) => { setUsername(e.target.value); setError(''); }}
-                    placeholder="Enter username"
+                    placeholder={t('usernamePlaceholder')}
                     className="pl-9 h-11"
                     autoFocus
                     required
@@ -797,14 +806,14 @@ export default function AuthPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Password</label>
+                <label className="text-sm font-medium text-foreground">{t('password')}</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password"
+                    placeholder={t('passwordPlaceholder')}
                     className="pl-9 h-11"
                   />
                 </div>
@@ -821,22 +830,22 @@ export default function AuthPage() {
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                    Signing in...
+                    {t('signingIn')}
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
                     <LogIn className="h-4 w-4" />
-                    Sign In
+                    {t('signIn')}
                   </span>
                 )}
               </Button>
 
               <div className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg p-3">
-                <p className="font-medium text-foreground">Staff Account</p>
+                <p className="font-medium text-foreground">{t('staffAccountTitle')}</p>
                 <p>
                   {currentRole === 'gov_admin'
-                    ? 'District Administrator accounts are created by the Overall Administrator and are scoped to a single district.'
-                    : 'Your account was created by your Hospital Administrator. Contact them if you need access.'}
+                    ? t('govAdminAccountBody')
+                    : t('staffAccountBody')}
                 </p>
               </div>
             </form>

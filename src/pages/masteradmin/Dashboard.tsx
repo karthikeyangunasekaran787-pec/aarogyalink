@@ -11,6 +11,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useApp } from '@/contexts/AppContext';
+import { t } from '@/lib/i18n';
 import { useData, generateTempPassword } from '@/contexts/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ type DistrictStats = {
 };
 
 export default function MasterAdminDashboard() {
-  const { currentUser } = useApp();
+  const { currentUser, language } = useApp();
   const {
     districts, hospitals, doctors, healthWorkers, patients, referrals,
     staffUsers, addDistrict, addStaffUser, removeStaffUser,
@@ -186,15 +187,15 @@ export default function MasterAdminDashboard() {
       </p>
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="admin-name">Full Name</label>
+          <label className="text-sm font-medium" htmlFor="admin-name">{t('fullName', language)}</label>
           <Input id="admin-name" value={adminForm.name} onChange={e => setAdminForm(f => ({ ...f, name: e.target.value }))} placeholder={`e.g. ${district.name} District Administrator`} />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="admin-email">Email</label>
+          <label className="text-sm font-medium" htmlFor="admin-email">{t('email', language)}</label>
           <Input id="admin-email" type="email" value={adminForm.email} onChange={e => setAdminForm(f => ({ ...f, email: e.target.value }))} placeholder="distadmin@tn.gov.in" />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="admin-username">Username</label>
+          <label className="text-sm font-medium" htmlFor="admin-username">{t('username', language)}</label>
           <Input
             id="admin-username"
             value={adminForm.username}
@@ -203,7 +204,7 @@ export default function MasterAdminDashboard() {
           />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="admin-password">Password</label>
+          <label className="text-sm font-medium" htmlFor="admin-password">{t('password', language)}</label>
           <div className="flex gap-2">
             <Input id="admin-password" value={adminForm.password} onChange={e => setAdminForm(f => ({ ...f, password: e.target.value }))} placeholder="min 6 characters" />
             <Button
@@ -226,8 +227,8 @@ export default function MasterAdminDashboard() {
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button onClick={handleCreateAdmin}>Create District Admin</Button>
-        <Button variant="outline" onClick={() => { setAdminDistrictId(null); setError(''); }}>Cancel</Button>
+        <Button onClick={handleCreateAdmin}>{t('createDistrictAdmin', language)}</Button>
+        <Button variant="outline" onClick={() => { setAdminDistrictId(null); setError(''); }}>{t('cancel', language)}</Button>
       </div>
     </div>
   );
@@ -248,13 +249,13 @@ export default function MasterAdminDashboard() {
       return (
         <div className="mt-2 flex flex-col gap-3 rounded-lg border border-dashed border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-foreground">No District Administrator assigned yet.</p>
+            <p className="text-sm font-medium text-foreground">{t('noDistrictAdminAssigned', language)}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Create a district administrator to manage hospitals and healthcare operations in this district.
+              {t('districtAdminCreateBody', language)}
             </p>
           </div>
           <Button size="sm" onClick={() => openAdminForm(district.districtId)}>
-            <UserPlus className="h-4 w-4 mr-1.5" /> Create District Admin
+            <UserPlus className="h-4 w-4 mr-1.5" /> {t('createDistrictAdmin', language)}
           </Button>
         </div>
       );
@@ -283,7 +284,7 @@ export default function MasterAdminDashboard() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete District Administrator?</AlertDialogTitle>
+                  <AlertDialogTitle>{t('deleteDistrictAdminTitle', language)}</AlertDialogTitle>
                   <AlertDialogDescription>
                     This permanently removes <span className="font-medium">{admin.name}</span>
                     {' '}({admin.username}) for {district.displayName}. They will no longer be able to sign in.
@@ -292,12 +293,12 @@ export default function MasterAdminDashboard() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{t('cancel', language)}</AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-red-600 text-white hover:bg-red-700"
                     onClick={() => { removeStaffUser(admin.id); flash(`${admin.name} deleted.`); }}
                   >
-                    Delete administrator
+                    {t('deleteAdministrator', language)}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -340,7 +341,7 @@ export default function MasterAdminDashboard() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ShieldCheck className="h-6 w-6 text-primary" />
-            Overall Administration
+            {t('overallAdministration', language)}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {districts.length} Districts • {totals.hospitals} Hospitals • {totals.patients} Registered Patients • Platform-wide view
@@ -379,7 +380,7 @@ export default function MasterAdminDashboard() {
         <Card className="border-primary/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center justify-between">
-              Create District
+              {t('createDistrict', language)}
               <button className="text-muted-foreground hover:text-foreground" onClick={() => setShowDistrictForm(false)} aria-label="Close">
                 <X className="h-4 w-4" />
               </button>
@@ -388,16 +389,16 @@ export default function MasterAdminDashboard() {
           <CardContent className="space-y-5">
             <div className="grid sm:grid-cols-3 gap-3">
               <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="district-name">District Name</label>
+                <label className="text-sm font-medium" htmlFor="district-name">{t('districtName', language)}</label>
                 <Input id="district-name" value={districtForm.name} onChange={e => setDistrictForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Karur" />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="district-code">Short Code</label>
+                <label className="text-sm font-medium" htmlFor="district-code">{t('shortCode', language)}</label>
                 <Input id="district-code" value={districtForm.code} onChange={e => setDistrictForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="e.g. KRR" maxLength={4} />
                 <p className="text-[11px] text-muted-foreground">Becomes district id {districtIdForCode(districtForm.code || 'KRR')}</p>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="district-hq">Headquarters</label>
+                <label className="text-sm font-medium" htmlFor="district-hq">{t('headquarters', language)}</label>
                 <Input id="district-hq" value={districtForm.headquarters} onChange={e => setDistrictForm(f => ({ ...f, headquarters: e.target.value }))} placeholder="e.g. Karur" />
               </div>
             </div>
@@ -409,7 +410,7 @@ export default function MasterAdminDashboard() {
                 <AlertCircle className="h-4 w-4" /> {error}
               </div>
             )}
-            <Button onClick={handleCreateDistrict}>Create District</Button>
+            <Button onClick={handleCreateDistrict}>{t('createDistrict', language)}</Button>
           </CardContent>
         </Card>
       )}
@@ -420,7 +421,7 @@ export default function MasterAdminDashboard() {
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              <p className="font-semibold text-foreground">District Administrator created</p>
+              <p className="font-semibold text-foreground">{t('districtAdminCreated', language)}</p>
             </div>
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
               {[
@@ -443,9 +444,9 @@ export default function MasterAdminDashboard() {
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              These credentials sign in through the District Administrator login and are verified by the backend against the stored record.
+              {t('adminCredentialsNote', language)}
             </p>
-            <Button variant="outline" size="sm" onClick={() => setCreatedAdmin(null)}>Done</Button>
+            <Button variant="outline" size="sm" onClick={() => setCreatedAdmin(null)}>{t('done', language)}</Button>
           </CardContent>
         </Card>
       )}
@@ -455,7 +456,7 @@ export default function MasterAdminDashboard() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
-              <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" /> District Management</span>
+              <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" /> {t('districtManagement', language)}</span>
               <Button size="sm" onClick={() => { setError(''); setDistrictForm({ name: '', code: '', headquarters: '' }); setShowDistrictForm(true); }}>
                 <Plus className="h-4 w-4 mr-1.5" /> Create District
               </Button>
@@ -463,10 +464,10 @@ export default function MasterAdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Every district on the platform. Open a district to review its details and assign its District Administrator.
+              {t('allDistrictsNote', language)}
             </p>
             {districtStats.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-6 text-center">No districts yet. Create the first one to begin.</p>
+              <p className="text-sm text-muted-foreground py-6 text-center">{t('noDistrictsYet', language)}</p>
             ) : districtStats.map(({ district, hospitals: hCount, doctors: dCount, healthWorkers: hwCount, patients: pCount, activeReferrals, closedReferrals }) => (
               <div key={district.districtId} className="rounded-xl border border-border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -509,7 +510,7 @@ export default function MasterAdminDashboard() {
                     {/* A · District information */}
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        District information
+                        {t('districtInformation', language)}
                       </p>
                       <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                         {[
@@ -530,7 +531,7 @@ export default function MasterAdminDashboard() {
                     {/* B · District Administrator — bound to THIS district's id */}
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        District Administrator
+                        {t('districtAdministrator', language)}
                       </p>
                       {districtAdminPanel(district)}
                     </div>
@@ -538,7 +539,7 @@ export default function MasterAdminDashboard() {
                     {/* C · The district's hospitals */}
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Hospitals in this district
+                        {t('hospitalsInDistrict', language)}
                       </p>
                       <div className="mt-2 space-y-2">
                         {getHospitalsForDistrict(district.districtId).map(h => (
@@ -582,14 +583,13 @@ export default function MasterAdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              One administrator per district. Create or remove an administrator from its district&rsquo;s details in
-              District Management — an account is permanently bound to that one district.
+              {t('oneAdminPerDistrict', language)}
             </p>
             {districtAdmins.length === 0 ? (
               <div className="py-6 text-center">
-                <p className="text-sm font-medium text-foreground">No District Administrators yet.</p>
+                <p className="text-sm font-medium text-foreground">{t('noDistrictAdminsYet', language)}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Open a district in District Management and assign one.
+                  {t('assignDistrictAdminHint', language)}
                 </p>
               </div>
             ) : districtAdmins.map(admin => (
@@ -643,13 +643,13 @@ export default function MasterAdminDashboard() {
         <Card>
           <CardContent className="p-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-foreground">Initial System Data</p>
+              <p className="text-sm font-medium text-foreground">{t('initialSystemData', language)}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Reload the initial system records (Pudukkottai and Tiruchirappalli hospitals, staff, patients and referrals) across every device.
+                {t('reloadDataNote', language)}
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => { resetDemoData(); flash('Initial system data restored and syncing to every device.'); }}>
-              <RefreshCw className="h-4 w-4 mr-1.5" /> Restore initial data
+              <RefreshCw className="h-4 w-4 mr-1.5" /> {t('restoreInitialData', language)}
             </Button>
           </CardContent>
         </Card>

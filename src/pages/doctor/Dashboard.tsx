@@ -34,7 +34,7 @@ import {
  * change the hook order between renders and crash the page.
  */
 export default function DoctorDashboard() {
-  const { currentUser } = useApp();
+  const { currentUser, language } = useApp();
   const { doctors, staffUsers } = useData();
   const records = useMemo(() => recordsOrCache(doctors, 'aal_doctors'), [doctors]);
   const doctor = resolveDoctor(records, currentUser, staffUsers);
@@ -44,11 +44,9 @@ export default function DoctorDashboard() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center space-y-3">
           <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
-          <h2 className="text-lg font-semibold text-foreground">No Doctor Profile Found</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('noDoctorProfile', language)}</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Your account ({currentUser?.id || 'unknown'}) has no matching doctor profile.
-            Doctor records found: {records.length}.
-            Please contact your Hospital Administrator to create your doctor record via Staff Management.
+            {t('doctorProfileMissingHint', language)} ({currentUser?.id || 'unknown'} · {records.length})
           </p>
         </div>
       </div>
@@ -300,7 +298,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{completedAppointments.length}</p>
-                <p className="text-xs text-muted-foreground">Completed</p>
+                <p className="text-xs text-muted-foreground">{t('completed', language)}</p>
               </div>
             </div>
           </CardContent>
@@ -313,7 +311,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{activeReferrals.length}</p>
-                <p className="text-xs text-muted-foreground">Active Referrals</p>
+                <p className="text-xs text-muted-foreground">{t('activeReferrals', language)}</p>
               </div>
             </div>
           </CardContent>
@@ -326,7 +324,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{doctorFollowups.length}</p>
-                <p className="text-xs text-muted-foreground">Follow-ups</p>
+                <p className="text-xs text-muted-foreground">{t('followup', language)}</p>
               </div>
             </div>
           </CardContent>
@@ -342,7 +340,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
               <Input
                 value={patientSearchQuery}
                 onChange={(e) => setPatientSearchQuery(e.target.value)}
-                placeholder="Search patient by Health Card ID (e.g. AL-PT-2026-001) or name..."
+                placeholder={t('searchPatientPlaceholder', language)}
                 className="pl-9"
               />
             </div>
@@ -379,7 +377,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
             <CardTitle className="text-base flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <PenLine className="h-4 w-4 text-primary" />
-                Create Specialist Referral
+                {t('createSpecialistReferral', language)}
               </span>
               <Button variant="ghost" size="sm" onClick={() => setShowReferralForm(false)}>✕</Button>
             </CardTitle>
@@ -430,11 +428,11 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Department *</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('department', language)} *</label>
                 <Input
                   value={referralDepartment}
                   onChange={(e) => setReferralDepartment(e.target.value)}
-                  placeholder="e.g. Cardiology, Neurology..."
+                  placeholder={t('departmentPlaceholder', language)}
                   className="h-10"
                 />
               </div>
@@ -444,7 +442,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
               <textarea
                 value={referralReason}
                 onChange={(e) => setReferralReason(e.target.value)}
-                placeholder="Describe clinical findings, diagnosis, and reason for specialist referral..."
+                placeholder={t('referralReasonPlaceholder', language)}
                 className="w-full h-24 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
               />
             </div>
@@ -455,9 +453,9 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                 className="gap-1.5"
               >
                 <FileText className="h-4 w-4" />
-                Create Referral
+                {t('createReferral', language)}
               </Button>
-              <Button variant="outline" onClick={() => setShowReferralForm(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setShowReferralForm(false)}>{t('cancel', language)}</Button>
             </div>
           </CardContent>
         </Card>
@@ -475,7 +473,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
             </CardHeader>
             <CardContent className="space-y-3">
               {todayAppointments.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No appointments today</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t('noAppointmentsToday', language)}</p>
               ) : todayAppointments.map(apt => {
                 const aptPatient = patients.find(p => p.id === apt.patientId);
                 return (
@@ -557,7 +555,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">{consultation.diagnosis}</p>
                       </div>
-                      <Badge variant="outline" className="text-[10px] border-amber-200 bg-amber-50 text-amber-700">Walk-in</Badge>
+                      <Badge variant="outline" className="text-[10px] border-amber-200 bg-amber-50 text-amber-700">{t('walkIn', language)}</Badge>
                     </div>
                   </div>
                 );
@@ -572,7 +570,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
           <ReferralClosureStats
             referrals={referrals.filter(r => r.doctorId === doctor.id || r.destinationFacilityId === doctor.facilityId)}
             events={referralEvents}
-            title="Referral Closure Engine"
+            title={t('referralClosureEngine', language)}
           />
 
           {/* Active Referrals */}
@@ -580,12 +578,12 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-[1.125rem] w-[1.125rem] text-primary" />
-                Active Referrals
+                {t('activeReferrals', language)}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {activeReferrals.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No active referrals</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t('noActiveReferrals', language)}</p>
               ) : activeReferrals.map(ref => (
                 <div key={ref.id} className="p-3 rounded-lg border border-border">
                   <div className="flex items-start justify-between mb-2">
@@ -626,7 +624,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                     )}
                     {ref.status === 'treatment' && (
                       <>
-                        <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">Treatment in Progress</Badge>
+                        <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">{t('treatmentInProgress', language)}</Badge>
                         {/* No follow-up needed → the doctor closes the loop. */}
                         {ref.doctorId === doctor.id && (
                           <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => handleCloseReferral(ref.id)}>
@@ -647,7 +645,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                       </>
                     )}
                     {ref.status === 'closed' && (
-                      <Badge className="text-[10px] bg-muted text-muted-foreground">Referral Closed</Badge>
+                      <Badge className="text-[10px] bg-muted text-muted-foreground">{t('referralClosed', language)}</Badge>
                     )}
                   </div>
                 </div>
@@ -677,7 +675,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                   </div>
                   {patient.chronicConditions && patient.chronicConditions.length > 0 && (
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Chronic Conditions</p>
+                      <p className="text-xs text-muted-foreground mb-1">{t('chronicConditions', language)}</p>
                       <div className="flex flex-wrap gap-1">
                         {patient.chronicConditions.map(c => (
                           <Badge key={c} variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">{c}</Badge>
@@ -687,7 +685,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                   )}
                   {patient.allergies && patient.allergies.length > 0 && (
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Allergies</p>
+                      <p className="text-xs text-muted-foreground mb-1">{t('allergies', language)}</p>
                       <div className="flex flex-wrap gap-1">
                         {patient.allergies.map(a => (
                           <Badge key={a} variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">{a}</Badge>
@@ -704,7 +702,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
                       <FileText className="h-[1.125rem] w-[1.125rem] text-primary" />
-                      Patient Referrals
+                      {t('patientReferrals', language)}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
@@ -729,7 +727,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <FileText className="h-[1.125rem] w-[1.125rem] text-primary" />
-                    Medical Reports
+                    {t('medicalReports', language)}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -760,13 +758,13 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                           {v.bloodPressureSystolic && (
                             <div className="rounded-lg bg-white p-2 border border-border">
                               <p className="text-sm font-bold text-foreground">{v.bloodPressureSystolic}/{v.bloodPressureDiastolic}</p>
-                              <p className="text-[10px] text-muted-foreground">BP (mmHg)</p>
+                              <p className="text-[10px] text-muted-foreground">{t('bpMmhg', language)}</p>
                             </div>
                           )}
                           {v.heartRate && (
                             <div className="rounded-lg bg-white p-2 border border-border">
                               <p className="text-sm font-bold text-foreground">{v.heartRate}</p>
-                              <p className="text-[10px] text-muted-foreground">Heart Rate</p>
+                              <p className="text-[10px] text-muted-foreground">{t('heartRate', language)}</p>
                             </div>
                           )}
                           {v.temperature && (
@@ -784,13 +782,13 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                           {v.bloodSugar && (
                             <div className="rounded-lg bg-white p-2 border border-border">
                               <p className="text-sm font-bold text-foreground">{v.bloodSugar}</p>
-                              <p className="text-[10px] text-muted-foreground">Blood Sugar</p>
+                              <p className="text-[10px] text-muted-foreground">{t('bloodSugar', language)}</p>
                             </div>
                           )}
                           {v.weight && (
                             <div className="rounded-lg bg-white p-2 border border-border">
                               <p className="text-sm font-bold text-foreground">{v.weight}kg</p>
-                              <p className="text-[10px] text-muted-foreground">Weight</p>
+                              <p className="text-[10px] text-muted-foreground">{t('weight', language)}</p>
                             </div>
                           )}
                         </div>
@@ -806,20 +804,20 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
                       <Stethoscope className="h-[1.125rem] w-[1.125rem] text-primary" />
-                      Consultation Notes
+                      {t('consultationNotes', language)}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <Textarea
                       value={consultationNotes}
                       onChange={(e) => setConsultationNotes(e.target.value)}
-                      placeholder="Enter consultation notes, diagnosis, findings..."
+                      placeholder={t('consultNotesPlaceholder', language)}
                       className="min-h-[80px]"
                     />
                     <Textarea
                       value={prescription}
                       onChange={(e) => setPrescription(e.target.value)}
-                      placeholder="Prescription (one item per line)..."
+                      placeholder={t('prescriptionPlaceholder', language)}
                       className="min-h-[60px]"
                     />
                     <Input
@@ -846,7 +844,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
               {patientConsultations.length > 0 && (
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Previous Consultations</CardTitle>
+                    <CardTitle className="text-base">{t('previousConsultations', language)}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {patientConsultations.map(c => (
@@ -864,7 +862,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
             <Card>
               <CardContent className="py-12 text-center">
                 <Users className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">Select a patient from the appointment queue to view their profile</p>
+                <p className="text-sm text-muted-foreground">{t('selectPatientHint', language)}</p>
               </CardContent>
             </Card>
           )}

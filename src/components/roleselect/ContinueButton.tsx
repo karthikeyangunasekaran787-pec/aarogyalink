@@ -9,6 +9,7 @@
 
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
+import { useTranslation } from '@/hooks/use-translation';
 
 export interface ContinueButtonProps {
   disabled: boolean;
@@ -17,6 +18,7 @@ export interface ContinueButtonProps {
 
 export function ContinueButton({ disabled, onClick }: ContinueButtonProps) {
   const reduceMotion = useReducedMotion();
+  const { t } = useTranslation();
 
   return (
     <motion.button
@@ -37,7 +39,7 @@ export function ContinueButton({ disabled, onClick }: ContinueButtonProps) {
           : 'bg-primary text-primary-foreground shadow-[0_10px_24px_-14px_rgba(13,148,136,0.85)] hover:bg-[rgb(15,118,110)] hover:shadow-[0_14px_30px_-14px_rgba(13,148,136,0.95)]',
       ].join(' ')}
     >
-      Continue
+      {t('continueLabel')}
       <ArrowRight
         aria-hidden="true"
         className={[

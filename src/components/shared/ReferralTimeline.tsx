@@ -8,10 +8,13 @@ import { cn } from '@/lib/utils';
 import { Check, Clock, Circle, AlertTriangle } from 'lucide-react';
 import type { ReferralStatus } from '@/types';
 import { REFERRAL_STEPS, referralStepOf } from '@/convex/referralStatus';
+import { referralStatusKey } from '@/lib/referral-labels';
+import { useTranslation } from '@/hooks/use-translation';
 
-const STEPS: { status: ReferralStatus; label: string }[] = REFERRAL_STEPS.map(s => ({
+// Labels are translation KEYS, resolved at render time so the timeline follows
+// the selected language like every other surface.
+const STEPS: { status: ReferralStatus }[] = REFERRAL_STEPS.map(s => ({
   status: s.status as ReferralStatus,
-  label: s.label,
 }));
 
 const STATUS_ORDER: ReferralStatus[] = STEPS.map(s => s.status);
@@ -33,6 +36,7 @@ export function ReferralTimeline({
   compact = false,
   showLabels = true,
 }: ReferralTimelineProps) {
+  const { t } = useTranslation();
   // Derive the position from the canonical model so a caller can never pass a
   // step value that disagrees with the status it is showing.
   const currentIdx = STATUS_ORDER.indexOf(currentStatus) !== -1
@@ -45,12 +49,12 @@ export function ReferralTimeline({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-foreground">
-            {currentStep} of {totalSteps} steps completed
+            {t('progressSteps', { completed: currentStep, total: totalSteps })}
           </span>
           {isOverdue && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-xs font-medium">
               <AlertTriangle className="h-3 w-3" />
-              Overdue
+              {t('overdueLabel')}
             </span>
           )}
         </div>
@@ -121,14 +125,14 @@ export function ReferralTimeline({
                     isPending && 'text-muted-foreground'
                   )}
                 >
-                  {step.label}
+                  {t(referralStatusKey(step.status))}
                 </p>
                 {isCurrent && showLabels && (
                   <p className={cn(
                     'text-xs mt-0.5',
                     isOverdue ? 'text-red-500' : 'text-primary/70'
                   )}>
-                    {isOverdue ? 'Action required' : 'In progress'}
+                    {isOverdue ? t('actionRequired') : t('inProgress')}
                   </p>
                 )}
               </div>

@@ -43,6 +43,8 @@ export function parseHealthCardQr(raw: string): string | null {
 }
 
 /** Report types, in filter order. `all` is the unfiltered view. */
+import type { TranslationKey } from '@/lib/i18n';
+
 export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   lab_report: 'Lab Report',
   imaging: 'Imaging',
@@ -53,6 +55,35 @@ export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
 };
 
 export type ReportFilterKey = 'all' | ReportType;
+
+/**
+ * Translation key for a report type. The English labels above stay the source
+ * of truth for data/reports, while the UI resolves the key so a report type is
+ * shown in the selected language.
+ */
+export const REPORT_TYPE_KEYS: Record<ReportType, TranslationKey> = {
+  lab_report: 'reportTypeLabReport',
+  imaging: 'reportTypeImaging',
+  prescription: 'reportTypePrescription',
+  discharge_summary: 'reportTypeDischarge',
+  medical_certificate: 'reportTypeCertificate',
+  other: 'reportTypeOther',
+};
+
+/** Translation key for each report filter chip ("all" reuses the All label). */
+export const REPORT_FILTER_KEYS: Record<ReportFilterKey, TranslationKey> = {
+  all: 'all',
+  lab_report: 'filterLabReports',
+  imaging: 'reportTypeImaging',
+  prescription: 'filterPrescriptions',
+  discharge_summary: 'filterDischarge',
+  medical_certificate: 'reportTypeCertificate',
+  other: 'reportTypeOther',
+};
+
+export function reportTypeKey(type: ReportType | string): TranslationKey {
+  return REPORT_TYPE_KEYS[type as ReportType] ?? 'reportName';
+}
 
 export const REPORT_FILTERS: { key: ReportFilterKey; label: string }[] = [
   { key: 'all', label: 'All' },

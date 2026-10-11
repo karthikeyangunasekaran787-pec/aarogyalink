@@ -9,19 +9,17 @@
 
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle, UserPlus } from 'lucide-react';
+import { useTranslation } from '@/hooks/use-translation';
 
-export function UnlinkedPatientNotice({ language }: { language: string }) {
-  const title =
-    language === 'ta' ? 'சுகாதார அட்டை இணைக்கப்படவில்லை'
-    : language === 'hi' ? 'स्वास्थ्य कार्ड लिंक नहीं है'
-    : 'No Health Record Linked';
-
-  const body =
-    language === 'ta'
-      ? 'உங்கள் கணக்குடன் இன்னும் ஒரு சுகாதார அட்டை இணைக்கப்படவில்லை. உங்கள் கிராம சுகாதார பணியாளரை அணுகி பதிவு செய்யுங்கள்.'
-      : language === 'hi'
-      ? 'आपके खाते से अभी तक कोई स्वास्थ्य कार्ड लिंक नहीं है। कृपया अपने ग्राम स्वास्थ्य कार्यकर्ता से पंजीकरण कराएं।'
-      : 'Your account is not linked to a patient record yet. A Health Worker must register you and issue your Health Card ID before your health data can be shown.';
+/**
+ * The `language` prop is accepted for backwards compatibility with existing
+ * callers but ignored: the text now comes from the shared dictionaries, so an
+ * inline conditional copy of the wording cannot drift from the selector.
+ */
+export function UnlinkedPatientNotice(_props: { language?: string } = {}) {
+  const { t } = useTranslation();
+  const title = t('unlinkedTitle');
+  const body = t('unlinkedBody');
 
   return (
     <div className="max-w-lg mx-auto">
@@ -34,7 +32,7 @@ export function UnlinkedPatientNotice({ language }: { language: string }) {
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">{body}</p>
           <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 pt-1">
             <UserPlus className="h-3.5 w-3.5" />
-            Health Worker → Register Patient
+            {t('unlinkedAction')}
           </p>
         </CardContent>
       </Card>

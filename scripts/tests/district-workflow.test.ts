@@ -23,6 +23,7 @@ import {
   validateDistrictDraft,
 } from '../../src/lib/district-admin';
 import { dropAdminsForUnknownDistricts } from '../../src/convex/authz';
+import { t } from '../../src/lib/i18n';
 import type { District, User } from '../../src/types';
 
 const pdk: District = {
@@ -201,7 +202,10 @@ describe('Overall Administrator console wiring', () => {
   const source = readFileSync(resolve(import.meta.dir, '../../src/pages/masteradmin/Dashboard.tsx'), 'utf8');
 
   test('Create District is a standalone action', () => {
-    expect(source).toContain('Create District</Button>');
+    // The button label is translated, so the console renders it through the
+    // dictionary key rather than a hardcoded English literal.
+    expect(source).toContain("t('createDistrict', language)");
+    expect(t('createDistrict', 'en')).toBe('Create District');
     // The combined one-step form is gone.
     expect(source).not.toMatch(/Create District \+ Administrator/);
     expect(source).not.toMatch(/handleCreateDistrictWithAdmin/);
@@ -220,8 +224,10 @@ describe('Overall Administrator console wiring', () => {
   });
 
   test('the District Administrator section lives inside a district details panel', () => {
-    expect(source).toContain('No District Administrator assigned yet.');
-    expect(source).toContain('Create District Admin');
+    expect(source).toContain("t('noDistrictAdminAssigned', language)");
+    expect(t('noDistrictAdminAssigned', 'en')).toBe('No District Administrator assigned yet.');
+    expect(source).toContain("t('createDistrictAdmin', language)");
+    expect(t('createDistrictAdmin', 'en')).toBe('Create District Admin');
     // No standalone top-level register action remains.
     expect(source).not.toMatch(/Register District Administrator/);
     expect(source).not.toMatch(/>\s*Register\s*</);

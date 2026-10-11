@@ -27,6 +27,7 @@ import {
   parseHealthCardQr,
   reportTypeLabel,
 } from '../../src/lib/health-card';
+import { t } from '../../src/lib/i18n';
 
 const hospitalA: SessionScope = { kind: 'hospital', hospitalId: 'h1', staffUserId: 'ustaff-1' };
 const patientX: SessionScope = { kind: 'patient', patientId: 'p1' };
@@ -156,10 +157,21 @@ describe('branding and login surface', () => {
     expect(roleSelect).not.toMatch(/<h1[^>]*>\s*AarogyaLink\s*<\/h1>/);
   });
 
-  test('the login form starts empty with the requested placeholders', () => {
+  // The placeholders are translated now, so the form takes them from the
+  // dictionaries. The requirement they encode is unchanged — the fields start
+  // empty and carry these exact placeholder texts in English.
+  test('the login placeholders are the requested wording, from the dictionary', () => {
+    expect(t('usernamePlaceholder', 'en')).toBe('Enter username');
+    expect(t('passwordPlaceholder', 'en')).toBe('Enter password');
+    // …and they are genuinely translated, not decorative.
+    expect(t('usernamePlaceholder', 'ta')).not.toBe(t('usernamePlaceholder', 'en'));
+    expect(t('passwordPlaceholder', 'hi')).not.toBe(t('passwordPlaceholder', 'en'));
+  });
+
+  test('the login form starts empty with the translated placeholders', () => {
     const auth = read('src/pages/Auth.tsx');
-    expect(auth).toContain('placeholder="Enter username"');
-    expect(auth).toContain('placeholder="Enter password"');
+    expect(auth).toContain("placeholder={t('usernamePlaceholder')}");
+    expect(auth).toContain("placeholder={t('passwordPlaceholder')}");
     // No credential is ever pre-filled into the form.
     expect(auth).toMatch(/const \[username, setUsername\] = useState\(''\)/);
     expect(auth).toMatch(/const \[password, setPassword\] = useState\(''\)/);

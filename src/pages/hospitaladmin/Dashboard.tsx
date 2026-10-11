@@ -148,7 +148,7 @@ export default function HospitalAdminDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{pendingReferrals.length}</p>
-                <p className="text-xs text-muted-foreground">Pending Acceptance</p>
+                <p className="text-xs text-muted-foreground">{t('pendingAcceptance', language)}</p>
               </div>
             </div>
           </CardContent>
@@ -213,14 +213,14 @@ export default function HospitalAdminDashboard() {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by patient, referral ID, or department..."
+                placeholder={t('searchReferralsPlaceholder', language)}
                 className="pl-9"
               />
             </div>
           </div>
 
           {filteredReferrals.length === 0 ? (
-            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No referrals found</CardContent></Card>
+            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">{t('noReferralsFound', language)}</CardContent></Card>
           ) : filteredReferrals.map(ref => (
             <Card key={ref.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
@@ -294,12 +294,12 @@ export default function HospitalAdminDashboard() {
                         <div className="flex items-center gap-2">
                           <Input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="h-7 text-xs w-36" />
                           <Input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="h-7 text-xs w-24" />
-                          <Button size="sm" className="h-7 text-xs" disabled={busy === `schedule-${ref.id}`} onClick={() => handleSchedule(ref.id)}>Confirm</Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSchedulingRef(null)}>Cancel</Button>
+                          <Button size="sm" className="h-7 text-xs" disabled={busy === `schedule-${ref.id}`} onClick={() => handleSchedule(ref.id)}>{t('confirm', language)}</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSchedulingRef(null)}>{t('cancel', language)}</Button>
                         </div>
                       ) : (
                         <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setSchedulingRef(ref.id)}>
-                          <Clock className="h-3 w-3" /> Schedule Appointment
+                          <Clock className="h-3 w-3" /> {t('scheduleAppointment', language)}
                         </Button>
                       )}
                     </div>
@@ -343,17 +343,17 @@ export default function HospitalAdminDashboard() {
           <Card>
             <CardContent className="py-12 text-center">
               <ScanLine className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm font-medium text-foreground mb-1">QR Scan — Patient Arrival Verification</p>
-              <p className="text-xs text-muted-foreground mb-6">Enter or scan the patient's referral ID to confirm arrival</p>
+              <p className="text-sm font-medium text-foreground mb-1">{t('qrScanTitle', language)}</p>
+              <p className="text-xs text-muted-foreground mb-6">{t('enterReferralIdHint', language)}</p>
               <div className="flex items-center gap-2 max-w-md mx-auto">
                 <Input
                   value={scannedRef}
                   onChange={(e) => setScannedRef(e.target.value)}
-                  placeholder="Enter referral ID or health card (e.g. REF-PDK-0006)"
+                  placeholder={t('referralIdPlaceholder', language)}
                   className="flex-1"
                 />
                 <Button onClick={handleConfirmArrival} disabled={!scannedRef || busy === 'qr'}>
-                  <CheckCircle2 className="h-4 w-4 mr-1" /> Verify Arrival
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> {t('verifyArrival', language)}
                 </Button>
               </div>
               {/* The engine reports WHY a code was refused: another hospital's
@@ -374,7 +374,7 @@ export default function HospitalAdminDashboard() {
         <TabsContent value="meds" className="mt-4 space-y-3">
           <div className="flex justify-end">
             <Button size="sm" className="gap-1.5" onClick={() => setShowMedForm(true)}>
-              <Plus className="h-3.5 w-3.5" /> Add Medicine
+              <Plus className="h-3.5 w-3.5" /> {t('addMedicine', language)}
             </Button>
           </div>
 
@@ -384,31 +384,31 @@ export default function HospitalAdminDashboard() {
               <CardContent className="p-4 space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Medicine Name *</label>
+                    <label className="text-xs font-medium">{t('medicineNameLabel', language)} *</label>
                     <Input value={medForm.medicineName} onChange={e => setMedForm(f => ({ ...f, medicineName: e.target.value }))} placeholder="e.g. Paracetamol" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Quantity *</label>
+                    <label className="text-xs font-medium">{t('quantityLabel', language)} *</label>
                     <Input type="number" value={medForm.quantity} onChange={e => setMedForm(f => ({ ...f, quantity: parseInt(e.target.value) || 0 }))} className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Unit</label>
+                    <label className="text-xs font-medium">{t('unitLabel', language)}</label>
                     <select value={medForm.unit} onChange={e => setMedForm(f => ({ ...f, unit: e.target.value }))}
                       className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm">
-                      <option value="tablets">Tablets</option>
-                      <option value="capsules">Capsules</option>
+                      <option value="tablets">{t('tablets', language)}</option>
+                      <option value="capsules">{t('capsules', language)}</option>
                       <option value="ml">ml</option>
-                      <option value="bottles">Bottles</option>
-                      <option value="strips">Strips</option>
+                      <option value="bottles">{t('bottles', language)}</option>
+                      <option value="strips">{t('strips', language)}</option>
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Expiry Date</label>
+                    <label className="text-xs font-medium">{t('expiryDate', language)}</label>
                     <Input type="date" value={medForm.expiryDate} onChange={e => setMedForm(f => ({ ...f, expiryDate: e.target.value }))} className="h-9 text-sm" />
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setShowMedForm(false)}>Cancel</Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowMedForm(false)}>{t('cancel', language)}</Button>
                   <Button size="sm" disabled={!medForm.medicineName || medForm.quantity <= 0} onClick={() => {
                     const status = medForm.quantity === 0 ? 'out_of_stock' : medForm.quantity < 50 ? 'low_stock' : 'in_stock';
                     addMedicineStock({
@@ -491,22 +491,22 @@ export default function HospitalAdminDashboard() {
                 <Trash2 className="h-5 w-5 text-red-500" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-foreground">Remove Medicine</h3>
-                <p className="text-xs text-muted-foreground">This action cannot be undone.</p>
+                <h3 className="text-sm font-semibold text-foreground">{t('removeMedicine', language)}</h3>
+                <p className="text-xs text-muted-foreground">{t('cannotBeUndone', language)}</p>
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
               Are you sure you want to remove <strong>{facilityMeds.find(m => m.id === confirmDeleteMed)?.medicineName}</strong> from inventory?
             </p>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setConfirmDeleteMed(null)}>Cancel</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmDeleteMed(null)}>{t('cancel', language)}</Button>
               <Button variant="destructive" className="flex-1" onClick={() => {
                 const name = facilityMeds.find(m => m.id === confirmDeleteMed)?.medicineName;
                 removeMedicineStock(confirmDeleteMed);
                 setConfirmDeleteMed(null);
                 setActionFeedback(`Medicine removed: ${name}`);
                 setTimeout(() => setActionFeedback(null), 3000);
-              }}>Remove</Button>
+              }}>{t('remove', language)}</Button>
             </div>
           </div>
         </div>

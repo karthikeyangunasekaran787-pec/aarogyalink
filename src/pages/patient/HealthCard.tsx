@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { t } from '@/lib/i18n';
+import { useTranslation } from '@/hooks/use-translation';
 import { Button } from '@/components/ui/button';
 import { QRCode } from '@/components/shared/QRCode';
 import { BrandLogo } from '@/components/brand/BrandLogo';
@@ -17,11 +17,12 @@ import { CreditCard, Download, Share2, Droplets, Phone, AlertTriangle, Shield, F
 
 export default function HealthCard() {
   const { patients, getFacilityById } = useData();
-  const { language, currentUser } = useApp();
+  const { currentUser } = useApp();
+  const { t } = useTranslation();
   const [feedback, setFeedback] = useState<string | null>(null);
   // Never fall back to another patient's record (private health data).
   const patient = patients.find(p => p.id === currentUser?.patientId);
-  if (!patient) return <UnlinkedPatientNotice language={language} />;
+  if (!patient) return <UnlinkedPatientNotice />;
 
   // Everything the card shows, in the order it is printed — also what Download
   // saves and Share offers, so all three views can never disagree.
@@ -42,14 +43,16 @@ export default function HealthCard() {
 
   const handleDownload = () => {
     downloadTextFile(`health-card-${safeFilePart(patient.healthCardId)}.txt`, cardText);
-    setFeedback('Health card downloaded');
+    setFeedback(t('healthCardDownloaded'));
   };
 
   // The printable card is a real PDF built on the device (offline-friendly).
   const handleDownloadPdf = async () => {
-    setFeedback('Preparing your health card…');
+    setFeedback(t('healthCardPreparing'));
     try {
       await downloadHealthCardPdf({
+        // The card artwork itself stays identity-neutral; only the fields the
+        // card is specified to carry are written.
         name: patient.name,
         healthCardId: patient.healthCardId,
         age: patient.age,
@@ -61,18 +64,18 @@ export default function HealthCard() {
         village: patient.village,
         district: patient.district,
       });
-      setFeedback('Health card downloaded as PDF');
+      setFeedback(t('healthCardDownloadedPdf'));
     } catch {
-      setFeedback('Could not build the health card PDF on this device. Please try again.');
+      setFeedback(t('healthCardPdfFailed'));
     }
   };
 
   const handleShare = async () => {
     const outcome = await shareText('AarogyaLink Health Card', cardText);
     setFeedback(
-      outcome === 'shared' ? 'Health card shared'
-        : outcome === 'copied' ? 'Health card copied to clipboard'
-          : 'Sharing is not supported on this device — use Download instead',
+      outcome === 'shared' ? t('healthCardShared')
+        : outcome === 'copied' ? t('healthCardCopied')
+          : t('sharingUnsupported'),
     );
   };
 
@@ -81,13 +84,9 @@ export default function HealthCard() {
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <CreditCard className="h-6 w-6 text-primary" />
-          {t('healthCardTitle', language)}
+          {t('healthCardTitle')}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {language === 'ta' ? 'உங்கள் டிஜிட்டல் சுகாதார அட்டை' :
-           language === 'hi' ? 'आपका डिजिटल स्वास्थ्य कार्ड' :
-           'Your digital health identity card'}
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t('healthCardSubtitle')}</p>
       </div>
 
       {/* Health Card */}
@@ -101,7 +100,7 @@ export default function HealthCard() {
               </div>
               <div>
                 <p className="text-lg font-bold">AarogyaLink</p>
-                <p className="text-xs text-primary-foreground/80">Government of Tamil Nadu · Digital Health Card</p>
+                <p className="text-xs text-primary-foreground/80">{t('healthCardIssuer')}</p>
               </div>
             </div>
             {/* The QR carries the Health Card reference only — no medical data. */}
@@ -114,42 +113,45 @@ export default function HealthCard() {
           <div className="text-center pb-4 border-b border-border">
             <h2 className="text-xl font-bold text-foreground">{patient.name}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              {patient.gender === 'female' ? 'Female' : 'Male'} • {patient.age} years
+              {patient.gender === 'female' ? t('genderFemale') : t('genderMale')} •{' '}
+              {t('yearsOld', { age: patient.age })}
             </p>
-            <p className="text-xs font-mono font-bold text-primary mt-2">Health Card: {patient.healthCardId}</p>
+            <p className="text-xs font-mono font-bold text-primary mt-2">
+              {t('healthCardId')}: {patient.healthCardId}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-xs text-muted-foreground">{t('bloodGroup', language)}</p>
+              <p className="text-xs text-muted-foreground">{t('bloodGroup')}</p>
               <p className="text-sm font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
                 <Droplets className="h-3.5 w-3.5 text-red-400" />
-                {patient.bloodGroup || 'N/A'}
+                {patient.bloodGroup || t('na')}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">{t('aadhaar', language)}</p>
+              <p className="text-xs text-muted-foreground">{t('aadhaar')}</p>
               <p className="text-sm font-semibold text-foreground mt-0.5">
                 ****{patient.aadhaarLast4 || 'XXXX'}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">{t('phone', language)}</p>
+              <p className="text-xs text-muted-foreground">{t('phone')}</p>
               <p className="text-sm font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
                 <Phone className="h-3.5 w-3.5 text-muted-foreground" />
                 {patient.phone}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">{t('emergencyContact', language)}</p>
+              <p className="text-xs text-muted-foreground">{t('emergencyContact')}</p>
               <p className="text-sm font-semibold text-foreground mt-0.5">
-                {patient.emergencyContact || 'N/A'}
+                {patient.emergencyContact || t('na')}
               </p>
             </div>
           </div>
 
           <div>
-            <p className="text-xs text-muted-foreground">{t('address', language)}</p>
+            <p className="text-xs text-muted-foreground">{t('address')}</p>
             <p className="text-sm text-foreground mt-0.5">{patient.address}, {patient.village}, {patient.district}</p>
           </div>
 
@@ -157,7 +159,7 @@ export default function HealthCard() {
             <div className="rounded-lg bg-red-50 border border-red-200 p-3">
               <p className="text-xs font-semibold text-red-700 flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
-                {t('allergies', language)}
+                {t('allergies')}
               </p>
               <p className="text-sm text-red-800 mt-1">{patient.allergies.join(', ')}</p>
             </div>
@@ -167,7 +169,7 @@ export default function HealthCard() {
             <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
               <p className="text-xs font-semibold text-amber-700 flex items-center gap-1">
                 <Shield className="h-3 w-3" />
-                {t('conditions', language)}
+                {t('conditions')}
               </p>
               <p className="text-sm text-amber-800 mt-1">{patient.chronicConditions.join(', ')}</p>
             </div>
@@ -183,17 +185,17 @@ export default function HealthCard() {
       )}
       <Button className="w-full gap-2" onClick={() => void handleDownloadPdf()}>
         <FileDown className="h-4 w-4" />
-        {language === 'ta' ? 'சுகாதார அட்டையைப் பதிவிறக்கு (PDF)' : language === 'hi' ? 'स्वास्थ्य कार्ड डाउनलोड करें (PDF)' : 'Download Health Card (PDF)'}
+        {t('downloadHealthCard')} · PDF
       </Button>
 
       <div className="flex gap-3">
         <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
           <Download className="h-4 w-4" />
-          {language === 'ta' ? 'பதிவிறக்கு' : language === 'hi' ? 'डाउनलोड' : 'Download'}
+          {t('download')}
         </Button>
         <Button variant="outline" className="flex-1 gap-2" onClick={() => void handleShare()}>
           <Share2 className="h-4 w-4" />
-          {language === 'ta' ? 'பகிர்' : language === 'hi' ? 'शेयर' : 'Share'}
+          {t('share')}
         </Button>
       </div>
     </div>

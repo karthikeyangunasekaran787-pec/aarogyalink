@@ -12,7 +12,7 @@
  * The Three.js backdrop is mocked: WebGL cannot run in this environment and the
  * scene is lazy + decorative, so what matters here is the page itself.
  */
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderToString } from 'react-dom/server';
@@ -241,3 +241,7 @@ describe('RoleSelect content', () => {
     expect(html).toContain('disabled=""');
   });
 });
+
+// Bun's module mocks are process-global: leaving this file's AppContext stub in
+// place would break any later test file that drives the REAL provider.
+afterAll(() => { mock.restore(); });

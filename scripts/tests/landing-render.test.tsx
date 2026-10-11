@@ -12,7 +12,7 @@
  * The Three.js scene is mocked: WebGL cannot run in this environment, and the
  * scene is lazy + decorative, so the page's own correctness is what matters here.
  */
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 
@@ -132,3 +132,7 @@ describe('Landing page', () => {
     expect(html).not.toMatch(/\d+(\.\d+)?\s*%/);
   });
 });
+
+// Bun's module mocks are process-global: leaving this file's AppContext stub in
+// place would break any later test file that drives the REAL provider.
+afterAll(() => { mock.restore(); });

@@ -19,12 +19,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   REPORT_FILTERS,
+  REPORT_FILTER_KEYS,
   formatFileSize,
   formatReportDate,
+  reportTypeKey,
   reportTypeLabel,
   reportYear,
   type ReportFilterKey,
 } from '@/lib/health-card';
+import { useTranslation } from '@/hooks/use-translation';
 import { Building2, Download, Eye, FileText, Loader2, Search, UserRound } from 'lucide-react';
 
 interface ReportListProps {
@@ -37,6 +40,7 @@ interface ReportListProps {
 
 export function ReportList({ reports, showUploader = true, emptyMessage, className }: ReportListProps) {
   const { getReportFileUrl } = useData();
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<ReportFilterKey>('all');
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<{ id: string; action: 'view' | 'download' } | null>(null);
@@ -84,7 +88,7 @@ export function ReportList({ reports, showUploader = true, emptyMessage, classNa
     const result = await getReportFileUrl(report.id);
     setBusy(null);
     if (!result.ok || !result.url) {
-      setNotice(result.message || 'Could not open the report file.');
+      setNotice(result.message || t('loadFailed'));
       return;
     }
     if (action === 'view') {
@@ -108,7 +112,7 @@ export function ReportList({ reports, showUploader = true, emptyMessage, classNa
       // Cross-origin storage that refuses a scripted download still opens, and
       // the browser's own save action can finish it.
       window.open(result.url, '_blank', 'noopener');
-      setNotice('Opened the report in a new tab — use Save if the download did not start.');
+      setNotice(t('reportOpenedNewTab'));
     }
   };
 
@@ -124,7 +128,7 @@ export function ReportList({ reports, showUploader = true, emptyMessage, classNa
           <Input
             value={query}
             onChange={event => setQuery(event.target.value)}
-            placeholder="Search reports by title, type, facility or report ID…"
+            placeholder={t('searchReportsPlaceholder')}
             className="pl-9"
           />
         </div>
@@ -142,7 +146,7 @@ export function ReportList({ reports, showUploader = true, emptyMessage, classNa
                   : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
               )}
             >
-              {option.label}
+              {t(REPORT_FILTER_KEYS[option.key] ?? 'all')}
               <span className="ml-1.5 text-[10px] text-muted-foreground/80">{filterCount(option.key)}</span>
             </button>
           ))}
@@ -157,7 +161,7 @@ export function ReportList({ reports, showUploader = true, emptyMessage, classNa
         <div className="rounded-xl border border-dashed border-border py-10 text-center">
           <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">
-            {emptyMessage ?? (reports.length === 0 ? 'No medical reports yet.' : 'No reports match these filters.')}
+            {emptyMessage ?? (reports.length === 0 ? t('noReportsYet') : t('noReportsMatchFilters'))}
           </p>
         </div>
       ) : (
@@ -178,14 +182,14 @@ export function ReportList({ reports, showUploader = true, emptyMessage, classNa
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-sm font-semibold text-foreground">{report.title}</p>
-                          <Badge variant="outline" className="text-[10px]">{reportTypeLabel(report.type)}</Badge>
+                          <Badge variant="outline" className="text-[10px]">{t(reportTypeKey(report.type))}</Badge>
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          Report date: {formatReportDate(report.reportDate)}
+                          {t('reportDate')}: {formatReportDate(report.reportDate)}
                           {report.fileSize ? ` • ${formatFileSize(report.fileSize)}` : ''}
                         </p>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          Uploaded {formatReportDate(report.uploadedAt)}
+                          {t('uploadedLabel', { date: formatReportDate(report.uploadedAt) })}
                           {report.facilityName ? (
                             <>
                               {' '}• <Building2 className="mb-0.5 inline h-3 w-3" /> {report.facilityName}
@@ -211,7 +215,7 @@ export function ReportList({ reports, showUploader = true, emptyMessage, classNa
                         {busy?.id === report.id && busy.action === 'view'
                           ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           : <Eye className="h-3.5 w-3.5" />}
-                        View
+                        {t('viewAction')}
                       </Button>
                       <Button
                         size="sm"
@@ -223,7 +227,7 @@ export function ReportList({ reports, showUploader = true, emptyMessage, classNa
                         {busy?.id === report.id && busy.action === 'download'
                           ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           : <Download className="h-3.5 w-3.5" />}
-                        Download
+                        {t('download')}
                       </Button>
                     </div>
                   </div>

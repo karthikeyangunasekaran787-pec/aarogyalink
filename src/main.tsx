@@ -36,6 +36,7 @@ const Appointments = lazy(() => import('./pages/patient/Appointments.tsx'));
 const BookAppointment = lazy(() => import('./pages/patient/BookAppointment.tsx'));
 const Referrals = lazy(() => import('./pages/patient/Referrals.tsx'));
 const HealthCard = lazy(() => import('./pages/patient/HealthCard.tsx'));
+const PatientProfile = lazy(() => import('./pages/patient/Profile.tsx'));
 const PatientReports = lazy(() => import('./pages/patient/Reports.tsx'));
 const Timeline = lazy(() => import('./pages/patient/Timeline.tsx'));
 const Medicines = lazy(() => import('./pages/patient/Medicines.tsx'));
@@ -230,6 +231,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="/patient/referrals" element={<RequireAuth allowedRoles={['patient']}><App><Referrals /></App></RequireAuth>} />
                   <Route path="/patient/referrals/:id" element={<RequireAuth allowedRoles={['patient']}><App><Referrals /></App></RequireAuth>} />
                   <Route path="/patient/health-card" element={<RequireAuth allowedRoles={['patient']}><App><HealthCard /></App></RequireAuth>} />
+                  <Route path="/patient/profile" element={<RequireAuth allowedRoles={['patient']}><App><PatientProfile /></App></RequireAuth>} />
                   <Route path="/patient/reports" element={<RequireAuth allowedRoles={['patient']}><App><PatientReports /></App></RequireAuth>} />
                   <Route path="/patient/timeline" element={<RequireAuth allowedRoles={['patient']}><App><Timeline /></App></RequireAuth>} />
                   <Route path="/patient/medicines" element={<RequireAuth allowedRoles={['patient']}><App><Medicines /></App></RequireAuth>} />

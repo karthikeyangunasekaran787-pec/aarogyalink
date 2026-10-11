@@ -11,6 +11,12 @@ import type { Language } from '@/lib/i18n';
 // browser refresh restores the signed-in user instead of dropping them back to
 // role selection). localStorage is intentional: offline-first rural use.
 import { readStoredSession, writeStoredSession } from '@/lib/session';
+// The selected language lives in one app-wide store (see language-store.ts) so
+// that every screen, nested route and shared component reads the same value and
+// re-renders together. It is exposed here as `language` / `setLanguage` for the
+// components that already consume it through useApp().
+import { useLanguage } from '@/hooks/use-translation';
+import { applyLanguage } from '@/lib/language-store';
 import { rememberPendingLogin, writeBackendToken } from '@/lib/backend-session';
 
 export interface AuthUser {
@@ -53,7 +59,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Restore the session synchronously so a refresh keeps the user signed in.
   const [restored] = useState(() => readStoredSession<AuthUser>());
   const [currentRole, setCurrentRole] = useState<Role>(() => (restored?.role as Role) ?? 'patient');
-  const [language, setLanguage] = useState<Language>('en');
+  // The saved language is restored by the store itself before the first paint,
+  // so this is already the chosen language on mount. The preference is stored
+  // separately from the session and is never touched by login, logout,
+  // navigation, a modal, or offline sync.
+  const language = useLanguage();
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
 
   // Auto-detect online/offline status
@@ -142,6 +152,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const handleSetRole = useCallback((role: Role) => {
     setCurrentRole(role);
+  }, []);
+
+  // The ONLY way the language changes is this call from the language selector.
+  // It notifies every subscriber at once (so all consumers re-render
+  // immediately, with no refresh), persists the choice for the next visit, and
+  // keeps <html lang> in step for Tamil/Devanagari fonts and line breaking.
+  const setLanguage = useCallback((lang: Language) => {
+    applyLanguage(lang);
   }, []);
 
   const value: AppState = {

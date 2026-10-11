@@ -12,7 +12,7 @@
  *   - does all of this without touching the existing spec or its shared state.
  */
 
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 
 GlobalRegistrator.register();
@@ -249,3 +249,7 @@ describe('RoleSelect stress behaviour', () => {
     }
   });
 });
+
+// Bun's module mocks are process-global: leaving this file's AppContext stub in
+// place would break any later test file that drives the REAL provider.
+afterAll(() => { mock.restore(); });

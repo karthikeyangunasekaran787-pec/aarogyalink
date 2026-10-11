@@ -148,7 +148,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.facilitiesOperational}</p>
-                <p className="text-xs text-muted-foreground">Active Facilities</p>
+                <p className="text-xs text-muted-foreground">{t('activeFacilities', language)}</p>
               </div>
             </div>
           </CardContent>
@@ -161,7 +161,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.missedFollowups}</p>
-                <p className="text-xs text-muted-foreground">Missed Follow-ups</p>
+                <p className="text-xs text-muted-foreground">{t('missedFollowups', language)}</p>
               </div>
             </div>
           </CardContent>
@@ -174,7 +174,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.highRiskPending}</p>
-                <p className="text-xs text-muted-foreground">High-Risk Pending</p>
+                <p className="text-xs text-muted-foreground">{t('highRiskPending', language)}</p>
               </div>
             </div>
           </CardContent>
@@ -187,7 +187,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.specialistsOnDuty}</p>
-                <p className="text-xs text-muted-foreground">Specialists On Duty</p>
+                <p className="text-xs text-muted-foreground">{t('specialistsOnDuty', language)}</p>
               </div>
             </div>
           </CardContent>
@@ -200,7 +200,7 @@ export default function GovDashboard() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Bed Occupancy</p>
+                <p className="text-xs text-muted-foreground">{t('bedOccupancy', language)}</p>
                 <p className="text-lg font-bold text-foreground">{liveAnalytics.occupiedBeds}/{liveAnalytics.totalBeds}</p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -213,11 +213,11 @@ export default function GovDashboard() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Medicines</p>
-                <p className="text-lg font-bold text-foreground">{liveAnalytics.medicinesInStock} in stock</p>
+                <p className="text-xs text-muted-foreground">{t('medicines', language)}</p>
+                <p className="text-lg font-bold text-foreground">{liveAnalytics.medicinesInStock} {t('inStock', language)}</p>
               </div>
               <Badge variant="outline" className={`text-[10px] ${liveAnalytics.lowStockMedicines > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                {liveAnalytics.lowStockMedicines} shortages
+                {liveAnalytics.lowStockMedicines} {t('shortages', language)}
               </Badge>
             </div>
           </CardContent>
@@ -226,8 +226,8 @@ export default function GovDashboard() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Diagnostics</p>
-                <p className="text-lg font-bold text-foreground">{liveAnalytics.diagnosticsAvailable} available</p>
+                <p className="text-xs text-muted-foreground">{t('diagnostics', language)}</p>
+                <p className="text-lg font-bold text-foreground">{liveAnalytics.diagnosticsAvailable} {t('unitsAvailable', language)}</p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-teal-50 flex items-center justify-center">
                 <CheckCircle2 className="h-5 w-5 text-teal-600" />
@@ -239,7 +239,7 @@ export default function GovDashboard() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">RHAS Score</p>
+                <p className="text-xs text-muted-foreground">{t('rhasScore', language)}</p>
                 <p className="text-lg font-bold text-foreground">{liveAnalytics.ruralAccessScore}/100</p>
               </div>
               <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
@@ -290,13 +290,13 @@ export default function GovDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Activity className="h-[1.125rem] w-[1.125rem] text-primary" />
-              Monthly Referral Trends
+              {t('monthlyReferralTrends', language)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {monthlyTrends.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No data available</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t('noDataAvailable', language)}</p>
               ) : monthlyTrends.map(m => (
                 <div key={m.month} className="flex items-center gap-3 text-sm">
                   <span className="w-10 text-xs text-muted-foreground">{m.month}</span>
@@ -317,7 +317,7 @@ export default function GovDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-[1.125rem] w-[1.125rem] text-primary" />
-              Facility Performance
+              {t('facilityPerformance', language)}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -325,11 +325,11 @@ export default function GovDashboard() {
               <div key={f.facility} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
                 <div>
                   <p className="text-sm font-medium text-foreground">{f.facility}</p>
-                  <p className="text-xs text-muted-foreground">{f.referrals} referrals • {f.avgWait}m avg wait</p>
+                  <p className="text-xs text-muted-foreground">{f.referrals} {t('referralsUnit', language)} • {f.avgWait} {t('minAvgWait', language)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-primary">{f.closureRate}%</p>
-                  <p className="text-[10px] text-muted-foreground">closure rate</p>
+                  <p className="text-[10px] text-muted-foreground">{t('closureRateLabel', language)}</p>
                 </div>
               </div>
             ))}
@@ -341,7 +341,7 @@ export default function GovDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <MapPin className="h-[1.125rem] w-[1.125rem] text-primary" />
-              Village Healthcare Access
+              {t('villageHealthcareAccess', language)}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">

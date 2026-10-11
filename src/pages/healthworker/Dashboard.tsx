@@ -58,7 +58,7 @@ const STATUS_COLORS: Record<string, string> = {
  * between renders and crash the page.
  */
 export default function HWDashboard() {
-  const { currentUser } = useApp();
+  const { currentUser, language } = useApp();
   const { healthWorkers } = useData();
   const records = useMemo(
     () => recordsOrCache(healthWorkers, 'aal_healthWorkers'),
@@ -71,11 +71,9 @@ export default function HWDashboard() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center space-y-3">
           <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto" />
-          <h2 className="text-lg font-semibold text-foreground">No Health Worker Record Found</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('noHealthWorkerRecord', language)}</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Your account ({currentUser?.id || 'unknown'}) has no matching health worker profile.
-            HW records found: {records.length}.
-            Please contact your Hospital Administrator to create your health worker record via Staff Management.
+            {t('contactAdminHint', language)} ({currentUser?.id || 'unknown'} · {records.length})
           </p>
         </div>
       </div>
@@ -354,7 +352,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{closedReferrals.length}</p>
-                <p className="text-xs text-muted-foreground">Completed Referrals</p>
+                <p className="text-xs text-muted-foreground">{t('completedReferrals', language)}</p>
               </div>
             </div>
           </CardContent>
@@ -378,7 +376,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <Stethoscope className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-xs font-medium text-foreground">Overview</span>
+            <span className="text-xs font-medium text-foreground">{t('overview', language)}</span>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow cursor-pointer h-full" onClick={() => setSelectedTab('patients')}>
@@ -386,7 +384,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
               <Heart className="h-5 w-5 text-emerald-600" />
             </div>
-            <span className="text-xs font-medium text-foreground">Record Vitals</span>
+            <span className="text-xs font-medium text-foreground">{t('recordVitals', language)}</span>
           </CardContent>
         </Card>
         <Card
@@ -397,7 +395,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <FileUp className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-xs font-medium text-foreground">Upload Medical Report</span>
+            <span className="text-xs font-medium text-foreground">{t('uploadMedicalReport', language)}</span>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow cursor-pointer h-full" onClick={() => setShowReferralForm(true)}>
@@ -413,7 +411,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
               <Bell className="h-5 w-5 text-amber-600" />
             </div>
-            <span className="text-xs font-medium text-foreground">Follow-ups</span>
+            <span className="text-xs font-medium text-foreground">{t('followup', language)}</span>
           </CardContent>
         </Card>
       </div>
@@ -424,7 +422,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
         <Input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search patients by name, village, or ID..."
+          placeholder={t('searchPatientsPlaceholder', language)}
           className="pl-9"
         />
       </div>
@@ -451,7 +449,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             <CardTitle className="text-base flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <PenLine className="h-4 w-4 text-primary" />
-                Create New Referral
+                {t('createNewReferral', language)}
               </span>
               <Button variant="ghost" size="sm" onClick={() => setShowReferralForm(false)}>✕</Button>
             </CardTitle>
@@ -506,7 +504,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                 <Input
                   value={referralDepartment}
                   onChange={(e) => setReferralDepartment(e.target.value)}
-                  placeholder="e.g. Cardiology, Orthopedics..."
+                  placeholder={t('specialtyPlaceholder', language)}
                   className="h-10"
                 />
               </div>
@@ -516,7 +514,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
               <textarea
                 value={referralReason}
                 onChange={(e) => setReferralReason(e.target.value)}
-                placeholder="Describe symptoms, findings, and reason for specialist referral..."
+                placeholder={t('symptomsPlaceholder', language)}
                 className="w-full h-24 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
               />
             </div>
@@ -527,10 +525,10 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                 className="gap-1.5"
               >
                 <FileText className="h-4 w-4" />
-                Create Referral
+                {t('createReferral', language)}
               </Button>
               <Button variant="outline" onClick={() => setShowReferralForm(false)}>
-                Cancel
+                {t('cancel', language)}
               </Button>
             </div>
           </CardContent>
@@ -557,11 +555,11 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase">Systolic (mmHg)</label>
+                  <label className="text-[10px] text-muted-foreground uppercase">{t('systolic', language)}</label>
                   <Input type="number" value={vitalsForm.systolic} onChange={e => setVitalsForm(f => ({ ...f, systolic: e.target.value }))} placeholder="120" className="h-9 text-sm" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase">Diastolic (mmHg)</label>
+                  <label className="text-[10px] text-muted-foreground uppercase">{t('diastolic', language)}</label>
                   <Input type="number" value={vitalsForm.diastolic} onChange={e => setVitalsForm(f => ({ ...f, diastolic: e.target.value }))} placeholder="80" className="h-9 text-sm" />
                 </div>
               </div>
@@ -631,7 +629,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
       {selectedTab === 'patients' && (
         <div className="space-y-3">
           {filteredPatients.length === 0 ? (
-            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No patients found</CardContent></Card>
+            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">{t('noPatientsFound', language)}</CardContent></Card>
           ) : filteredPatients.map(p => (
             <Card key={p.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
@@ -756,19 +754,19 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setReferralFilter('all')}>
               <CardContent className="p-3 text-center">
                 <p className="text-xl font-bold text-foreground">{myReferrals.length}</p>
-                <p className="text-[10px] text-muted-foreground">Total Referrals</p>
+                <p className="text-[10px] text-muted-foreground">{t('totalReferrals', language)}</p>
               </CardContent>
             </Card>
             <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setReferralFilter('active')}>
               <CardContent className="p-3 text-center">
                 <p className="text-xl font-bold text-amber-600">{activeMyReferrals.length}</p>
-                <p className="text-[10px] text-muted-foreground">In Progress</p>
+                <p className="text-[10px] text-muted-foreground">{t('inProgress', language)}</p>
               </CardContent>
             </Card>
             <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setReferralFilter('completed')}>
               <CardContent className="p-3 text-center">
                 <p className="text-xl font-bold text-emerald-600">{completedMyReferrals.length}</p>
-                <p className="text-[10px] text-muted-foreground">Completed</p>
+                <p className="text-[10px] text-muted-foreground">{t('completed', language)}</p>
               </CardContent>
             </Card>
           </div>
@@ -784,7 +782,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
 
           {/* Referral List */}
           {filteredReferrals.length === 0 ? (
-            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No referrals found</CardContent></Card>
+            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">{t('noReferralsFound', language)}</CardContent></Card>
           ) : filteredReferrals.map(ref => (
             <Card key={ref.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedReferralId(ref.id)}>
               <CardContent className="p-4">
@@ -828,7 +826,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             {/* Header */}
             <div className="sticky top-0 bg-background border-b border-border p-4 flex items-center justify-between z-10">
               <div>
-                <h3 className="text-base font-bold text-foreground">Referral Monitor</h3>
+                <h3 className="text-base font-bold text-foreground">{t('referralMonitor', language)}</h3>
                 <p className="text-xs text-muted-foreground">{selectedReferral.referralId}</p>
               </div>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedReferralId(null)}>
@@ -845,7 +843,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
 
               {/* Route */}
               <div className="p-3 bg-muted/30 rounded-lg">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Referral Route</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">{t('referralRoute', language)}</p>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-medium text-foreground">{selectedReferral.sourceFacilityName}</span>
                   <ChevronRight className="h-3 w-3 text-muted-foreground" />
@@ -866,19 +864,19 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                   {referralStatusLabel(selectedReferral.status)}
                 </Badge>
                 {selectedReferral.isOverdue && (
-                  <Badge className="text-xs bg-red-50 text-red-700 border-red-200">Overdue</Badge>
+                  <Badge className="text-xs bg-red-50 text-red-700 border-red-200">{t('overdueLabel', language)}</Badge>
                 )}
               </div>
 
               {/* Progress Bar */}
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Progress</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">{t('progress', language)}</p>
                 <ReferralProgressMini currentStep={selectedReferral.currentStep} totalSteps={selectedReferral.totalSteps} isOverdue={selectedReferral.isOverdue} />
               </div>
 
               {/* Step Indicators */}
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Lifecycle Steps</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">{t('lifecycleSteps', language)}</p>
                 <div className="space-y-1">
                   {REFERRAL_STEPS.map((step, idx) => {
                     const isCompleted = selectedReferral.currentStep > idx;
@@ -908,7 +906,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                           )}
                         </div>
                         {isCurrent && (
-                          <Badge className="text-[9px] bg-primary/10 text-primary border-primary/20">Current</Badge>
+                          <Badge className="text-[9px] bg-primary/10 text-primary border-primary/20">{t('current', language)}</Badge>
                         )}
                       </div>
                     );
@@ -919,7 +917,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
               {/* Timeline */}
               {selectedReferralEvents.length > 0 && (
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Timeline</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">{t('timeline', language)}</p>
                   <div className="space-y-2">
                     {selectedReferralEvents.map(event => (
                       <div key={event.id} className="flex items-start gap-2 p-2 bg-muted/30 rounded-lg">
@@ -935,7 +933,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
               )}
 
               {/* Close Button */}
-              <Button variant="outline" className="w-full" onClick={() => setSelectedReferralId(null)}>Close</Button>
+              <Button variant="outline" className="w-full" onClick={() => setSelectedReferralId(null)}>{t('close', language)}</Button>
             </div>
           </div>
         </div>
@@ -948,25 +946,25 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardContent className="p-3 text-center">
                 <p className="text-xl font-bold text-blue-600">{dueFollowups.length}</p>
-                <p className="text-[10px] text-muted-foreground">Scheduled</p>
+                <p className="text-[10px] text-muted-foreground">{t('scheduled', language)}</p>
               </CardContent>
             </Card>
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardContent className="p-3 text-center">
                 <p className="text-xl font-bold text-red-600">{overdueFollowups.length}</p>
-                <p className="text-[10px] text-muted-foreground">Overdue / Missed</p>
+                <p className="text-[10px] text-muted-foreground">{t('overdueMissed', language)}</p>
               </CardContent>
             </Card>
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardContent className="p-3 text-center">
                 <p className="text-xl font-bold text-emerald-600">{followups.filter(f => f.status === 'completed').length}</p>
-                <p className="text-[10px] text-muted-foreground">Completed</p>
+                <p className="text-[10px] text-muted-foreground">{t('completed', language)}</p>
               </CardContent>
             </Card>
           </div>
 
           {[...dueFollowups, ...overdueFollowups].length === 0 ? (
-            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No pending follow-ups</CardContent></Card>
+            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">{t('noPendingFollowups', language)}</CardContent></Card>
           ) : [...dueFollowups, ...overdueFollowups].map(f => (
             <Card key={f.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
@@ -1048,7 +1046,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Activity className="h-[1.125rem] w-[1.125rem] text-primary" />
-                Recent Referral Activity
+                {t('recentReferralActivity', language)}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -1072,7 +1070,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
                 </div>
               ))}
               {myReferrals.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">No referrals created yet</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t('noReferralsCreatedYet', language)}</p>
               )}
             </CardContent>
           </Card>

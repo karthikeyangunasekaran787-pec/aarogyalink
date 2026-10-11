@@ -8,37 +8,26 @@ import { cn } from '@/lib/utils';
 import { useApp } from '@/contexts/AppContext';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { useData } from '@/contexts/DataContext';
-import { t, type TranslationKey } from '@/lib/i18n';
+import { LANGUAGES, type TranslationKey } from '@/lib/i18n';
+import { useTranslation } from '@/hooks/use-translation';
+import { PATIENT_NAV, PATIENT_MORE_NAV } from '@/lib/patient-nav';
 import { OfflineIndicator } from '@/components/shared/OfflineIndicator';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { Button } from '@/components/ui/button';
 import {
   Heart, Menu, X, Globe, Wifi, WifiOff, LogOut,
   Home, FileText,
-  Calendar, ClipboardList, MapPin, CreditCard, Bell, Shield,
-  Pill, TestTube, BarChart3, UserPlus, ScanLine, FileHeart,
-  Package, TrendingUp, Inbox, Clock, Users, Building2
+  Calendar, ClipboardList, MapPin, Bell,
+  BarChart3, UserPlus, ScanLine,
+  Package, TrendingUp, Inbox, Users, Building2
 } from 'lucide-react';
 
 interface NavItem {
-  label: string;
+  /** A translation key, NOT English text: navigation follows the language. */
+  label: TranslationKey;
   path: string;
   icon: typeof Heart;
 }
-
-const PATIENT_NAV: NavItem[] = [
-  { label: 'home', path: '/patient/dashboard', icon: Home },
-  { label: 'findFacilities', path: '/patient/facilities', icon: MapPin },
-  { label: 'myAppointments', path: '/patient/appointments', icon: Calendar },
-  { label: 'myReports', path: '/patient/reports', icon: FileHeart },
-  { label: 'myReferrals', path: '/patient/referrals', icon: FileText },
-  { label: 'myHealthCard', path: '/patient/health-card', icon: CreditCard },
-  { label: 'myTimeline', path: '/patient/timeline', icon: Clock },
-  { label: 'medicines', path: '/patient/medicines', icon: Pill },
-  { label: 'diagnostics', path: '/patient/diagnostics', icon: TestTube },
-  { label: 'followUpReminders', path: '/patient/followups', icon: Bell },
-  { label: 'consentCenter', path: '/patient/privacy', icon: Shield },
-];
 
 const HW_NAV: NavItem[] = [
   { label: 'dashboard', path: '/health-worker/dashboard', icon: Home },
@@ -46,6 +35,16 @@ const HW_NAV: NavItem[] = [
   { label: 'myReferrals', path: '/health-worker/referrals', icon: ClipboardList },
   { label: 'followUpReminders', path: '/health-worker/followups', icon: Bell },
 ];
+
+/** Role labels for the signed-in user line in the header. */
+const ROLE_LABEL_KEY: Record<string, TranslationKey> = {
+  patient: 'rolePatient',
+  health_worker: 'roleHealthWorker',
+  doctor: 'roleDoctor',
+  hospital_admin: 'roleHospitalAdmin',
+  gov_admin: 'roleDistrictAdmin',
+  overall_admin: 'roleOverallAdmin',
+};
 
 const DOCTOR_NAV: NavItem[] = [
   { label: 'dashboard', path: '/doctor/dashboard', icon: Home },
@@ -60,20 +59,20 @@ const HOSP_ADMIN_NAV: NavItem[] = [
   { label: 'referralInbox', path: '/hospital-admin/referrals', icon: Inbox },
   { label: 'medicineStock', path: '/hospital-admin/medicines', icon: Package },
   { label: 'completionAnalytics', path: '/hospital-admin/analytics', icon: BarChart3 },
-  { label: 'Staff Management', path: '/hospital-admin/staff', icon: Users },
+  { label: 'staffManagement', path: '/hospital-admin/staff', icon: Users },
 ];
 
 const GOV_NAV: NavItem[] = [
   { label: 'dashboard', path: '/district-admin/dashboard', icon: Home },
-  { label: 'Hospital Management', path: '/district-admin/hospitals', icon: Building2 },
+  { label: 'hospitalManagement', path: '/district-admin/hospitals', icon: Building2 },
   { label: 'referralFunnel', path: '/district-admin/analytics', icon: TrendingUp },
   { label: 'villageMap', path: '/district-admin/facilities', icon: MapPin },
 ];
 
 const OVERALL_NAV: NavItem[] = [
-  { label: 'Overall Administration', path: '/master-admin/dashboard', icon: Home },
-  { label: 'Districts', path: '/master-admin/districts', icon: MapPin },
-  { label: 'District Admins', path: '/master-admin/admins', icon: Users },
+  { label: 'overallAdministration', path: '/master-admin/dashboard', icon: Home },
+  { label: 'districts', path: '/master-admin/districts', icon: MapPin },
+  { label: 'districtAdmins', path: '/master-admin/admins', icon: Users },
 ];
 
 const ROLE_NAV_MAP: Record<string, NavItem[]> = {
@@ -134,7 +133,10 @@ function Dropdown({ open, onOpenChange, trigger, children }: {
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { currentRole, language, setLanguage, isOffline, sidebarOpen, currentUser, logout } = useApp();
+  const { currentRole, setLanguage, isOffline, sidebarOpen, currentUser, logout } = useApp();
+  // `t` is bound to the app's selected language, so every label below follows
+  // the language selector without any component keeping its own copy.
+  const { t, language } = useTranslation();
   const { signOut } = useAuthActions();
   const { getNotificationsForUser } = useData();
   const navigate = useNavigate();
@@ -144,6 +146,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [notifOpen, setNotifOpen] = useState(false);
 
   const navItems = ROLE_NAV_MAP[currentRole] || PATIENT_NAV;
+  const moreItems = currentRole === 'patient' ? PATIENT_MORE_NAV : [];
   const userNotifications = currentUser ? getNotificationsForUser(currentUser.id) : [];
   const unreadCount = userNotifications.filter(n => !n.read).length;
 
@@ -184,31 +187,43 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Offline status */}
         <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
           {isOffline ? <WifiOff className="h-3.5 w-3.5" /> : <Wifi className="h-3.5 w-3.5 text-emerald-500" />}
-          <span>{isOffline ? t('offline', language) : t('online', language)}</span>
+          <span>{isOffline ? t('offline') : t('online')}</span>
         </div>
 
-        {/* Language selector */}
+        {/* Language selector — the ONLY control that changes the language. */}
         <Dropdown open={langOpen} onOpenChange={setLangOpen}
           trigger={
-            <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 cursor-pointer gap-1.5 px-2 sm:w-auto"
+              aria-label={t('selectLanguage')}
+              aria-haspopup="menu"
+              aria-expanded={langOpen}
+            >
               <Globe className="h-4 w-4" />
+              <span className="hidden sm:inline text-xs font-medium">
+                {LANGUAGES.find(l => l.code === language)?.nativeLabel}
+              </span>
             </Button>
           }
         >
-          {[
-            { code: 'en' as const, label: 'English' },
-            { code: 'ta' as const, label: 'தமிழ்' },
-            { code: 'hi' as const, label: 'हिन्दी' },
-          ].map((lang) => (
+          <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('selectLanguage')}
+          </p>
+          {LANGUAGES.map((lang) => (
             <button
               key={lang.code}
+              role="menuitemradio"
+              aria-checked={language === lang.code}
+              aria-label={lang.englishLabel}
               className={cn(
                 'w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer',
                 language === lang.code && 'bg-primary/5 text-primary font-medium'
               )}
               onClick={() => { setLanguage(lang.code); setLangOpen(false); }}
             >
-              {lang.label}
+              {lang.nativeLabel}
             </button>
           ))}
         </Dropdown>
@@ -225,11 +240,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           }
         >
           <div className="px-3 py-2 border-b border-border">
-            <p className="text-sm font-semibold text-foreground">Notifications</p>
+            <p className="text-sm font-semibold text-foreground">{t('notifications')}</p>
           </div>
           <div className="max-h-64 overflow-y-auto">
             {userNotifications.length === 0 ? (
-              <div className="px-3 py-4 text-center text-xs text-muted-foreground">No notifications</div>
+              <div className="px-3 py-4 text-center text-xs text-muted-foreground">{t('noNotifications')}</div>
             ) : (
               userNotifications.slice(0, 5).map((n) => (
                 <div key={n.id} className="px-3 py-2.5 hover:bg-muted transition-colors border-b border-border/50 last:border-0">
@@ -251,17 +266,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* User + Logout */}
         <div className="hidden sm:flex items-center gap-2">
           <div className="text-right">
-            <p className="text-xs font-medium text-foreground leading-tight">{currentUser?.name || 'User'}</p>
+            <p className="text-xs font-medium text-foreground leading-tight">{currentUser?.name || t('user')}</p>
             <p className="text-[10px] text-muted-foreground">
               {currentUser?.departmentName && currentUser?.facilityName
                 ? `${currentUser.departmentName} • ${currentUser.facilityName}`
                 : currentUser?.facilityName
                 ? currentUser.facilityName
-                : currentRole.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
+                : t(ROLE_LABEL_KEY[currentRole] ?? 'rolePatient')
               }
             </p>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-600" onClick={handleLogout}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-red-600"
+            onClick={handleLogout}
+            aria-label={t('logout')}
+          >
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
@@ -292,10 +313,38 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   )}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
-                  <span>{t(item.label as TranslationKey, language)}</span>
+                  <span>{t(item.label)}</span>
                 </Link>
               );
             })}
+
+            {moreItems.length > 0 && (
+              <div className="pt-3 mt-3 border-t border-border/70">
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t('more')}
+                </p>
+                {moreItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                        isActive
+                          ? 'bg-primary/8 text-primary'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      <Icon className="h-4 w-4 flex-shrink-0" />
+                      <span>{t(item.label)}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </nav>
 
@@ -306,7 +355,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-all w-full cursor-pointer"
           >
             <LogOut className="h-4 w-4" />
-            <span>{t('logout', language)}</span>
+            <span>{t('logout')}</span>
           </button>
         </div>
       </aside>
@@ -337,10 +386,39 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     )}
                   >
                     <Icon className="h-5 w-5 flex-shrink-0" />
-                    <span>{t(item.label as TranslationKey, language)}</span>
+                    <span>{t(item.label)}</span>
                   </Link>
                 );
               })}
+
+              {moreItems.length > 0 && (
+                <div className="pt-3 mt-3 border-t border-border/70">
+                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t('more')}
+                  </p>
+                  {moreItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive =
+                      location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all',
+                          isActive
+                            ? 'bg-primary/8 text-primary'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        )}
+                      >
+                        <Icon className="h-5 w-5 flex-shrink-0" />
+                        <span>{t(item.label)}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </nav>
             <div className="p-3 border-t border-border">
               <button
@@ -348,7 +426,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-all w-full cursor-pointer"
               >
                 <LogOut className="h-5 w-5" />
-                <span>{t('logout', language)}</span>
+                <span>{t('logout')}</span>
               </button>
             </div>
           </aside>

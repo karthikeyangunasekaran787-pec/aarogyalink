@@ -22,6 +22,8 @@ export interface SegmentedOption<T extends string> {
   icon?: LucideIcon;
   /** Optional count shown next to the label (e.g. "Doctors (4)"). */
   count?: number;
+  /** Colour treatment for the segment when it is the selected one. */
+  tone?: 'default' | 'danger';
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -70,7 +72,9 @@ export function SegmentedControl<T extends string>({
               'inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg font-medium transition-all sm:flex-none',
               size === 'sm' ? 'h-8 px-3 text-xs' : 'h-9 px-3.5 text-xs sm:text-sm',
               selected
-                ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                ? option.tone === 'danger'
+                  ? 'bg-red-50 text-red-600 shadow-sm ring-1 ring-red-200'
+                  : 'bg-card text-primary shadow-sm ring-1 ring-border'
                 : 'text-muted-foreground hover:bg-card/60 hover:text-foreground',
             )}
           >

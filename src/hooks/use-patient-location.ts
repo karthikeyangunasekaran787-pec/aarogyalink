@@ -13,6 +13,10 @@
 // none of the three can be resolved, `coords` stays null and callers show that
 // the distance is unknown.
 //
+// The patient's district is passed as a hint when resolving a village, because
+// some names repeat across districts (there is an Alangudi in both Madurai and
+// Pudukkottai, a hundred kilometres apart).
+//
 // The device position is only requested when the browser already has
 // permission, or when the patient taps a button — never as a surprise prompt on
 // page load.
@@ -22,7 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
-import { coordsForPlace, isUsableCoordinates, type Coordinates } from '@/lib/geo';
+import { coordsForPlace, coordsForPlaceIn, isUsableCoordinates, type Coordinates } from '@/lib/geo';
 
 export type PatientLocationSource = 'device' | 'registered' | 'district' | 'unknown';
 
@@ -91,9 +95,11 @@ export function usePatientLocation(): PatientLocation {
 
   // The registered origin belongs to THIS patient only. An unlinked account
   // falls through to the district, never to another patient's village.
-  const registeredPlace = useMemo(() => {
+  const registered = useMemo(() => {
     const patient = patients.find(p => p.id === currentUser?.patientId);
-    return patient?.village || patient?.district || currentUser?.districtName || null;
+    const place = patient?.village || patient?.district || currentUser?.districtName || null;
+    const district = patient?.district || currentUser?.districtName || null;
+    return { place, district };
   }, [patients, currentUser?.patientId, currentUser?.districtName]);
 
   const districtPlace = currentUser?.districtName ?? null;
@@ -147,12 +153,12 @@ export function usePatientLocation(): PatientLocation {
       };
     }
 
-    const registeredCoords = coordsForPlace(registeredPlace);
+    const registeredCoords = coordsForPlaceIn(registered.district, registered.place);
     if (registeredCoords) {
       return {
         coords: registeredCoords,
         source: 'registered',
-        placeName: registeredPlace,
+        placeName: registered.place,
         isLocating: device.isLocating,
         deviceUnavailable: device.deviceUnavailable,
         requestDeviceLocation,
@@ -179,5 +185,5 @@ export function usePatientLocation(): PatientLocation {
       deviceUnavailable: device.deviceUnavailable,
       requestDeviceLocation,
     };
-  }, [device, registeredPlace, districtPlace, requestDeviceLocation]);
+  }, [device, registered, districtPlace, requestDeviceLocation]);
 }

@@ -7,7 +7,8 @@
  *   BUG 9 — referral events carry the real actor, role, facility and timestamp
  */
 import { describe, expect, test } from 'bun:test';
-import { patientIdentifiers, hospitalToFacility } from '../../src/contexts/DataContext';
+import { patientIdentifiers } from '../../src/contexts/DataContext';
+import { hospitalToFacility } from '../../src/lib/facility-mapping';
 import type { Hospital, ReferralEvent } from '../../src/types';
 
 describe('BUG 6 — patient identifier generation', () => {

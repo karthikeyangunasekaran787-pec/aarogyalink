@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatTile } from '@/components/shared/StatTile';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
@@ -374,20 +375,16 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">Priority *</label>
-                <div className="flex gap-2">
-                  {(['routine', 'urgent', 'emergency'] as const).map(p => (
-                    <Button
-                      key={p}
-                      type="button"
-                      variant={referralPriority === p ? 'default' : 'outline'}
-                      size="sm"
-                      className="flex-1 h-10 capitalize"
-                      onClick={() => setReferralPriority(p)}
-                    >
-                      {p}
-                    </Button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  ariaLabel="Referral priority"
+                  value={referralPriority}
+                  onChange={setReferralPriority}
+                  options={[
+                    { value: 'routine', label: 'Routine' },
+                    { value: 'urgent', label: 'Urgent' },
+                    { value: 'emergency', label: 'Emergency', tone: 'danger' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">Destination Facility *</label>

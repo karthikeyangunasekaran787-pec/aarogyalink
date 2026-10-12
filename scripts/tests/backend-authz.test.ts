@@ -18,7 +18,7 @@ import {
   writablePatientIdsForHospital,
   type SessionScope,
 } from '../../src/convex/authz';
-import { hospitalToFacility, mergedFacilities } from '../../src/contexts/DataContext';
+import { hospitalToFacility, mergedFacilities } from '../../src/lib/facility-mapping';
 import { seedDistricts, seedVillageScores } from '../../src/lib/seed-multidistrict';
 import type { Facility, Hospital } from '../../src/types';
 

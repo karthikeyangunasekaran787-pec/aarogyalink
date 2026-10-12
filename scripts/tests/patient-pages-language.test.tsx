@@ -1,28 +1,64 @@
-/** Temporary render smoke test for the patient pages rewritten in this pass. */
+/**
+ * Temporary render smoke test for the patient pages rewritten in this pass.
+ *
+ * Also asserts the acceptance criterion for distances: the number shown for a
+ * hospital is computed from the PATIENT's own location, so the same facility
+ * shows a different distance (and a different nearest-first order) for two
+ * patients in different villages.
+ */
 import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 
 import { t, type Language } from '../../src/lib/i18n';
+import { coordsForPlace, coordsForPlaceIn, distanceToFacilityKm, formatDistanceKm } from '../../src/lib/geo';
 import { applyLanguage, getLanguageSnapshot, resetLanguageStoreForTests } from '../../src/lib/language-store';
 import { LANGUAGE_PREFERENCE_KEY } from '../../src/lib/language-preference';
 
-const PATIENT = { id: 'p1', name: 'Lakshmi Devi', healthCardId: 'HC-2026-0001', village: 'Alangudi', district: 'Pudukkottai' };
+// Mutable on purpose: each test signs in a patient living somewhere else, which
+// is exactly what must move the distances.
+let stubPatient = {
+  id: 'p1',
+  name: 'Lakshmi Devi',
+  healthCardId: 'HC-2026-0001',
+  village: 'Alangudi',
+  district: 'Pudukkottai',
+};
+
+// No coordinates on these stubs: the facility's own village must be enough to
+// resolve a position, which is the same fallback the real (created) hospitals
+// rely on.
+const stubFacilities = [
+  {
+    id: 'h1', name: 'Alangudi Primary Health Centre', village: 'Alangudi', district: 'Pudukkottai',
+    phone: '0452-1', address: 'Main Road', careMatchScore: 82, departments: ['General'],
+    type: 'phc' as const, specialistsAvailable: 2, emergencyAvailable: true,
+    latitude: 0, longitude: 0, state: 'Tamil Nadu', totalBeds: 30, occupiedBeds: 18,
+    diagnosticsAvailable: [], medicinesAvailable: [], averageWaitTime: 30, rating: 4,
+  },
+  {
+    id: 'h2', name: 'Usilampatti Government Hospital', village: 'Usilampatti', district: 'Madurai',
+    phone: '0452-2', address: 'Hospital Road', careMatchScore: 74, departments: ['General'],
+    type: 'dh' as const, specialistsAvailable: 5, emergencyAvailable: true,
+    latitude: 0, longitude: 0, state: 'Tamil Nadu', totalBeds: 60, occupiedBeds: 41,
+    diagnosticsAvailable: [], medicinesAvailable: [], averageWaitTime: 35, rating: 4,
+  },
+];
 
 mock.module('../../src/contexts/AppContext', () => ({
   // The real provider publishes the store language here; the stub must too,
   // otherwise pages that take the `t(key, language)` route would silently read
   // the default and look untranslated.
-  useApp: () => ({ currentUser: { id: 'u-p1', name: PATIENT.name, role: 'patient', patientId: 'p1' }, isOffline: false, language: getLanguageSnapshot() }),
+  useApp: () => ({ currentUser: { id: 'u-p1', name: 'Lakshmi Devi', role: 'patient', patientId: 'p1' }, isOffline: false, language: getLanguageSnapshot() }),
 }));
 
 mock.module('../../src/contexts/DataContext', () => ({
   useData: () => ({
-    patients: [PATIENT],
+    patients: [stubPatient],
     medicineStock: [{ id: 'm1', medicineName: 'Paracetamol', facilityName: 'PHC Alangudi', status: 'in_stock', quantity: 120, unit: 'tablets', expiryDate: '2027-01-31' }],
     diagnostics: [{ id: 'd1', name: 'Blood Sugar', facilityName: 'PHC Alangudi', category: 'Lab', available: true, waitTime: 2, cost: 100 }],
     doctors: [{ id: 'doc1', name: 'Dr. Arun Kumar', specialization: 'Cardiology', experience: 12, consultationFee: 200, rating: 4.5, facilityId: 'h1' }],
-    facilities: [{ id: 'h1', name: 'Alangudi Primary Health Centre', village: 'Alangudi', district: 'Pudukkottai', phone: '0452-1', address: 'Main Road', careMatchScore: 82, departments: ['General'], type: 'phc', specialistsAvailable: 2, emergencyAvailable: true, distanceKm: 3 }],
+    facilities: stubFacilities,
     hospitals: [{ id: 'h1', name: 'Alangudi Government Hospital', district: 'Pudukkottai', phone: '0452-2' }],
     healthRecords: [],
     consultations: [],
@@ -133,5 +169,87 @@ describe('rewritten patient pages render and follow the language', () => {
     );
     expect(html).toContain(t('yourDataRights', 'hi'));
     expect(html).not.toContain('Your Data Rights');
+  });
+});
+
+describe('facility distances come from the patient’s own location', () => {
+  const renderFacilities = async () => {
+    const { default: Facilities } = await import('../../src/pages/patient/Facilities');
+    return renderToString(
+      <MemoryRouter initialEntries={['/patient/facilities']}>
+        <Facilities />
+      </MemoryRouter>,
+    );
+  };
+
+  test('the distance shown is the distance from the patient’s registered village', async () => {
+    applyLanguage('en');
+    stubPatient = { ...stubPatient, village: 'Kallikudi', district: 'Madurai' };
+    const html = await renderFacilities();
+
+    // Stated plainly, so a patient can tell what the number measures from.
+    expect(html).toContain(t('distanceFromPlace', 'en', { place: 'Kallikudi' }));
+
+    // The same computation the page performs, from the patient's village.
+    const expected = formatDistanceKm(
+      distanceToFacilityKm(coordsForPlace('Kallikudi'), stubFacilities[0]),
+    );
+    expect(expected).toBe('55 km');
+    expect(html).toContain(expected);
+  });
+
+  test('moving the patient changes the distance and the nearest-first order', async () => {
+    applyLanguage('en');
+
+    stubPatient = { ...stubPatient, village: 'Kallikudi', district: 'Madurai' };
+    const fromKallikudi = await renderFacilities();
+
+    stubPatient = { ...stubPatient, village: 'Alangudi', district: 'Pudukkottai' };
+    const fromAlangudi = await renderFacilities();
+
+    // Distances are not a constant in the markup: the same facility reads
+    // differently for the two patients.
+    // Mirror the patient record: the district is part of where they live, and
+    // "Alangudi" exists in more than one district.
+    const kallikudiToH2 = formatDistanceKm(distanceToFacilityKm(coordsForPlaceIn('Madurai', 'Kallikudi'), stubFacilities[1]));
+    const alangudiToH2 = formatDistanceKm(distanceToFacilityKm(coordsForPlaceIn('Pudukkottai', 'Alangudi'), stubFacilities[1]));
+    expect(kallikudiToH2).not.toBe(alangudiToH2);
+    expect(fromKallikudi).toContain(kallikudiToH2);
+    expect(fromAlangudi).toContain(alangudiToH2);
+
+    // Nearest first is relative to the patient: Usilampatti's hospital is the
+    // closer one from Kallikudi, while Alangudi sits next to its own PHC.
+    expect(fromKallikudi.indexOf('Usilampatti Government Hospital'))
+      .toBeLessThan(fromKallikudi.indexOf('Alangudi Primary Health Centre'));
+    expect(fromAlangudi.indexOf('Alangudi Primary Health Centre'))
+      .toBeLessThan(fromAlangudi.indexOf('Usilampatti Government Hospital'));
+  });
+
+  test('the facility type filter is one aligned, equally wide segmented control', async () => {
+    applyLanguage('en');
+    stubPatient = { ...stubPatient, village: 'Kallikudi', district: 'Madurai' };
+    const html = await renderFacilities();
+
+    expect(html).toContain('role="radiogroup"');
+    const segments = html.split('role="radio"').slice(1);
+    // All, PHC, CHC, DH, Medical College.
+    expect(segments.length).toBe(5);
+    for (const segment of segments) {
+      // Same width rule in every segment, which is what keeps the row aligned.
+      expect(segment).toContain('flex-1');
+      expect(segment).toContain('items-center');
+    }
+    // Exactly one segment is selected.
+    expect((html.match(/aria-checked="true"/g) ?? []).length).toBe(1);
+  });
+
+  test('an unresolvable location says so instead of inventing a distance', async () => {
+    applyLanguage('en');
+    stubPatient = { ...stubPatient, village: 'Nowhereville', district: 'Unmapped District' };
+    const html = await renderFacilities();
+
+    expect(html).toContain(t('distanceUnavailable', 'en'));
+    // No fabricated kilometre figure for a facility whose distance is unknown.
+    expect(html).not.toContain(formatDistanceKm(0));
   });
 });

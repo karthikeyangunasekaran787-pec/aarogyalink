@@ -439,20 +439,16 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">Priority *</label>
-                <div className="flex gap-2">
-                  {(['routine', 'urgent', 'emergency'] as const).map(p => (
-                    <Button
-                      key={p}
-                      type="button"
-                      variant={referralPriority === p ? 'default' : 'outline'}
-                      size="sm"
-                      className={`flex-1 h-10 capitalize ${p === 'emergency' ? 'hover:bg-red-50 hover:text-red-600' : ''}`}
-                      onClick={() => setReferralPriority(p)}
-                    >
-                      {p}
-                    </Button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  ariaLabel="Referral priority"
+                  value={referralPriority}
+                  onChange={setReferralPriority}
+                  options={[
+                    { value: 'routine', label: 'Routine' },
+                    { value: 'urgent', label: 'Urgent' },
+                    { value: 'emergency', label: 'Emergency', tone: 'danger' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">Destination Facility *</label>
@@ -739,14 +735,18 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             </Card>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="flex gap-2">
-            {(['all', 'active', 'completed'] as const).map(f => (
-              <Button key={f} size="sm" variant={referralFilter === f ? 'default' : 'outline'} className="text-xs" onClick={() => setReferralFilter(f)}>
-                {f === 'all' ? 'All' : f === 'active' ? 'In Progress' : 'Completed'}
-              </Button>
-            ))}
-          </div>
+          {/* Filter Tabs — one aligned, translated segmented control */}
+          <SegmentedControl
+            ariaLabel={t('myReferrals', language)}
+            value={referralFilter}
+            onChange={setReferralFilter}
+            size="sm"
+            options={[
+              { value: 'all', label: t('all', language) },
+              { value: 'active', label: t('inProgress', language) },
+              { value: 'completed', label: t('completed', language) },
+            ]}
+          />
 
           {/* Referral List */}
           {filteredReferrals.length === 0 ? (

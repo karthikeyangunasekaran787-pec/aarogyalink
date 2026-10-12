@@ -10,6 +10,7 @@ import { api } from '@/convex/_generated/api';
 import { useApp } from '@/contexts/AppContext';
 import { useConvexSessionReady } from '@/hooks/use-convex-session';
 import { useBackendSession } from '@/hooks/use-backend-session';
+import { hospitalToFacility, mergedFacilities } from '@/lib/facility-mapping';
 import { DATA_VERSION, wrapForCloud, unwrapFromCloud, mergeCollections, safePayload, mergeKeyOf, tombstoneEntry, tombstonesByCollection, filterTombstoned, maxIdNum, TOMBSTONES_KEY } from './cloudData';
 // The canonical Referral Closure Engine model — shared with the Convex backend
 // so the client, the UI and the server can never disagree about a status.
@@ -377,48 +378,11 @@ try {
   }
 } catch { /* ignore */ }
 
-/**
- * Present a hospital as a Facility record. Hospitals are created dynamically by
- * the District Administrator, so lookups and analytics must consider them in
- * addition to the seeded facility-finder list.
- */
-/**
- * Merge the seeded facility finder list with hospitals created at runtime,
- * deduplicated by id so nothing is listed twice and no seeded facility is lost.
- */
-export function mergedFacilities(seed: Facility[], hospitals: Hospital[]): Facility[] {
-  const byId = new Map<string, Facility>(seed.map(f => [f.id, f]));
-  for (const hospital of hospitals) {
-    if (!byId.has(hospital.id)) byId.set(hospital.id, hospitalToFacility(hospital));
-  }
-  return [...byId.values()];
-}
-
-export function hospitalToFacility(h: Hospital): Facility {
-  return {
-    id: h.id,
-    name: h.name,
-    type: 'dh',
-    address: h.address,
-    // The village keeps the hospital resolvable to a position for distance
-    // calculations even when the exact coordinates were not recorded.
-    village: h.village ?? h.district,
-    district: h.district,
-    state: h.state,
-    latitude: h.latitude ?? 0,
-    longitude: h.longitude ?? 0,
-    phone: h.phone,
-    emergencyAvailable: h.services.includes('Emergency'),
-    departments: h.departments,
-    totalBeds: h.totalBeds,
-    occupiedBeds: h.occupiedBeds,
-    specialistsAvailable: 0,
-    diagnosticsAvailable: [],
-    medicinesAvailable: [],
-    averageWaitTime: 30,
-    rating: 4.0,
-  };
-}
+// The hospital → facility mapping is a pure transform and lives in its own
+// module (src/lib/facility-mapping.ts) so non-React code and tests can use it
+// without pulling in the whole data provider. Re-exported here for the many
+// existing imports.
+export { hospitalToFacility, mergedFacilities } from '@/lib/facility-mapping';
 
 // ── localStorage persistence helpers ──────────────────────────────
 function loadFromStorage<T>(key: string, fallback: T): T {

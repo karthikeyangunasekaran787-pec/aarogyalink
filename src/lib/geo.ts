@@ -20,33 +20,45 @@ export interface Coordinates {
   longitude: number;
 }
 
+interface Place extends Coordinates {
+  name: string;
+  /** Which district this place is in, used to disambiguate repeated names. */
+  district: string;
+}
+
 const EARTH_RADIUS_KM = 6371;
 
 /**
  * Places the demo dataset refers to, with their coordinates. Village records
  * carry the same coordinates as the seeded access scores, so a village is
  * resolved identically wherever it appears.
+ *
+ * "Alangudi" is genuinely ambiguous — one in Madurai district (a seeded
+ * village) and another in Pudukkottai district (where the PHC sits) — so a
+ * place may be listed more than once and callers should pass a district hint
+ * (see `coordsForPlaceIn`). Without a hint the first entry wins.
  */
-export const PLACE_COORDINATES: ReadonlyArray<{ name: string; latitude: number; longitude: number }> = [
-  // Madurai district (seeded villages)
-  { name: 'Kallikudi', latitude: 10.05, longitude: 78.12 },
-  { name: 'Thoor', latitude: 10.08, longitude: 78.15 },
-  { name: 'Melur', latitude: 9.97, longitude: 78.28 },
-  { name: 'Vadipatti', latitude: 10.02, longitude: 78.08 },
-  { name: 'Usilampatti', latitude: 9.97, longitude: 77.95 },
-  { name: 'Sedapatti', latitude: 10.1, longitude: 78.05 },
-  { name: 'Peraiyur', latitude: 9.92, longitude: 78.2 },
-  { name: 'Madurai', latitude: 9.925, longitude: 78.119 },
+export const PLACE_COORDINATES: ReadonlyArray<Place> = [
+  // Madurai district (seeded village records)
+  { name: 'Kallikudi', district: 'Madurai', latitude: 10.05, longitude: 78.12 },
+  { name: 'Thoor', district: 'Madurai', latitude: 10.08, longitude: 78.15 },
+  { name: 'Melur', district: 'Madurai', latitude: 9.97, longitude: 78.28 },
+  { name: 'Vadipatti', district: 'Madurai', latitude: 10.02, longitude: 78.08 },
+  { name: 'Usilampatti', district: 'Madurai', latitude: 9.97, longitude: 77.95 },
+  { name: 'Sedapatti', district: 'Madurai', latitude: 10.1, longitude: 78.05 },
+  { name: 'Peraiyur', district: 'Madurai', latitude: 9.92, longitude: 78.2 },
+  { name: 'Alangudi', district: 'Madurai', latitude: 10.15, longitude: 78.22 },
   // Pudukkottai district (registered hospitals)
-  { name: 'Alangudi', latitude: 10.05, longitude: 78.62 },
-  { name: 'Aranthangi', latitude: 10.17, longitude: 78.99 },
-  { name: 'Illupur', latitude: 10.1, longitude: 78.72 },
-  { name: 'Gandaravakottai', latitude: 10.3, longitude: 78.85 },
-  { name: 'Pudukkottai', latitude: 10.38, longitude: 78.82 },
+  { name: 'Alangudi', district: 'Pudukkottai', latitude: 10.05, longitude: 78.62 },
+  { name: 'Aranthangi', district: 'Pudukkottai', latitude: 10.17, longitude: 78.99 },
+  { name: 'Illupur', district: 'Pudukkottai', latitude: 10.1, longitude: 78.72 },
+  { name: 'Gandaravakottai', district: 'Pudukkottai', latitude: 10.3, longitude: 78.85 },
+  { name: 'Pudukkottai', district: 'Pudukkottai', latitude: 10.38, longitude: 78.82 },
   // Tiruchirappalli district (registered hospitals)
-  { name: 'Manapparai', latitude: 10.61, longitude: 78.42 },
-  { name: 'Srirangam', latitude: 10.86, longitude: 78.69 },
-  { name: 'Tiruchirappalli', latitude: 10.79, longitude: 78.7 },
+  { name: 'Manapparai', district: 'Tiruchirappalli', latitude: 10.61, longitude: 78.42 },
+  { name: 'Srirangam', district: 'Tiruchirappalli', latitude: 10.86, longitude: 78.69 },
+  { name: 'Tiruchirappalli', district: 'Tiruchirappalli', latitude: 10.79, longitude: 78.7 },
+  { name: 'Madurai', district: 'Madurai', latitude: 9.925, longitude: 78.119 },
 ];
 
 /** Great-circle distance in kilometres between two coordinates. */
@@ -82,19 +94,46 @@ export function isUsableCoordinates(value: Partial<Coordinates> | null | undefin
  * Resolve a place from free text (a village, a facility name, an address, a
  * district…). Names are matched case-insensitively and the longest match wins,
  * so "Gandaravakottai PHC" is not mistaken for a shorter place.
+ *
+ * `districtHint` breaks ties between same-named places in different districts:
+ * a facility in Pudukkottai called "Alangudi PHC" resolves to Pudukkottai's
+ * Alangudi, while a patient whose record says Madurai/Alangudi resolves to the
+ * Madurai village. Values are tried in order, so pass the most precise first.
  */
-export function coordsForPlace(...values: Array<string | undefined | null>): Coordinates | null {
+export function coordsForPlaceIn(
+  districtHint: string | undefined | null,
+  ...values: Array<string | undefined | null>
+): Coordinates | null {
+  const hint = districtHint?.trim().toLowerCase() || null;
+  const matchesHint = (place: Place) => (hint ? place.district.toLowerCase() === hint : false);
+
   for (const value of values) {
     if (!value) continue;
     const haystack = value.toLowerCase();
-    let best: { name: string; latitude: number; longitude: number } | null = null;
+    let best: Place | null = null;
     for (const place of PLACE_COORDINATES) {
       if (!haystack.includes(place.name.toLowerCase())) continue;
-      if (!best || place.name.length > best.name.length) best = place;
+      if (!best) {
+        best = place;
+        continue;
+      }
+      const placePreferred = matchesHint(place);
+      const bestPreferred = matchesHint(best);
+      if (placePreferred !== bestPreferred) {
+        if (placePreferred) best = place;
+        continue;
+      }
+      // Neither (or both) is in the hinted district: keep the most specific name.
+      if (place.name.length > best.name.length) best = place;
     }
     if (best) return { latitude: best.latitude, longitude: best.longitude };
   }
   return null;
+}
+
+/** Resolve a place without a district hint (first entry with the longest name). */
+export function coordsForPlace(...values: Array<string | undefined | null>): Coordinates | null {
+  return coordsForPlaceIn(null, ...values);
 }
 
 /** The coordinates of a facility, from its stored position or from its place. */
@@ -109,7 +148,13 @@ export function facilityCoordinates(facility: {
   if (isUsableCoordinates(facility)) {
     return { latitude: facility.latitude as number, longitude: facility.longitude as number };
   }
-  return coordsForPlace(facility.village, facility.name, facility.address, facility.district);
+  return coordsForPlaceIn(
+    facility.district,
+    facility.village,
+    facility.name,
+    facility.address,
+    facility.district,
+  );
 }
 
 /** Distance in km from a facility to an origin, or null when it cannot be known. */

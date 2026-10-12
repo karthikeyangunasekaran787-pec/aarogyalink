@@ -25,6 +25,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { UnlinkedPatientNotice } from '@/components/shared/UnlinkedPatientNotice';
 import { nextReferralStepKey, referralStatusKey } from '@/lib/referral-labels';
@@ -110,12 +111,11 @@ export default function PatientHome() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       {/* ── Welcome ─────────────────────────────────────────────── */}
-      <div>
-        <h1 className="text-xl font-bold text-foreground sm:text-2xl">
-          {t('welcomeBackName', { name: patient.name.split(' ')[0] })}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('patientSummary')}</p>
-      </div>
+      <PageHeader
+        icon={Activity}
+        title={t('welcomeBackName', { name: patient.name.split(' ')[0] })}
+        subtitle={t('patientSummary')}
+      />
 
       {isOffline && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">

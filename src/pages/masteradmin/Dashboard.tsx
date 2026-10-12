@@ -8,14 +8,17 @@
 // nothing on this page can grant access the backend has not verified.
 // ============================================================================
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router';
+import type { LucideIcon } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { t } from '@/lib/i18n';
 import { useData, generateTempPassword } from '@/contexts/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { StatTile, type StatTone } from '@/components/shared/StatTile';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -325,34 +328,29 @@ export default function MasterAdminDashboard() {
     active: referrals.filter(r => r.status !== 'closed').length,
   };
 
-  const kpis = [
-    { label: 'Districts', value: districts.length, icon: MapPin, tone: 'bg-indigo-50 text-indigo-600' },
-    { label: 'Hospitals', value: totals.hospitals, icon: Building2, tone: 'bg-blue-50 text-blue-600' },
-    { label: 'Doctors', value: totals.doctors, icon: Stethoscope, tone: 'bg-emerald-50 text-emerald-600' },
-    { label: 'Health Workers', value: totals.healthWorkers, icon: Users, tone: 'bg-teal-50 text-teal-600' },
-    { label: 'Patients', value: totals.patients, icon: UserPlus, tone: 'bg-amber-50 text-amber-600' },
-    { label: 'Referrals', value: `${totals.active} active`, icon: FileText, tone: 'bg-rose-50 text-rose-600' },
+  // Same tile anatomy as every other role interface (see StatTile).
+  const kpis: Array<{ label: string; value: ReactNode; icon: LucideIcon; tone: StatTone }> = [
+    { label: 'Districts', value: districts.length, icon: MapPin, tone: 'violet' },
+    { label: 'Hospitals', value: totals.hospitals, icon: Building2, tone: 'blue' },
+    { label: 'Doctors', value: totals.doctors, icon: Stethoscope, tone: 'emerald' },
+    { label: 'Health Workers', value: totals.healthWorkers, icon: Users, tone: 'primary' },
+    { label: 'Patients', value: totals.patients, icon: UserPlus, tone: 'amber' },
+    { label: 'Referrals', value: `${totals.active} active`, icon: FileText, tone: 'red' },
   ];
 
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <ShieldCheck className="h-6 w-6 text-primary" />
-            {t('overallAdministration', language)}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {districts.length} Districts • {totals.hospitals} Hospitals • {totals.patients} Registered Patients • Platform-wide view
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        icon={ShieldCheck}
+        title={t('overallAdministration', language)}
+        subtitle={`${districts.length} Districts • ${totals.hospitals} Hospitals • ${totals.patients} Registered Patients • Platform-wide view`}
+        actions={
           <Button size="sm" onClick={() => { setError(''); setDistrictForm({ name: '', code: '', headquarters: '' }); setShowDistrictForm(true); }}>
-            <Plus className="h-4 w-4 mr-1.5" /> Create District
+            <Plus className="mr-1.5 h-4 w-4" /> Create District
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {notice && (
         <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
@@ -361,17 +359,9 @@ export default function MasterAdminDashboard() {
       )}
 
       {/* ── KPI cards ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {kpis.map(kpi => (
-          <Card key={kpi.label} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <div className={`h-10 w-10 rounded-xl flex items-center justify-center mb-3 ${kpi.tone}`}>
-                <kpi.icon className="h-5 w-5" />
-              </div>
-              <p className="text-xl font-bold text-foreground">{kpi.value}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{kpi.label}</p>
-            </CardContent>
-          </Card>
+          <StatTile key={kpi.label} icon={kpi.icon} tone={kpi.tone} value={kpi.value} label={kpi.label} />
         ))}
       </div>
 

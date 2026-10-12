@@ -161,7 +161,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <OfflineIndicator isOffline={isOffline} />
 
       {/* ── Top Bar ──────────────────────────────────────────────── */}
-      <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-border flex items-center px-4 gap-3">
+      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-white px-3 sm:gap-3 sm:px-4 lg:px-6">
         {isOffline && <div className="absolute top-0" />}
 
         {/* Mobile menu toggle */}
@@ -177,7 +177,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Brand: the AarogyaLink emblem (no tagline in the app header). */}
         <Link to={ROLE_PATH_MAP[currentRole] || '/patient/dashboard'} className="flex items-center gap-2.5">
           <BrandLogo size={32} />
-          <span className="text-base font-bold tracking-tight text-foreground">
+          <span className="text-sm font-bold tracking-tight text-foreground sm:text-base">
             Aarogya<span className="text-primary">Link</span>
           </span>
         </Link>
@@ -196,7 +196,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 cursor-pointer gap-1.5 px-2 sm:w-auto"
+              className="h-9 w-9 cursor-pointer gap-1.5 px-2 sm:w-auto"
               aria-label={t('selectLanguage')}
               aria-haspopup="menu"
               aria-expanded={langOpen}
@@ -231,7 +231,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Notification bell */}
         <Dropdown open={notifOpen} onOpenChange={setNotifOpen}
           trigger={
-            <Button variant="ghost" size="icon" className="h-8 w-8 relative cursor-pointer">
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 cursor-pointer">
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
@@ -279,7 +279,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-red-600"
+            className="h-9 w-9 text-muted-foreground hover:text-red-600"
             onClick={handleLogout}
             aria-label={t('logout')}
           >
@@ -306,12 +306,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   key={item.path}
                   to={item.path}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+                    'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                     isActive
                       ? 'bg-primary/8 text-primary'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r bg-primary" />
+                  )}
                   <Icon className="h-4 w-4 flex-shrink-0" />
                   <span>{t(item.label)}</span>
                 </Link>
@@ -332,12 +335,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       key={item.path}
                       to={item.path}
                       className={cn(
-                        'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                        'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                         isActive
                           ? 'bg-primary/8 text-primary'
                           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       )}
                     >
+                      {isActive && (
+                        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r bg-primary" />
+                      )}
                       <Icon className="h-4 w-4 flex-shrink-0" />
                       <span>{t(item.label)}</span>
                     </Link>
@@ -352,7 +358,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="p-3 border-t border-border">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-all w-full cursor-pointer"
+            className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-red-50 hover:text-red-600"
           >
             <LogOut className="h-4 w-4" />
             <span>{t('logout')}</span>

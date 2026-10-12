@@ -8,6 +8,8 @@ import { useData } from '@/contexts/DataContext';
 import { useTranslation } from '@/hooks/use-translation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { StatTile } from '@/components/shared/StatTile';
 import {
   Users, FileText, Clock, AlertTriangle, TrendingUp, Activity,
   Building2, MapPin, CheckCircle2, Heart
@@ -73,187 +75,54 @@ export default function GovDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          {t('districtCommandCenterTitle')}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {districtName ? t('districtNameDisplay', { name: districtName }) : t('districtInfoPlaceholder')} • {districtId || '—'} • {scopedFacilities.length} {t('facilitiesUnit')} • {patients.length} {t('registeredPatientsUnit')}
-        </p>
-      </div>
+      <PageHeader
+        icon={Building2}
+        title={t('districtCommandCenterTitle')}
+        subtitle={`${districtName ? t('districtNameDisplay', { name: districtName }) : t('districtInfoPlaceholder')} • ${districtId || '—'} • ${scopedFacilities.length} ${t('facilitiesUnit')} • ${patients.length} ${t('registeredPatientsUnit')}`}
+      />
 
-      {/* KPI Cards — all computed from live data */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                <Users className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{patients.length}</p>
-                <p className="text-xs text-muted-foreground">{t('patientsServed')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{liveAnalytics.totalReferrals}</p>
-                <p className="text-xs text-muted-foreground">{t('totalReferrals')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-teal-50 flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-teal-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{liveAnalytics.referralClosureRate}%</p>
-                <p className="text-xs text-muted-foreground">{t('closureRate')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                <Clock className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{liveAnalytics.averageWaitingTime.toFixed(1)}d</p>
-                <p className="text-xs text-muted-foreground">{t('avgWaitTime')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Second row of KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{liveAnalytics.facilitiesOperational}</p>
-                <p className="text-xs text-muted-foreground">{t('activeFacilities')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{liveAnalytics.missedFollowups}</p>
-                <p className="text-xs text-muted-foreground">{t('missedFollowups')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-rose-50 flex items-center justify-center">
-                <Heart className="h-5 w-5 text-rose-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{liveAnalytics.highRiskPending}</p>
-                <p className="text-xs text-muted-foreground">{t('highRiskPending')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                <Users className="h-5 w-5 text-violet-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{liveAnalytics.specialistsOnDuty}</p>
-                <p className="text-xs text-muted-foreground">{t('specialistsOnDuty')}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* KPI Cards — all computed from live data, one aligned 4-up grid */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile icon={Users} tone="blue" value={patients.length} label={t('patientsServed')} />
+        <StatTile icon={FileText} tone="emerald" value={liveAnalytics.totalReferrals} label={t('totalReferrals')} />
+        <StatTile icon={CheckCircle2} tone="primary" value={`${liveAnalytics.referralClosureRate}%`} label={t('closureRate')} />
+        <StatTile icon={Clock} tone="amber" value={`${liveAnalytics.averageWaitingTime.toFixed(1)}d`} label={t('avgWaitTime')} />
+        <StatTile icon={Building2} tone="emerald" value={liveAnalytics.facilitiesOperational} label={t('activeFacilities')} />
+        <StatTile icon={AlertTriangle} tone="red" value={liveAnalytics.missedFollowups} label={t('missedFollowups')} />
+        <StatTile icon={Heart} tone="red" value={liveAnalytics.highRiskPending} label={t('highRiskPending')} />
+        <StatTile icon={Users} tone="violet" value={liveAnalytics.specialistsOnDuty} label={t('specialistsOnDuty')} />
       </div>
 
       {/* Third row — availability KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">{t('bedOccupancy')}</p>
-                <p className="text-lg font-bold text-foreground">{liveAnalytics.occupiedBeds}/{liveAnalytics.totalBeds}</p>
-              </div>
-              <div className="h-12 w-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                <Activity className="h-5 w-5 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">{t('medicines')}</p>
-                <p className="text-lg font-bold text-foreground">{liveAnalytics.medicinesInStock} {t('inStock')}</p>
-              </div>
-              <Badge variant="outline" className={`text-[10px] ${liveAnalytics.lowStockMedicines > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                {liveAnalytics.lowStockMedicines} {t('stockShortages')}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">{t('diagnostics')}</p>
-                <p className="text-lg font-bold text-foreground">{liveAnalytics.diagnosticsAvailable} {t('unitsAvailable')}</p>
-              </div>
-              <div className="h-12 w-12 rounded-xl bg-teal-50 flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-teal-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">{t('rhasScore')}</p>
-                <p className="text-lg font-bold text-foreground">{liveAnalytics.ruralAccessScore}/100</p>
-              </div>
-              <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
-                liveAnalytics.ruralAccessScore >= 70 ? 'bg-emerald-50' :
-                liveAnalytics.ruralAccessScore >= 40 ? 'bg-amber-50' : 'bg-red-50'
-              }`}>
-                <MapPin className={`h-5 w-5 ${
-                  liveAnalytics.ruralAccessScore >= 70 ? 'text-emerald-600' :
-                  liveAnalytics.ruralAccessScore >= 40 ? 'text-amber-600' : 'text-red-600'
-                }`} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile
+          icon={Activity}
+          tone="blue"
+          value={`${liveAnalytics.occupiedBeds}/${liveAnalytics.totalBeds}`}
+          label={t('bedOccupancy')}
+        />
+        <StatTile
+          icon={TrendingUp}
+          tone="emerald"
+          value={`${liveAnalytics.medicinesInStock} ${t('inStock')}`}
+          label={t('medicines')}
+          hint={`${liveAnalytics.lowStockMedicines} ${t('stockShortages')}`}
+        />
+        <StatTile
+          icon={CheckCircle2}
+          tone="primary"
+          value={`${liveAnalytics.diagnosticsAvailable} ${t('unitsAvailable')}`}
+          label={t('diagnostics')}
+        />
+        <StatTile
+          icon={MapPin}
+          tone={
+            liveAnalytics.ruralAccessScore >= 70 ? 'emerald'
+              : liveAnalytics.ruralAccessScore >= 40 ? 'amber' : 'red'
+          }
+          value={`${liveAnalytics.ruralAccessScore}/100`}
+          label={t('rhasScore')}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

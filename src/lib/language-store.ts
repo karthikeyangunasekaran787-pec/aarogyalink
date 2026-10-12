@@ -66,9 +66,18 @@ export function getLanguageSnapshot(): Language {
   return initialise();
 }
 
-/** Before hydration the store cannot read storage, so English is assumed. */
+/**
+ * The same value, for the server-render pass.
+ *
+ * It must be the language in effect, not a constant: AarogyaLink is rendered by
+ * `createRoot` in the browser, but anything rendered through the server API
+ * (a prerender, or a test that renders a page to a string) would otherwise show
+ * English while the client showed Tamil. Where there is genuinely no DOM,
+ * `readStoredLanguage()` already returns English, so this is the same answer a
+ * real server would give.
+ */
 export function getServerLanguageSnapshot(): Language {
-  return DEFAULT_LANGUAGE;
+  return getLanguageSnapshot();
 }
 
 /** Subscribe to language changes. Returns the unsubscribe function. */

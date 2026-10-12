@@ -57,9 +57,7 @@ export default function Facilities() {
           {t('facilityFinder', language)}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {language === 'ta' ? 'அருகிலுள்ள சுகாதார வசதிகளைத் தேடுங்கள்' :
-           language === 'hi' ? 'निकटतम स्वास्थ्य सुविधाएं खोजें' :
-           'Find and compare healthcare facilities near you'}
+          {t('facilitiesSubtitle', language)}
         </p>
       </div>
 
@@ -70,9 +68,7 @@ export default function Facilities() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={language === 'ta' ? 'வசதி அல்லது கிராமம் தேடுங்கள்...' :
-                         language === 'hi' ? 'सुविधा या गांव खोजें...' :
-                         'Search facility or village...'}
+            placeholder={t('searchFacilityPlaceholder', language)}
             className="pl-9"
           />
         </div>
@@ -153,7 +149,7 @@ export default function Facilities() {
                 {f.emergencyAvailable && (
                   <div className="mt-2 flex items-center gap-1 text-xs text-red-600">
                     <Ambulance className="h-3 w-3" />
-                    <span>Emergency Available 24/7</span>
+                    <span>{t('emergencyAvailable247', language)}</span>
                   </div>
                 )}
               </CardContent>
@@ -183,12 +179,12 @@ export default function Facilities() {
                 <div className="rounded-lg bg-primary/5 border border-primary/10 p-3 text-center">
                   <p className="text-xs text-muted-foreground mb-1">{t('careMatchScore', language)}</p>
                   <p className="text-3xl font-bold text-primary">{facility.careMatchScore}</p>
-                  <p className="text-xs text-muted-foreground mt-1">out of 100</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t('outOf100', language)}</p>
                 </div>
 
                 {/* Departments */}
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Departments</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">{t('departments', language)}</p>
                   <div className="flex flex-wrap gap-1">
                     {facility.departments.map(d => (
                       <Badge key={d} variant="outline" className="text-[10px]">{d}</Badge>
@@ -240,7 +236,7 @@ export default function Facilities() {
                 >
                   <Button variant="outline" className="w-full h-10 gap-2">
                     <Navigation className="h-4 w-4" />
-                    {language === 'ta' ? 'வழிகாட்டு' : language === 'hi' ? 'नेविगेशन' : 'Navigate to Hospital'}
+                    {t('navigateToHospital', language)}
                   </Button>
                 </a>
                 {/* Only pre-select the facility when a doctor practises there;
@@ -261,9 +257,7 @@ export default function Facilities() {
               <CardContent className="flex flex-col items-center py-12 text-center">
                 <MapPin className="h-10 w-10 text-muted-foreground/30 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  {language === 'ta' ? 'வசதியைத் தேர்ந்தெடுக்கவும்' :
-                   language === 'hi' ? 'सुविधा चुनें' :
-                   'Select a facility to view details'}
+                  {t('selectFacility', language)}
                 </p>
               </CardContent>
             </Card>

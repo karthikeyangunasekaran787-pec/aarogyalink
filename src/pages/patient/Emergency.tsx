@@ -31,9 +31,7 @@ export default function Emergency() {
         </div>
         <h1 className="text-2xl font-bold text-foreground">{t('emergencySupport', language)}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {language === 'ta' ? 'அவசர உதவிக்கான தொடர்புகள்' :
-           language === 'hi' ? 'आपातकालीन सहायता संपर्क' :
-           'Emergency contacts and quick actions'}
+          {t('emergencyContactsSubtitle', language)}
         </p>
       </div>
 
@@ -48,17 +46,17 @@ export default function Emergency() {
           >
             SOS
           </Button>
-          <p className="text-sm text-red-700 mt-3 font-medium">Tap for immediate emergency assistance</p>
+          <p className="text-sm text-red-700 mt-3 font-medium">{t('tapForEmergencyAssistance', language)}</p>
         </CardContent>
       </Card>
 
       {/* Quick contacts */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: 'Ambulance', number: '108', icon: Ambulance, color: 'bg-red-50 text-red-600' },
-          { label: 'Health Helpline', number: '104', icon: Phone, color: 'bg-blue-50 text-blue-600' },
-          { label: 'Nearest PHC', number: '04522345001', icon: MapPin, color: 'bg-emerald-50 text-emerald-600' },
-          { label: 'Police', number: '100', icon: Shield, color: 'bg-amber-50 text-amber-600' },
+          { label: t('callAmbulance', language), number: '108', icon: Ambulance, color: 'bg-red-50 text-red-600' },
+          { label: t('callHealthHelpline', language), number: '104', icon: Phone, color: 'bg-blue-50 text-blue-600' },
+          { label: t('callNearestPhc', language), number: '04522345001', icon: MapPin, color: 'bg-emerald-50 text-emerald-600' },
+          { label: t('callPolice', language), number: '100', icon: Shield, color: 'bg-amber-50 text-amber-600' },
         ].map(contact => {
           const Icon = contact.icon;
           return (
@@ -85,9 +83,7 @@ export default function Emergency() {
 
       <Button variant="outline" className="w-full gap-2 h-11 cursor-pointer" onClick={handleNavigate}>
         <Navigation className="h-4 w-4" />
-        {language === 'ta' ? 'அருகிலுள்ள மருத்துவமனைக்கு வழிகாட்டு' :
-         language === 'hi' ? 'निकटतम अस्पताल तक नेविगेशन' :
-         'Navigate to Nearest Hospital'}
+        {t('navigateToNearestHospital', language)}
       </Button>
     </div>
   );

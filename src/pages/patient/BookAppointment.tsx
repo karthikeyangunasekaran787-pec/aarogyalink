@@ -4,7 +4,8 @@
 
 import { useState, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { t } from '@/lib/i18n';
+import { useTranslation } from '@/hooks/use-translation';
+import { useSubmitGuard } from '@/hooks/use-submit-guard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,8 +58,11 @@ function toBookingLocations(
 }
 
 export default function BookAppointment() {
-  const { language, currentUser } = useApp();
+  const { currentUser } = useApp();
+  const { t } = useTranslation();
   const { facilities, hospitals, doctors, bookAppointment, addNotification } = useData();
+  // One booking per press: a fast double-click must not schedule two visits.
+  const guardBook = useSubmitGuard();
   const locations = useMemo(
     () => toBookingLocations(bookingLocations(facilities, hospitals, doctors), facilities, hospitals),
     [facilities, hospitals, doctors],
@@ -109,6 +113,7 @@ export default function BookAppointment() {
     // Never book against another patient's record if this account is unlinked.
     const patientId = currentUser?.patientId;
     if (!patientId) return;
+    if (!guardBook()) return;
     setBookingRef(`APT-${Date.now().toString().slice(-6)}`);
     bookAppointment({
       patientId,
@@ -118,12 +123,17 @@ export default function BookAppointment() {
       date: selectedDate,
       time: selectedTime,
       status: 'scheduled',
-      reason: reason || 'General consultation',
+      reason: reason || t('generalConsultation'),
     });
     addNotification({
       userId: `u-${patientId}`,
-      title: 'Appointment Booked',
-      message: `Your appointment with ${doctor.name} at ${location.name} on ${selectedDate} at ${selectedTime} is scheduled.`,
+      title: t('appointmentNotificationTitle'),
+      message: t('appointmentNotificationBody', {
+        doctor: doctor.name,
+        facility: location.name,
+        date: selectedDate,
+        time: selectedTime,
+      }),
       type: 'success',
       read: false,
     });
@@ -139,18 +149,18 @@ export default function BookAppointment() {
             <div className="h-16 w-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto">
               <CheckCircle2 className="h-8 w-8 text-emerald-600" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">Appointment Booked</h2>
+            <h2 className="text-xl font-bold text-foreground">{t('appointmentBooked')}</h2>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              Your appointment with {doctor?.name} at {location?.name} has been confirmed.
+              {t('appointmentBookedBody', { doctor: doctor?.name ?? '', facility: location?.name ?? '' })}
             </p>
             <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mt-2">
               <span className="flex items-center gap-1"><Calendar className="h-4 w-4" />{selectedDate}</span>
               <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{selectedTime}</span>
             </div>
             <Badge variant="outline" className="text-xs mt-2">{bookingRef}</Badge>
-            <div className="flex gap-3 justify-center mt-6">
-              <Button variant="outline" onClick={() => navigate('/patient/appointments')}>View My Appointments</Button>
-              <Button onClick={() => navigate('/patient/dashboard')}>Back to Home</Button>
+            <div className="flex flex-wrap gap-3 justify-center mt-6">
+              <Button variant="outline" onClick={() => navigate('/patient/appointments')}>{t('viewMyAppointments')}</Button>
+              <Button onClick={() => navigate('/patient/dashboard')}>{t('backToHome')}</Button>
             </div>
           </CardContent>
         </Card>
@@ -163,11 +173,9 @@ export default function BookAppointment() {
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Calendar className="h-6 w-6 text-primary" />
-          {t('bookAppointment', language)}
+          {t('bookAppointment')}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Select a hospital or facility, doctor, and preferred time slot
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t('bookingSubtitle')}</p>
       </div>
 
       {/* Step 1: Select facility & doctor */}
@@ -175,9 +183,10 @@ export default function BookAppointment() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Select Hospital / Facility</CardTitle>
+              <CardTitle className="text-base">{t('selectHospitalFacility')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">                  {locations.map(l => (
+            <CardContent className="space-y-2">
+              {locations.map(l => (
                 <button
                   key={l.id}
                   className={`w-full text-left p-3 rounded-lg border transition-all cursor-pointer ${
@@ -185,20 +194,22 @@ export default function BookAppointment() {
                   }`}
                   onClick={() => { setSelectedFacility(l.id); setSelectedDoctor(''); }}
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{l.name}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground break-words">{l.name}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                         {l.kind === 'hospital' ? <Building2 className="h-3 w-3" /> : <MapPin className="h-3 w-3" />}
                         {l.area}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex-shrink-0">
                       <Badge variant="outline" className="text-[10px]">
-                        {l.kind === 'hospital' ? 'Hospital' : 'Facility'}
+                        {l.kind === 'hospital' ? t('hospitalKind') : t('facilityKind')}
                       </Badge>
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        {l.careMatchScore ? `Score ${l.careMatchScore}` : `${l.doctorCount} doctor${l.doctorCount === 1 ? '' : 's'}`}
+                        {l.careMatchScore
+                          ? t('readinessScore', { score: l.careMatchScore })
+                          : t(l.doctorCount === 1 ? 'doctorCountOne' : 'doctorCountMany', { count: l.doctorCount })}
                       </p>
                     </div>
                   </div>
@@ -210,11 +221,11 @@ export default function BookAppointment() {
           {selectedLocationId && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Select Doctor</CardTitle>
+                <CardTitle className="text-base">{t('selectDoctor')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {filteredDoctors.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No doctors available at this hospital yet</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">{t('noDoctorsAvailable')}</p>
                 ) : filteredDoctors.map(d => (
                   <button
                     key={d.id}
@@ -223,17 +234,20 @@ export default function BookAppointment() {
                     }`}
                     onClick={() => setSelectedDoctor(d.id)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
                           {d.name.charAt(0)}
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{d.name}</p>
-                          <p className="text-xs text-muted-foreground">{d.specialization} · {d.experience}yr exp</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground break-words">{d.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {d.specialization} · {t('yearsExperience', { years: d.experience })}
+                          </p>
                         </div>
                       </div>
-                      <div className="text-right">
+                      {/* Fees and ratings are amounts, not sentences — they stay as they are. */}
+                      <div className="text-right flex-shrink-0">
                         <p className="text-xs text-muted-foreground">₹{d.consultationFee}</p>
                         <p className="text-[10px] text-muted-foreground">★ {d.rating}</p>
                       </div>
@@ -246,7 +260,7 @@ export default function BookAppointment() {
 
           {selectedLocationId && selectedDoctor && (
             <Button className="w-full h-11" onClick={() => setStep('datetime')}>
-              Continue <ArrowRight className="h-4 w-4 ml-1" />
+              {t('continueLabel')} <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           )}
         </div>
@@ -257,7 +271,7 @@ export default function BookAppointment() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Select Date</CardTitle>
+              <CardTitle className="text-base">{t('selectDate')}</CardTitle>
             </CardHeader>
             <CardContent>
               <Input
@@ -266,6 +280,7 @@ export default function BookAppointment() {
                 onChange={e => setSelectedDate(e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
                 className="h-11"
+                aria-label={t('selectDate')}
               />
             </CardContent>
           </Card>
@@ -273,7 +288,7 @@ export default function BookAppointment() {
           {selectedDate && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Select Time Slot</CardTitle>
+                <CardTitle className="text-base">{t('selectTimeSlot')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
@@ -297,26 +312,26 @@ export default function BookAppointment() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Reason for Visit</CardTitle>
+              <CardTitle className="text-base">{t('reasonForVisit')}</CardTitle>
             </CardHeader>
             <CardContent>
               <Input
                 value={reason}
                 onChange={e => setReason(e.target.value)}
-                placeholder="e.g. Follow-up consultation"
+                placeholder={t('reasonPlaceholder')}
                 className="h-11"
               />
             </CardContent>
           </Card>
 
           <div className="flex gap-3">
-            <Button variant="outline" className="flex-1 h-11" onClick={() => setStep('select')}>Back</Button>
+            <Button variant="outline" className="flex-1 h-11" onClick={() => setStep('select')}>{t('back')}</Button>
             <Button
               className="flex-1 h-11"
               disabled={!selectedDate || !selectedTime}
               onClick={() => setStep('confirm')}
             >
-              Review Booking <ArrowRight className="h-4 w-4 ml-1" />
+              {t('reviewBooking')} <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
         </div>
@@ -327,38 +342,42 @@ export default function BookAppointment() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Confirm Appointment</CardTitle>
+              <CardTitle className="text-base">{t('confirmAppointment')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                <User className="h-5 w-5 text-muted-foreground" />
-                <div>
+                <User className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
                   <p className="text-sm font-medium">{doctor?.name}</p>
                   <p className="text-xs text-muted-foreground">{doctor?.specialization}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                <MapPin className="h-5 w-5 text-muted-foreground" />
-                <div>
+                <MapPin className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
                   <p className="text-sm font-medium">{location?.name}</p>
                   <p className="text-xs text-muted-foreground">{location?.area}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                <Calendar className="h-5 w-5 text-muted-foreground" />
-                <p className="text-sm font-medium">{selectedDate} at {selectedTime}</p>
+                <Calendar className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                <p className="text-sm font-medium">
+                  {t('atTime', { date: selectedDate, time: selectedTime })}
+                </p>
               </div>
               {reason && (
                 <div className="p-3 rounded-lg bg-muted/30">
-                  <p className="text-xs text-muted-foreground mb-0.5">Reason</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">{t('reasonLabel')}</p>
                   <p className="text-sm">{reason}</p>
                 </div>
               )}
             </CardContent>
           </Card>
           <div className="flex gap-3">
-            <Button variant="outline" className="flex-1 h-11" onClick={() => setStep('datetime')}>Back</Button>
-            <Button className="flex-1 h-11" disabled={!doctor || !location} onClick={handleBook}>Confirm Booking</Button>
+            <Button variant="outline" className="flex-1 h-11" onClick={() => setStep('datetime')}>{t('back')}</Button>
+            <Button className="flex-1 h-11" disabled={!doctor || !location} onClick={handleBook}>
+              {t('confirmBooking')}
+            </Button>
           </div>
         </div>
       )}

@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
-import { t, languages } from '@/lib/i18n';
+import { useTranslation } from '@/hooks/use-translation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 
 export default function GovDashboard() {
-  const { language, currentUser } = useApp();
+  const { currentUser } = useApp();
+  const { t } = useTranslation();
   const districtId = currentUser?.districtId;
   const districtName = currentUser?.districtName;
 
@@ -25,6 +26,8 @@ export default function GovDashboard() {
     patients, referrals, followups, currentFacilities,
     villageAccessScores, districtAnalytics: liveAnalytics, referralFunnel,
   } = useData();
+
+  const scopedFacilities = currentFacilities;
 
   // Compute facility performance from actual referrals. Uses the dynamic
   // facility list so hospitals added by the District Administrator appear here.
@@ -38,12 +41,11 @@ export default function GovDashboard() {
         closureRate,
         avgWait: f.averageWaitTime,
         referrals: fReferrals.length,
-        totalReferrals: fReferrals.length,
       };
     });
   }, [currentFacilities, referrals]);
 
-  // Compute monthly trends from actual referral dates
+  // Compute monthly trends from actual referral dates, in chronological order.
   const monthlyTrends = useMemo(() => {
     const monthMap: Record<string, { created: number; closed: number; missed: number }> = {};
     referrals.forEach(r => {
@@ -60,90 +62,23 @@ export default function GovDashboard() {
         if (monthMap[key]) monthMap[key].missed++;
       }
     });
-    // Show in chronological order
-    const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
+    const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return monthOrder.filter(m => monthMap[m]).map(m => ({
       month: m,
       ...monthMap[m],
     }));
   }, [referrals, followups]);
 
-  const maxMonthlyCreated = Math.max(0, ...monthlyTrends.map((m) => m.created));
-
-  // This console covers exactly ONE district: the backend scopes the data it
-  // hands over (convex/authz.ts) and `currentFacilities` is scoped to the
-  // signed-in district administrator's district as well.
-  const scopedFacilities = currentFacilities;
-
-  // Keep the same computed analytics shape the template expected, but scoped to
-  // the district's current facility + referral + follow-up counts.  const scopedDistrictAnalytics = useMemo(() => {
-    const base = liveAnalytics;
-    const scopedTotalReferrals = referrals.length;
-    const scopedClosed = referrals.filter((r) => r.status === 'closed').length;
-    const scopedClosureRate = scopedTotalReferrals > 0
-      ? Math.round((scopedClosed / scopedTotalReferrals) * 100)
-      : base.referralClosureRate;
-    return {
-      ...base,
-      totalReferrals: scopedTotalReferrals,
-      referralClosureRate: scopedClosureRate,
-    };
-  }, [liveAnalytics, referrals]);
-
-  const maxMonthlyCreated = Math.max(...monthlyTrends.map((m) => m.created), 1);
-
-  // Compute facility performance from actual referrals. Uses the dynamic
-  // facility list so hospitals added by the District Administrator appear here.
-  const facilityPerformance = useMemo(() => {
-    return currentFacilities.map((f) => {
-      const fReferrals = referrals.filter((r) => r.destinationFacilityId === f.id);
-      const closed = fReferrals.filter((r) => r.status === 'closed').length;
-      const closureRate = fReferrals.length > 0 ? Math.round((closed / fReferrals.length) * 100) : 0;
-      return {
-        facility: f.name,
-        closureRate,
-        avgWait: f.averageWaitTime,
-        referrals: fReferrals.length,
-        totalReferrals: fReferrals.length,
-      };
-    });
-  }, [currentFacilities, referrals]);
-
-  // Compute monthly trends from actual referral dates
-  const monthlyTrends = useMemo(() => {
-    const monthMap: Record<string, { created: number; closed: number; missed: number }> = {};
-    referrals.forEach((r) => {
-      const d = new Date(r.createdAt);
-      const key = d.toLocaleString('en-US', { month: 'short' });
-      if (!monthMap[key]) monthMap[key] = { created: 0, closed: 0, missed: 0 };
-      monthMap[key].created++;
-      if (r.status === 'closed') monthMap[key].closed++;
-    });
-    followups.forEach((f) => {
-      if (f.status === 'missed') {
-        const d = new Date(f.createdAt);
-        const key = d.toLocaleString('en-US', { month: 'short' });
-        if (monthMap[key]) monthMap[key].missed++;
-      }
-    });
-    // Show in chronological order
-    const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
-    return monthOrder.filter((m) => monthMap[m]).map((m) => ({
-      month: m,
-      ...monthMap[m],
-    }));
-  }, [referrals, followups]);
-
-
+  const maxMonthlyCreated = Math.max(...monthlyTrends.map(m => m.created), 1);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          {t('districtCommandCenterTitle', language)}
+          {t('districtCommandCenterTitle')}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {districtName ? `${districtName} District` : t('districtInfoPlaceholder', language)} • {districtId || '—'} • {scopedFacilities.length} {t('facilitiesUnit', language)} • {patients.length} {t('registeredPatientsUnit', language)}
+          {districtName ? t('districtNameDisplay', { name: districtName }) : t('districtInfoPlaceholder')} • {districtId || '—'} • {scopedFacilities.length} {t('facilitiesUnit')} • {patients.length} {t('registeredPatientsUnit')}
         </p>
       </div>
 
@@ -157,7 +92,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{patients.length}</p>
-                <p className="text-xs text-muted-foreground">{t('patientsServed', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('patientsServed')}</p>
               </div>
             </div>
           </CardContent>
@@ -170,7 +105,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.totalReferrals}</p>
-                <p className="text-xs text-muted-foreground">{t('totalReferrals', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('totalReferrals')}</p>
               </div>
             </div>
           </CardContent>
@@ -183,7 +118,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.referralClosureRate}%</p>
-                <p className="text-xs text-muted-foreground">{t('closureRate', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('closureRate')}</p>
               </div>
             </div>
           </CardContent>
@@ -196,7 +131,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.averageWaitingTime.toFixed(1)}d</p>
-                <p className="text-xs text-muted-foreground">{t('avgWaitTime', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('avgWaitTime')}</p>
               </div>
             </div>
           </CardContent>
@@ -213,7 +148,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.facilitiesOperational}</p>
-                <p className="text-xs text-muted-foreground">{t('activeFacilities', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('activeFacilities')}</p>
               </div>
             </div>
           </CardContent>
@@ -226,7 +161,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.missedFollowups}</p>
-                <p className="text-xs text-muted-foreground">{t('missedFollowups', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('missedFollowups')}</p>
               </div>
             </div>
           </CardContent>
@@ -239,7 +174,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.highRiskPending}</p>
-                <p className="text-xs text-muted-foreground">{t('highRiskPending', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('highRiskPending')}</p>
               </div>
             </div>
           </CardContent>
@@ -252,7 +187,7 @@ export default function GovDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{liveAnalytics.specialistsOnDuty}</p>
-                <p className="text-xs text-muted-foreground">{t('specialistsOnDuty', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('specialistsOnDuty')}</p>
               </div>
             </div>
           </CardContent>
@@ -265,7 +200,7 @@ export default function GovDashboard() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">{t('bedOccupancy', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('bedOccupancy')}</p>
                 <p className="text-lg font-bold text-foreground">{liveAnalytics.occupiedBeds}/{liveAnalytics.totalBeds}</p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -278,11 +213,11 @@ export default function GovDashboard() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">{t('medicines', language)}</p>
-                <p className="text-lg font-bold text-foreground">{liveAnalytics.medicinesInStock} {t('inStock', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('medicines')}</p>
+                <p className="text-lg font-bold text-foreground">{liveAnalytics.medicinesInStock} {t('inStock')}</p>
               </div>
               <Badge variant="outline" className={`text-[10px] ${liveAnalytics.lowStockMedicines > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                {liveAnalytics.lowStockMedicines} {t('shortages', language)}
+                {liveAnalytics.lowStockMedicines} {t('stockShortages')}
               </Badge>
             </div>
           </CardContent>
@@ -291,8 +226,8 @@ export default function GovDashboard() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">{t('diagnostics', language)}</p>
-                <p className="text-lg font-bold text-foreground">{liveAnalytics.diagnosticsAvailable} {t('unitsAvailable', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('diagnostics')}</p>
+                <p className="text-lg font-bold text-foreground">{liveAnalytics.diagnosticsAvailable} {t('unitsAvailable')}</p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-teal-50 flex items-center justify-center">
                 <CheckCircle2 className="h-5 w-5 text-teal-600" />
@@ -304,7 +239,7 @@ export default function GovDashboard() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">{t('rhasScore', language)}</p>
+                <p className="text-xs text-muted-foreground">{t('rhasScore')}</p>
                 <p className="text-lg font-bold text-foreground">{liveAnalytics.ruralAccessScore}/100</p>
               </div>
               <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
@@ -327,11 +262,13 @@ export default function GovDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <TrendingUp className="h-[1.125rem] w-[1.125rem] text-primary" />
-              {t('referralFunnel', language)}
+              {t('referralFunnel')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {referralFunnel.map((stage) => (
+            {referralFunnel.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">{t('noDataAvailable')}</p>
+            ) : referralFunnel.map((stage) => (
               <div key={stage.stage} className="flex items-center gap-3">
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
@@ -355,13 +292,13 @@ export default function GovDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Activity className="h-[1.125rem] w-[1.125rem] text-primary" />
-              {t('monthlyReferralTrends', language)}
+              {t('monthlyReferralTrends')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {monthlyTrends.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">{t('noDataAvailable', language)}</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t('noDataAvailable')}</p>
               ) : monthlyTrends.map(m => (
                 <div key={m.month} className="flex items-center gap-3 text-sm">
                   <span className="w-10 text-xs text-muted-foreground">{m.month}</span>
@@ -382,19 +319,21 @@ export default function GovDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-[1.125rem] w-[1.125rem] text-primary" />
-              {t('facilityPerformance', language)}
+              {t('facilityPerformance')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {facilityPerformance.map(f => (
+            {facilityPerformance.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">{t('noDataAvailable')}</p>
+            ) : facilityPerformance.map(f => (
               <div key={f.facility} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
                 <div>
                   <p className="text-sm font-medium text-foreground">{f.facility}</p>
-                  <p className="text-xs text-muted-foreground">{f.referrals} {t('referralsUnit', language)} • {f.avgWait} {t('minAvgWait', language)}</p>
+                  <p className="text-xs text-muted-foreground">{f.referrals} {t('referralsUnit')} • {f.avgWait} {t('minAvgWait')}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-primary">{f.closureRate}%</p>
-                  <p className="text-[10px] text-muted-foreground">{t('closureRateLabel', language)}</p>
+                  <p className="text-[10px] text-muted-foreground">{t('closureRateLabel')}</p>
                 </div>
               </div>
             ))}
@@ -406,20 +345,25 @@ export default function GovDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <MapPin className="h-[1.125rem] w-[1.125rem] text-primary" />
-              {t('villageHealthcareAccess', language)}
+              {t('villageHealthcareAccess')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {villageAccessScores.map(v => (
+            {villageAccessScores.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">{t('noDataAvailable')}</p>
+            ) : villageAccessScores.map(v => (
               <div key={v.villageId} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
                 <div className="flex items-center gap-2">
+                  {/* Access level is spelled out in the badge, never colour alone. */}
                   <div className={`h-3 w-3 rounded-full ${
                     v.accessLevel === 'good' ? 'bg-emerald-500' :
                     v.accessLevel === 'moderate' ? 'bg-amber-500' : 'bg-red-500'
                   }`} />
                   <div>
                     <p className="text-sm font-medium text-foreground">{v.villageName}</p>
-                    <p className="text-xs text-muted-foreground">{v.distanceToFacility}km • Pop: {v.population.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {v.distanceToFacility}km • {t('populationLabel')}: {v.population.toLocaleString()}
+                    </p>
                   </div>
                 </div>
                 <Badge variant="outline" className={`text-[10px] ${

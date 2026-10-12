@@ -247,7 +247,7 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            {language === 'ta' ? 'வணக்கம்' : language === 'hi' ? 'नमस्ते' : 'Welcome'}, {doctor.name}
+            {t('welcome', language)}, {doctor.name}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {doctor.specialization} • {doctor.qualification} • {doctor.experience}yr exp

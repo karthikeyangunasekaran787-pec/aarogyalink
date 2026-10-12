@@ -4,19 +4,20 @@
 
 import { useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { t } from '@/lib/i18n';
+import { useTranslation } from '@/hooks/use-translation';
+import type { TranslationKey } from '@/lib/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useData } from '@/contexts/DataContext';
 import { Clock, FileText, FlaskConical, Pill, Syringe, ArrowUpRight, Stethoscope, ClipboardList } from 'lucide-react';
 
-const TYPE_CONFIG: Record<string, { icon: typeof FileText; color: string; label: string }> = {
-  consultation: { icon: FileText, color: 'bg-blue-100 text-blue-600', label: 'Consultation' },
-  lab_report: { icon: FlaskConical, color: 'bg-purple-100 text-purple-600', label: 'Lab Report' },
-  prescription: { icon: Pill, color: 'bg-emerald-100 text-emerald-600', label: 'Prescription' },
-  vaccination: { icon: Syringe, color: 'bg-amber-100 text-amber-600', label: 'Vaccination' },
-  referral: { icon: ArrowUpRight, color: 'bg-red-100 text-red-600', label: 'Referral' },
-  treatment: { icon: Stethoscope, color: 'bg-teal-100 text-teal-600', label: 'Treatment' },
+const TYPE_CONFIG: Record<string, { icon: typeof FileText; color: string; label: TranslationKey }> = {
+  consultation: { icon: FileText, color: 'bg-blue-100 text-blue-600', label: 'consultationCompleted' },
+  lab_report: { icon: FlaskConical, color: 'bg-purple-100 text-purple-600', label: 'labReport' },
+  prescription: { icon: Pill, color: 'bg-emerald-100 text-emerald-600', label: 'prescriptionLabel' },
+  vaccination: { icon: Syringe, color: 'bg-amber-100 text-amber-600', label: 'vaccination' },
+  referral: { icon: ArrowUpRight, color: 'bg-red-100 text-red-600', label: 'referralPlain' },
+  treatment: { icon: Stethoscope, color: 'bg-teal-100 text-teal-600', label: 'treatmentStarted' },
 };
 
 type TimelineEntry = {
@@ -33,7 +34,8 @@ type TimelineEntry = {
 
 export default function Timeline() {
   const { healthRecords, getConsultationsForPatient, doctors, facilities } = useData();
-  const { language, currentUser } = useApp();
+  const { currentUser } = useApp();
+  const { t } = useTranslation();
 
   const patientId = currentUser?.patientId;
 
@@ -72,8 +74,8 @@ export default function Timeline() {
           id: c.id,
           date: c.createdAt,
           type: 'treatment',
-          title: `Treatment — ${c.diagnosis}`,
-          description: c.notes || 'Consultation completed',
+          title: t('treatmentWithDiagnosis', { diagnosis: c.diagnosis }),
+          description: c.notes || t('consultationCompletedNote'),
           facilityName: c.facilityName ?? facility?.name,
           doctorName: c.doctorName ?? doctor?.name,
           prescription: c.prescription,
@@ -84,17 +86,17 @@ export default function Timeline() {
 
     // Sort by date descending
     return entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [patientId, healthRecords, getConsultationsForPatient, doctors, facilities]);
+  }, [patientId, healthRecords, getConsultationsForPatient, doctors, facilities, t]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Clock className="h-6 w-6 text-primary" />
-          {t('myTimeline', language)}
+          {t('myTimeline')}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Your complete medical history and treatments in chronological order
+          {t('timelineSubtitle')}
         </p>
       </div>
 
@@ -102,8 +104,8 @@ export default function Timeline() {
         <Card>
           <CardContent className="py-12 text-center">
             <ClipboardList className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No medical records yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Your health records and treatments will appear here</p>
+            <p className="text-sm text-muted-foreground">{t('noMedicalRecordsYet')}</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('noMedicalRecordsHint')}</p>
           </CardContent>
         </Card>
       ) : (
@@ -124,13 +126,13 @@ export default function Timeline() {
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-1">
                         <h4 className="text-sm font-semibold text-foreground">{entry.title}</h4>
-                        <Badge variant="outline" className="text-[10px]">{config.label}</Badge>
+                        <Badge variant="outline" className="text-[10px] flex-shrink-0">{t(config.label)}</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mb-2">{entry.description}</p>
                       {entry.prescription && entry.prescription.length > 0 && (
                         <div className="mb-2 p-2 bg-emerald-50/50 rounded-lg border border-emerald-200/50">
                           <p className="text-[10px] text-emerald-700 font-medium uppercase mb-1 flex items-center gap-1">
-                            <Pill className="h-3 w-3" /> Prescription
+                            <Pill className="h-3 w-3" /> {t('prescriptionLabel')}
                           </p>
                           <ul className="space-y-0.5">
                             {entry.prescription.map((med, i) => (

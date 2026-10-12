@@ -32,12 +32,13 @@ if (!(globalThis as { happyDOM?: unknown }).happyDOM) GlobalRegistrator.register
 
 import type { Root } from 'react-dom/client';
 
-const { act, useState } = await import('react');
+const { act, useState, useSyncExternalStore } = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { useTranslation } = await import('../../src/hooks/use-translation');
 const {
   applyLanguage,
   getLanguageSnapshot,
+  subscribeToLanguage,
   resetLanguageStoreForTests,
 } = await import('../../src/lib/language-store');
 const { t } = await import('../../src/lib/i18n');
@@ -268,6 +269,57 @@ describe('the app is wired to the language store', () => {
       const source = readFileSync(resolve(page), 'utf8');
       expect(source).not.toMatch(/t\([^)]*,\s*'(en|ta|hi)'\s*\)/);
     }
+  });
+});
+
+/**
+ * The staff dashboards take a different route from the patient pages: they read
+ * `language` from useApp() — the provider, which itself publishes the store — and
+ * then call `t(key, language)` at each label. That call site must re-render as
+ * well, otherwise a dashboard would keep its English labels while the patient
+ * pages switched. This probe reproduces that exact pattern (no hook involved):
+ * language read from the store, then the plain translation function.
+ */
+function DashboardPatternProbe() {
+  const language = useSyncExternalStore(subscribeToLanguage, getLanguageSnapshot, getLanguageSnapshot);
+  return (
+    <div>
+      <span data-testid="dash-lang">{language}</span>
+      <span data-testid="dash-title">{t('adminDashboard', language)}</span>
+      <span data-testid="dash-empty">{t('noActiveReferrals', language)}</span>
+    </div>
+  );
+}
+
+describe('the pattern every staff dashboard uses also follows the selector', () => {
+  test('t(key, language) from the store re-renders in Tamil and Hindi', async () => {
+    const element = document.createElement('div');
+    document.body.appendChild(element);
+    const mountedRoot = createRoot(element);
+    await act(async () => {
+      mountedRoot.render(<DashboardPatternProbe />);
+    });
+
+    const read = (id: string) =>
+      document.querySelector(`[data-testid="${id}"]`)?.textContent ?? '';
+
+    expect(read('dash-lang')).toBe('en');
+    expect(read('dash-title')).toBe(t('adminDashboard', 'en'));
+
+    await act(async () => { applyLanguage('ta'); });
+    expect(read('dash-lang')).toBe('ta');
+    expect(read('dash-title')).toBe(t('adminDashboard', 'ta'));
+    expect(read('dash-title')).not.toBe(t('adminDashboard', 'en'));
+    expect(read('dash-empty')).toBe(t('noActiveReferrals', 'ta'));
+
+    await act(async () => { applyLanguage('hi'); });
+    expect(read('dash-title')).toBe(t('adminDashboard', 'hi'));
+
+    await act(async () => { applyLanguage('en'); });
+    expect(read('dash-title')).toBe(t('adminDashboard', 'en'));
+
+    await act(async () => { mountedRoot.unmount(); });
+    element.remove();
   });
 });
 

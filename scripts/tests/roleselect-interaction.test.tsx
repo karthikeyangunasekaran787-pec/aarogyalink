@@ -12,11 +12,46 @@
  *   - does all of this without touching the existing spec or its shared state.
  */
 
-import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 
-GlobalRegistrator.register();
+// Bun runs every test file in one process, so a sibling file may already have
+// registered the DOM. Registering twice throws and takes the whole file down.
+if (!(globalThis as { happyDOM?: unknown }).happyDOM) GlobalRegistrator.register();
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+/**
+ * The page animates, and every test here unmounts mid-animation. happy-dom
+ * reports a cancelled CSS animation by rejecting the animation's `finished`
+ * promise, which Bun surfaces as an unhandled error BETWEEN tests — aborting the
+ * run before the next test's assertions. Telling the page up front that the user
+ * prefers reduced motion removes the animations entirely, so there is nothing to
+ * cancel. RoleSelect, RoleCard and ContinueButton all honour it (framer-motion's
+ * useReducedMotion), and the last test in this file exists precisely to prove the
+ * page stays coherent under it. Selection and routing are what is under test
+ * here, so no assertion is weakened by this.
+ */
+const reducedMotionMedia = (query: string) => ({
+  matches: query.includes('prefers-reduced-motion'),
+  media: query,
+  onchange: null,
+  addListener: () => {},
+  removeListener: () => {},
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => false,
+});
+
+let originalMatchMedia: typeof window.matchMedia;
+
+beforeAll(() => {
+  originalMatchMedia = window.matchMedia;
+  window.matchMedia = reducedMotionMedia as unknown as typeof window.matchMedia;
+});
+
+afterAll(() => {
+  window.matchMedia = originalMatchMedia;
+});
 
 import type { Root } from 'react-dom/client';
 

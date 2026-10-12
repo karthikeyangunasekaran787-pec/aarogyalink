@@ -130,7 +130,7 @@ export default function HospitalAdminDashboard() {
 
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          {language === 'ta' ? 'வணக்கம்' : language === 'hi' ? 'नमस्ते' : 'Welcome'}, Hospital Admin
+          {t('welcome', language)}, {t('hospitalAdminLabel', language)}
         </h1>
         <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
           <Building2 className="h-4 w-4" />

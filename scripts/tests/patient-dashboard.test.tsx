@@ -20,6 +20,7 @@ import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 
 import { t, type Language } from '../../src/lib/i18n';
+import { applyLanguage } from '../../src/lib/language-store';
 
 // ── Test fixtures ──────────────────────────────────────────────────────────
 const PATIENT = {
@@ -94,7 +95,13 @@ const REPORT = {
 };
 
 // ── Module doubles ─────────────────────────────────────────────────────────
-let language: Language = 'en';
+/**
+ * The selected language lives in one app-wide store and the page reads it
+ * through useTranslation(), so the test drives that store with the same call
+ * the language selector makes — not a provider mock, which is exactly the
+ * indirection that let the real selector drift out of sync.
+ */
+const selectLanguage = (lang: Language) => { applyLanguage(lang); };
 let linked = true;
 /** Records passed to the page. Empty by default so empty states are exercised. */
 let data: {
@@ -108,7 +115,6 @@ mock.module('../../src/contexts/AppContext', () => ({
   useApp: () => ({
     currentUser: linked ? { id: 'u-p1', name: PATIENT.name, role: 'patient', patientId: 'p1' } : null,
     isOffline: false,
-    language,
   }),
 }));
 
@@ -140,7 +146,7 @@ const render = () =>
   );
 
 const reset = () => {
-  language = 'en';
+  selectLanguage('en');
   linked = true;
   data = { referrals: [], appointments: [], reports: [], vitals: [] };
 };
@@ -151,7 +157,7 @@ describe('patient dashboard follows the selected language', () => {
   test('every language renders its own welcome and section headings', () => {
     for (const lang of LANGS) {
       reset();
-      language = lang;
+      selectLanguage(lang);
       const html = render();
 
       expect(html).toContain(t('welcomeBackName', lang, { name: 'Lakshmi' }));
@@ -170,7 +176,7 @@ describe('patient dashboard follows the selected language', () => {
   test('a translated page never leaks the English wording or a raw key', () => {
     for (const lang of ['ta', 'hi'] as Language[]) {
       reset();
-      language = lang;
+      selectLanguage(lang);
       const html = render();
       for (const key of ['welcomeBackName', 'myReferrals', 'noReferralsYet', 'patientSummary'] as const) {
         expect(html).not.toContain(key);
@@ -182,9 +188,9 @@ describe('patient dashboard follows the selected language', () => {
 
   test('switching back to English restores the English page', () => {
     reset();
-    language = 'ta';
+    selectLanguage('ta');
     expect(render()).toContain(t('myReports', 'ta'));
-    language = 'en';
+    selectLanguage('en');
     const html = render();
     expect(html).toContain(t('myReports', 'en'));
     expect(html).not.toContain(t('myReports', 'ta'));
@@ -195,7 +201,7 @@ describe('empty states instead of invented data', () => {
   test('no referrals, appointments or reports shows the agreed empty states', () => {
     for (const lang of ['en', 'ta', 'hi'] as Language[]) {
       reset();
-      language = lang;
+      selectLanguage(lang);
       const html = render();
       expect(html).toContain(t('noReferralsYet', lang));
       expect(html).toContain(t('noReferralsHint', lang));
@@ -242,9 +248,9 @@ describe('real records are shown as stored', () => {
   test('the referral status is translated in Tamil and Hindi too', () => {
     reset();
     data.referrals = [REFERRAL];
-    language = 'ta';
+    selectLanguage('ta');
     expect(render()).toContain(t('doctorAssigned', 'ta'));
-    language = 'hi';
+    selectLanguage('hi');
     expect(render()).toContain(t('doctorAssigned', 'hi'));
   });
 

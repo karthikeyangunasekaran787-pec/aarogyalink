@@ -283,10 +283,10 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
 
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          {language === 'ta' ? 'வணக்கம்' : language === 'hi' ? 'नमस्ते' : 'Welcome'}, {hw.name}
+          {t('welcome', language)}, {hw.name}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {language === 'ta' ? 'சுகாதார பணியாளர் டாஷ்போர்டு' : language === 'hi' ? 'स्वास्थ्य कार्यकर्ता डैशबोर्ड' : 'Health Worker Dashboard'} • Area: {hw.area}
+          {t('hwDashboard', language)} • {t('areaLabel', language)}: {hw.area}
         </p>
       </div>
 

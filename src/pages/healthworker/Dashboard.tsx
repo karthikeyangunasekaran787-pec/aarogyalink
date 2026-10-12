@@ -16,6 +16,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { StatTile } from '@/components/shared/StatTile';
+import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import { ReportUploadDialog } from '@/components/reports/ReportUploadDialog';
@@ -281,86 +284,53 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
         </div>
       )}
 
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          {t('welcome', language)}, {hw.name}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t('hwDashboard', language)} • {t('areaLabel', language)}: {hw.area}
-        </p>
+      <PageHeader
+        icon={Stethoscope}
+        title={`${t('welcome', language)}, ${hw.name}`}
+        subtitle={`${t('hwDashboard', language)} • ${t('areaLabel', language)}: ${hw.area}`}
+      />
+
+      {/* KPI Cards — one aligned row of equal-height tiles */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <StatTile
+          icon={Users}
+          tone="blue"
+          value={hwPatients.length}
+          label={t('todayPatients', language)}
+          onClick={() => setSelectedTab('patients')}
+        />
+        <StatTile
+          icon={AlertTriangle}
+          tone="red"
+          value={highRiskPatients.length}
+          label={t('highRiskCases', language)}
+          onClick={() => setSelectedTab('patients')}
+        />
+        <StatTile
+          icon={FileText}
+          tone="amber"
+          value={pendingReferrals.length}
+          label={t('pendingReferrals', language)}
+          onClick={() => setSelectedTab('referrals')}
+        />
+        <StatTile
+          icon={Bell}
+          tone="violet"
+          value={overdueFollowups.length}
+          label={t('missedFollowups', language)}
+          onClick={() => setSelectedTab('followups')}
+        />
+        <StatTile
+          icon={Activity}
+          tone="emerald"
+          value={closedReferrals.length}
+          label={t('completedReferrals', language)}
+          onClick={() => setSelectedTab('referrals')}
+        />
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTab('patients')}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                <Users className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{hwPatients.length}</p>
-                <p className="text-xs text-muted-foreground">{t('todayPatients', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTab('patients')}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{highRiskPatients.length}</p>
-                <p className="text-xs text-muted-foreground">{t('highRiskCases', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTab('referrals')}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{pendingReferrals.length}</p>
-                <p className="text-xs text-muted-foreground">{t('pendingReferrals', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTab('followups')}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                <Bell className="h-5 w-5 text-violet-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{overdueFollowups.length}</p>
-                <p className="text-xs text-muted-foreground">{t('missedFollowups', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTab('referrals')}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                <Activity className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{closedReferrals.length}</p>
-                <p className="text-xs text-muted-foreground">{t('completedReferrals', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* Quick Actions — six actions, so the row divides evenly (3 × 2 / 6 × 1) */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Link to="/health-worker/register">
           <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
             <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
@@ -427,20 +397,18 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
         />
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {(['overview', 'patients', 'referrals', 'followups'] as const).map(tab => (
-          <Button
-            key={tab}
-            variant={selectedTab === tab ? 'default' : 'outline'}
-            size="sm"
-            className="text-xs whitespace-nowrap"
-            onClick={() => setSelectedTab(tab)}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </Button>
-        ))}
-      </div>
+      {/* Tab Navigation — one aligned segmented control, translated */}
+      <SegmentedControl
+        ariaLabel={t('hwDashboard', language)}
+        value={selectedTab}
+        onChange={setSelectedTab}
+        options={[
+          { value: 'overview', label: t('overview', language) },
+          { value: 'patients', label: t('tabPatients', language) },
+          { value: 'referrals', label: t('tabReferrals', language) },
+          { value: 'followups', label: t('tabFollowups', language) },
+        ] satisfies ReadonlyArray<SegmentedOption<typeof selectedTab>>}
+      />
 
       {/* Create Referral Form (inline) */}
       {showReferralForm && (

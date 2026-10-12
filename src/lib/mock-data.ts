@@ -638,7 +638,8 @@ export const hospitals: Hospital[] = [
   {
     id: 'h1', hospitalId: 'HOS-PDK-001', name: 'Pudukkottai Government Hospital',
     type: 'government', address: '12 Anna Salai, Pudukkottai',
-    district: 'Pudukkottai', state: 'Tamil Nadu',
+    district: 'Pudukkottai', state: 'Tamil Nadu', village: 'Pudukkottai',
+    latitude: 10.38, longitude: 78.82,
     phone: '04322-222000', email: 'pgsh@tn.gov.in',
     departments: ['General Medicine', 'Cardiology', 'Orthopaedics', 'Paediatrics', 'Obstetrics', 'ENT'],
     services: ['OPD', 'IPD', 'Emergency', 'Surgery', 'ICU', 'Laboratory', 'Pharmacy'],
@@ -650,7 +651,8 @@ export const hospitals: Hospital[] = [
   {
     id: 'h2', hospitalId: 'HOS-PDK-002', name: 'Alangudi Primary Health Centre',
     type: 'government', address: '5 Main Road, Alangudi',
-    district: 'Pudukkottai', state: 'Tamil Nadu',
+    district: 'Pudukkottai', state: 'Tamil Nadu', village: 'Alangudi',
+    latitude: 10.05, longitude: 78.62,
     phone: '04322-233000', email: 'aphc@tn.gov.in',
     departments: ['General Medicine', 'Maternity'],
     services: ['OPD', 'Emergency', 'Laboratory', 'Pharmacy'],
@@ -662,7 +664,8 @@ export const hospitals: Hospital[] = [
   {
     id: 'h3', hospitalId: 'HOS-PDK-003', name: 'Aranthangi Community Health Centre',
     type: 'government', address: '22 Hospital Road, Aranthangi',
-    district: 'Pudukkottai', state: 'Tamil Nadu',
+    district: 'Pudukkottai', state: 'Tamil Nadu', village: 'Aranthangi',
+    latitude: 10.17, longitude: 78.99,
     phone: '04322-244000', email: 'achc@tn.gov.in',
     departments: ['General Medicine', 'Surgery', 'Paediatrics'],
     services: ['OPD', 'IPD', 'Emergency', 'Surgery', 'Laboratory', 'Pharmacy'],
@@ -674,7 +677,8 @@ export const hospitals: Hospital[] = [
   {
     id: 'h4', hospitalId: 'HOS-PDK-004', name: 'Illupur Government Hospital',
     type: 'government', address: '8 District Road, Illupur',
-    district: 'Pudukkottai', state: 'Tamil Nadu',
+    district: 'Pudukkottai', state: 'Tamil Nadu', village: 'Illupur',
+    latitude: 10.1, longitude: 78.72,
     phone: '04322-255000', email: 'igh@tn.gov.in',
     departments: ['General Medicine', 'Orthopaedics'],
     services: ['OPD', 'Emergency', 'Laboratory', 'Pharmacy'],
@@ -686,7 +690,8 @@ export const hospitals: Hospital[] = [
   {
     id: 'h5', hospitalId: 'HOS-PDK-005', name: 'Gandaravakottai PHC',
     type: 'government', address: '3 Village Road, Gandaravakottai',
-    district: 'Pudukkottai', state: 'Tamil Nadu',
+    district: 'Pudukkottai', state: 'Tamil Nadu', village: 'Gandaravakottai',
+    latitude: 10.3, longitude: 78.85,
     phone: '04322-266000', email: 'gphc@tn.gov.in',
     departments: ['General Medicine'],
     services: ['OPD', 'Emergency', 'Pharmacy'],

@@ -159,6 +159,13 @@ export interface Hospital {
    *  Administrator's own district — the backend rejects a mismatch. */
   districtId?: string;
   districtName?: string;
+  /** Village/town the hospital sits in. Used to resolve a position when the
+   *  exact coordinates were not captured, so patients still get a distance. */
+  village?: string;
+  /** Recorded position of the hospital. Optional: facilities registered before
+   *  location was captured fall back to the place named in `village`/address. */
+  latitude?: number;
+  longitude?: number;
   // Admin credentials (used during creation, stored for display)
   adminName?: string;
   adminUsername?: string;

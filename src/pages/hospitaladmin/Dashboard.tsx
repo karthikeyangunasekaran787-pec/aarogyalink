@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { StatTile } from '@/components/shared/StatTile';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
@@ -128,74 +130,42 @@ export default function HospitalAdminDashboard() {
         </div>
       )}
 
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          {t('welcome', language)}, {t('hospitalAdminLabel', language)}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
-          <Building2 className="h-4 w-4" />
-          {facility.name}
-        </p>
-      </div>
+      <PageHeader
+        icon={Building2}
+        title={`${t('welcome', language)}, ${t('hospitalAdminLabel', language)}`}
+        subtitle={facility.name}
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                <Inbox className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{pendingReferrals.length}</p>
-                <p className="text-xs text-muted-foreground">{t('pendingAcceptance', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{closedReferrals.length}</p>
-                <p className="text-xs text-muted-foreground">{t('closed', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                <Package className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{facilityMeds.filter(m => m.status !== 'out_of_stock').length}/{facilityMeds.length}</p>
-                <p className="text-xs text-muted-foreground">{t('medicineStock', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                <Users className="h-5 w-5 text-violet-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{'specialistsAvailable' in facility ? facility.specialistsAvailable : 0}</p>
-                <p className="text-xs text-muted-foreground">{t('specialists', language)} On Duty</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* KPI Cards — equal-height tiles in one aligned row */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile
+          icon={Inbox}
+          tone="blue"
+          value={pendingReferrals.length}
+          label={t('pendingAcceptance', language)}
+        />
+        <StatTile
+          icon={CheckCircle2}
+          tone="emerald"
+          value={closedReferrals.length}
+          label={t('closed', language)}
+        />
+        <StatTile
+          icon={Package}
+          tone="amber"
+          value={`${facilityMeds.filter(m => m.status !== 'out_of_stock').length}/${facilityMeds.length}`}
+          label={t('medicineStock', language)}
+        />
+        <StatTile
+          icon={Users}
+          tone="violet"
+          value={'specialistsAvailable' in facility ? facility.specialistsAvailable : 0}
+          label={`${t('specialists', language)} On Duty`}
+        />
       </div>
 
       <Tabs defaultValue="referrals">
-        <TabsList className="w-full justify-start">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
           <TabsTrigger value="referrals">{t('referralInbox', language)}</TabsTrigger>
           <TabsTrigger value="qr"><ScanLine className="h-4 w-4 mr-1" /> QR Scan</TabsTrigger>
           <TabsTrigger value="meds">{t('medicineStock', language)}</TabsTrigger>

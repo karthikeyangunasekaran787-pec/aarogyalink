@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { StatTile } from '@/components/shared/StatTile';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
@@ -244,20 +246,21 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
         </div>
       )}
 
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {t('welcome', language)}, {doctor.name}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+      <PageHeader
+        icon={Stethoscope}
+        title={`${t('welcome', language)}, ${doctor.name}`}
+        subtitle={
+          <>
             {doctor.specialization} • {doctor.qualification} • {doctor.experience}yr exp
             {doctorFacility && <span className="ml-2">• {doctorFacility.name}</span>}
-          </p>
-        </div>
-        <Button size="sm" className="gap-1.5" onClick={() => setShowReferralForm(!showReferralForm)}>
-          <PenLine className="h-3.5 w-3.5" /> Create Referral
-        </Button>
-      </div>
+          </>
+        }
+        actions={
+          <Button size="sm" className="gap-1.5" onClick={() => setShowReferralForm(!showReferralForm)}>
+            <PenLine className="h-3.5 w-3.5" /> Create Referral
+          </Button>
+        }
+      />
 
       {/* Two ways into a patient record: an appointment, or the patient's Health
           Card. The Health Card path is always available — even with an empty
@@ -275,60 +278,32 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
         </Button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{todayAppointments.length}</p>
-                <p className="text-xs text-muted-foreground">{t('appointmentQueue', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{completedAppointments.length}</p>
-                <p className="text-xs text-muted-foreground">{t('completed', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{activeReferrals.length}</p>
-                <p className="text-xs text-muted-foreground">{t('activeReferrals', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                <Clock className="h-5 w-5 text-violet-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{doctorFollowups.length}</p>
-                <p className="text-xs text-muted-foreground">{t('followup', language)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* KPI Cards — equal-height tiles in one aligned row */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile
+          icon={Calendar}
+          tone="blue"
+          value={todayAppointments.length}
+          label={t('appointmentQueue', language)}
+        />
+        <StatTile
+          icon={CheckCircle2}
+          tone="emerald"
+          value={completedAppointments.length}
+          label={t('completed', language)}
+        />
+        <StatTile
+          icon={FileText}
+          tone="amber"
+          value={activeReferrals.length}
+          label={t('activeReferrals', language)}
+        />
+        <StatTile
+          icon={Clock}
+          tone="violet"
+          value={doctorFollowups.length}
+          label={t('followup', language)}
+        />
       </div>
 
       {/* Patient Search by Health Card ID */}

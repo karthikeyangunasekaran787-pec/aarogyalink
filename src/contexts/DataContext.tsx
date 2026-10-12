@@ -400,11 +400,13 @@ export function hospitalToFacility(h: Hospital): Facility {
     name: h.name,
     type: 'dh',
     address: h.address,
-    village: h.district,
+    // The village keeps the hospital resolvable to a position for distance
+    // calculations even when the exact coordinates were not recorded.
+    village: h.village ?? h.district,
     district: h.district,
     state: h.state,
-    latitude: 0,
-    longitude: 0,
+    latitude: h.latitude ?? 0,
+    longitude: h.longitude ?? 0,
     phone: h.phone,
     emergencyAvailable: h.services.includes('Emergency'),
     departments: h.departments,

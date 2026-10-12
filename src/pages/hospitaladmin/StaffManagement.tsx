@@ -11,6 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { StatTile } from '@/components/shared/StatTile';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   Users, Stethoscope, Heart, Plus, Search, Edit2, UserX, UserCheck, Trash2,
   CheckCircle2, AlertCircle, X, Copy, Check, Lock
@@ -330,42 +333,33 @@ export default function StaffManagement() {
         </Card>
       )}
 
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Staff Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage doctors and health workers at {facility?.name || 'your facility'}
-          </p>
-        </div>
-        <Button className="gap-1.5" onClick={() => { setForm(p => ({ ...p, role: activeTab === 'doctors' ? 'doctor' : 'health_worker' })); setShowForm(true); }}>
-          <Plus className="h-4 w-4" /> Add {activeTab === 'doctors' ? 'Doctor' : 'Health Worker'}
-        </Button>
-      </div>
+      <PageHeader
+        icon={Users}
+        title="Staff Management"
+        subtitle={`Manage doctors and health workers at ${facility?.name || 'your facility'}`}
+        actions={
+          <Button className="gap-1.5" onClick={() => { setForm(p => ({ ...p, role: activeTab === 'doctors' ? 'doctor' : 'health_worker' })); setShowForm(true); }}>
+            <Plus className="h-4 w-4" /> Add {activeTab === 'doctors' ? 'Doctor' : 'Health Worker'}
+          </Button>
+        }
+      />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('doctors')}>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Stethoscope className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{facilityDoctors.length}</p>
-              <p className="text-xs text-muted-foreground">Doctors</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('health_workers')}>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <Heart className="h-5 w-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{facilityHWs.length}</p>
-              <p className="text-xs text-muted-foreground">Health Workers</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile
+          icon={Stethoscope}
+          tone="blue"
+          value={facilityDoctors.length}
+          label="Doctors"
+          onClick={() => setActiveTab('doctors')}
+        />
+        <StatTile
+          icon={Heart}
+          tone="emerald"
+          value={facilityHWs.length}
+          label="Health Workers"
+          onClick={() => setActiveTab('health_workers')}
+        />
       </div>
 
       {/* Create Staff Form */}
@@ -435,15 +429,16 @@ export default function StaffManagement() {
         </Card>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-2">
-        <Button variant={activeTab === 'doctors' ? 'default' : 'outline'} size="sm" onClick={() => setActiveTab('doctors')}>
-          Doctors ({facilityDoctors.length})
-        </Button>
-        <Button variant={activeTab === 'health_workers' ? 'default' : 'outline'} size="sm" onClick={() => setActiveTab('health_workers')}>
-          Health Workers ({facilityHWs.length})
-        </Button>
-      </div>
+      {/* Tabs — equal-width segments, so the two staff lists stay aligned */}
+      <SegmentedControl
+        ariaLabel="Staff type"
+        value={activeTab}
+        onChange={setActiveTab}
+        options={[
+          { value: 'doctors', label: 'Doctors', icon: Stethoscope, count: facilityDoctors.length },
+          { value: 'health_workers', label: 'Health Workers', icon: Heart, count: facilityHWs.length },
+        ]}
+      />
 
       {/* Search */}
       <div className="relative">

@@ -207,7 +207,7 @@ describe('Overall Administrator console wiring', () => {
     // The button label is translated, so the console renders it through the
     // dictionary key rather than a hardcoded English literal.
     expect(source).toContain("t('createDistrict', language)");
-    expect(t('createDistrict', 'en')).toBe('Create District');
+    expect(t('createDistrict', 'en')).toBe('Add District');
     // The combined one-step form is gone.
     expect(source).not.toMatch(/Create District \+ Administrator/);
     expect(source).not.toMatch(/handleCreateDistrictWithAdmin/);

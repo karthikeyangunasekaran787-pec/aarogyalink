@@ -347,7 +347,7 @@ export default function MasterAdminDashboard() {
         subtitle={`${districts.length} Districts • ${totals.hospitals} Hospitals • ${totals.patients} Registered Patients • Platform-wide view`}
         actions={
           <Button size="sm" onClick={() => { setError(''); setDistrictForm({ name: '', code: '', headquarters: '' }); setShowDistrictForm(true); }}>
-            <Plus className="mr-1.5 h-4 w-4" /> Create District
+            <Plus className="mr-1.5 h-4 w-4" /> {t('createDistrict', language)}
           </Button>
         }
       />
@@ -448,7 +448,7 @@ export default function MasterAdminDashboard() {
             <CardTitle className="text-base flex items-center justify-between">
               <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" /> {t('districtManagement', language)}</span>
               <Button size="sm" onClick={() => { setError(''); setDistrictForm({ name: '', code: '', headquarters: '' }); setShowDistrictForm(true); }}>
-                <Plus className="h-4 w-4 mr-1.5" /> Create District
+                <Plus className="h-4 w-4 mr-1.5" /> {t('createDistrict', language)}
               </Button>
             </CardTitle>
           </CardHeader>

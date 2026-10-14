@@ -14,6 +14,8 @@
  *     completion information
  */
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import {
   ATTENDANCE_GRACE_HOURS,
@@ -484,5 +486,29 @@ describe('metrics come from the records, never from a constant', () => {
     expect(metrics.completionRate).toBe(25);
     expect(metrics.missedReferralRate).toBe(25);
     expect(metrics.reasons).toEqual([{ reason: 'forgot', count: 1 }]);
+  });
+});
+
+describe('the contact time a health worker states is what gets recorded', () => {
+  const dataContext = readFileSync(resolve(import.meta.dir, '../../src/contexts/DataContext.tsx'), 'utf8');
+  const engine = readFileSync(resolve(import.meta.dir, '../../src/convex/appReferral.ts'), 'utf8');
+
+  test('both contact actions send the stated time to the backend', () => {
+    // A logged attempt and a reached contact each carry contactAt — the value
+    // the person entered — instead of leaving "when" to be invented later.
+    expect(dataContext.match(/contactAt: input\.contactAt/g) ?? []).toHaveLength(2);
+  });
+
+  test('the backend stores it, but never later than the server clock', () => {
+    expect(engine).toContain('requestedContactAt.getTime() <= nowDate.getTime()');
+    expect(engine).toMatch(/lastContactAt = contactAt/);
+  });
+
+  test('the contact form always states a time (a "just now" default)', () => {
+    const panel = readFileSync(
+      resolve(import.meta.dir, '../../src/components/referrals/MissedReferralsPanel.tsx'),
+      'utf8',
+    );
+    expect(panel).toContain('contactAt: new Date(defaultContactAt).toISOString()');
   });
 });

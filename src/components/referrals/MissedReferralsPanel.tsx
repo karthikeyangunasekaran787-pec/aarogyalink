@@ -355,11 +355,15 @@ export function FollowupForm({
   onSubmit: (payload: FollowupPayload) => void | Promise<void>;
 }) {
   const { t } = useTranslation();
-  const [payload, setPayload] = useState<FollowupPayload>(EMPTY_PAYLOAD);
-  const set = (patch: Partial<FollowupPayload>) => setPayload(prev => ({ ...prev, ...patch }));
-
-  // Timezone-local default for "date and time of the contact".
+  // Timezone-local default for "date and time of the contact": unless the
+  // person states an earlier time, the attempt is recorded as happening now
+  // (the value is sent to the backend with the record, not re-derived there).
   const defaultContactAt = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const [payload, setPayload] = useState<FollowupPayload>(() => ({
+    ...EMPTY_PAYLOAD,
+    contactAt: new Date(defaultContactAt).toISOString(),
+  }));
+  const set = (patch: Partial<FollowupPayload>) => setPayload(prev => ({ ...prev, ...patch }));
 
   const titles: Record<FollowupMode, TranslationKey> = {
     confirm_missed: 'confirmMissed',

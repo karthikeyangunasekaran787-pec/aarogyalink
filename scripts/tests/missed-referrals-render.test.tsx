@@ -152,6 +152,10 @@ describe('the follow-up form asks only for what a person can state', () => {
     expect(html).toContain('Date and time of the contact');
     expect(html).toContain('Action taken');
     expect(html).toContain('Next follow-up date');
+    // The attempt time is always stated (a default of "just now"), never left
+    // for the backend to invent.
+    expect(html).toContain('type="datetime-local"');
+    expect(html).toMatch(/value="20\d\d-\d\d-\d\dT\d\d:\d\d"/);
     // The app never claims to send messages itself.
     expect(html).toContain('AarogyaLink does not send SMS, WhatsApp or push messages');
   });

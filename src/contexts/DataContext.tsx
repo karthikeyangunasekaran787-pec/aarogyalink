@@ -991,6 +991,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setReferrals(prev => prev.map(r => {
         if (r.id !== referralId) return r;
         const rule = ESCALATION_RULES[r.priority] ?? ESCALATION_RULES.routine;
+        // The stored audit timestamp for an offline write is the moment it was
+        // saved here; the backend's version (with the server clock and the
+        // caller's STORED identity) replaces it on sync.
         return {
           ...r,
           status: REFERRAL_STATUS.MISSED,
@@ -1021,11 +1024,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       nextFollowUpDate: input.nextFollowUpDate,
       notes: input.notes,
       reason: input.reason,
+      // When the person ACTUALLY made the attempt, as they stated it.
+      contactAt: input.contactAt,
     }, () => {
       setReferrals(prev => prev.map(r => (r.id === referralId
         ? {
             ...r,
-            lastContactAt: now(),
+            lastContactAt: input.contactAt ?? now(),
             lastContactMethod: input.method,
             lastContactReached: false,
             lastContactByName: currentUser?.name,
@@ -1048,6 +1053,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       actionTaken: input.actionTaken,
       nextFollowUpDate: input.nextFollowUpDate,
       notes: input.notes,
+      contactAt: input.contactAt,
     }, () => {
       setReferrals(prev => prev.map(r => (r.id === referralId
         ? {
@@ -1055,7 +1061,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             status: REFERRAL_STATUS.CONTACTED,
             currentStep: referralStepOf(REFERRAL_STATUS.CONTACTED),
             totalSteps: REFERRAL_TOTAL_STEPS,
-            lastContactAt: now(),
+            lastContactAt: input.contactAt ?? now(),
             lastContactMethod: input.method,
             lastContactReached: true,
             lastContactByName: currentUser?.name,

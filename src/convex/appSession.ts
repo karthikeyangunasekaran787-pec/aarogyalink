@@ -20,19 +20,19 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { getAuthUserId } from '@convex-dev/auth/server';
 import { v } from 'convex/values';
 import { parseEnvelope, scopeFromBinding } from './authz';
+import { isOverallAdminEmail } from '../lib/master-admin';
 
 /** Roles that sign in with a username + password (District Administrators too). */
 const LOGIN_ROLES = ['health_worker', 'doctor', 'hospital_admin', 'gov_admin'] as const;
 
-/**
- * Master (Overall Administrator) email. Configurable per deployment; the
- * Overall Administrator also has to prove ownership of this address with the
- * emailed one-time code, so no password is stored for the master account.
- * Never exposed to the client.
+/*
+ * Master (Overall Administrator) email: ONE fixed address, imported from the
+ * shared module so this server check and the sign-in screen can never disagree
+ * (see src/lib/master-admin.ts). It is not configurable per deployment — the
+ * master account stores no password, so ownership of this address, proved with
+ * the emailed one-time code, is the entire credential, and every other address
+ * has to be refused.
  */
-function overallAdminEmail(): string {
-  return (process.env.OVERALL_ADMIN_EMAIL ?? 'karthikeyangunasekaran787@gmail.com').trim().toLowerCase();
-}
 
 /**
  * Verified email of the currently authenticated Convex user, or undefined.
@@ -289,7 +289,7 @@ export const loginOverallSession = mutation({
   handler: async (ctx) => {
     const userId = await requireUserId(ctx);
     const email = await callerEmail(ctx);
-    if (!email || email !== overallAdminEmail()) {
+    if (!isOverallAdminEmail(email)) {
       // `observedEmail` is the caller's OWN verified address (never the
       // configured master address), so the sign-in screen can say exactly what
       // went wrong: no verified email on this session, or a different address.

@@ -22,6 +22,7 @@ import {
   writeBackendToken,
 } from '@/lib/backend-session';
 import type { Role } from '@/types';
+import { checkMasterEmail } from '@/lib/master-admin';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -116,13 +117,18 @@ export default function AuthPage() {
   // ── Overall Administrator: master email + emailed one-time code ──
   // Step 1 sends the code to the address the operator typed; the backend never
   // learns about it until step 2, and it only opens the master binding when the
-  // authenticated identity actually IS the configured master address.
+  // authenticated identity actually IS the registered master address.
   const handleMasterRequestCode = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setMasterInfo('');
-    if (!masterEmail.includes('@')) {
-      setError(t('errEnterMasterEmail'));
+    // Only the registered master address may request a code: a wrong address is
+    // refused here, so no one-time code is ever emailed for it. The backend
+    // enforces the same rule on its own (src/lib/master-admin.ts is the one
+    // place that names the address).
+    const rejection = checkMasterEmail(masterEmail);
+    if (rejection) {
+      setError(t(rejection === 'not_master' ? 'errMasterEmailNotAllowed' : 'errEnterMasterEmail'));
       return;
     }
     setLoading(true);

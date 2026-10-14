@@ -16,6 +16,8 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 
+import { BRAND_MARK_SOURCES } from '../../src/lib/brand-assets';
+
 mock.module('../../src/contexts/AppContext', () => ({
   useApp: () => ({ language: 'en' as const, setLanguage: () => {} }),
 }));
@@ -51,6 +53,16 @@ describe('Landing page', () => {
     ]) {
       expect(html).toContain(s);
     }
+  });
+
+  test('the header carries the official brand mark, not a stand-in glyph', () => {
+    const html = render();
+    const header = html.slice(0, html.indexOf('</header>'));
+    // Same artwork as the role-selection, sign-in and in-app headers.
+    expect(header).toContain(`src="${BRAND_MARK_SOURCES[0]}"`);
+    // The hand-rolled tile with a lucide heart that used to stand in for the
+    // emblem must not come back: one brand mark in the app, not two.
+    expect(header).not.toContain('lucide-heart');
   });
 
   test('shows the nine-stage referral loop', () => {

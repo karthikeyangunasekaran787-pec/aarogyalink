@@ -17,6 +17,7 @@ import {
   QrCode, ShieldCheck, Stethoscope, UserRound, WifiOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { useApp } from '@/contexts/AppContext';
 import { REFERRAL_STEPS } from '@/convex/referralStatus';
 import type { Language } from '@/lib/i18n';
@@ -84,10 +85,11 @@ export default function Landing() {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6">
+          {/* The official AarogyaLink emblem, identical to the one on the
+              role-selection, sign-in and in-app headers — never a stand-in
+              glyph — with the wordmark typeset beside it. */}
           <Link to="/" className="flex items-center gap-2.5" aria-label="AarogyaLink home">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Heart className="h-4 w-4 text-primary-foreground" fill="currentColor" aria-hidden="true" />
-            </span>
+            <BrandLogo size={32} />
             <span className="text-lg font-bold tracking-tight">
               Aarogya<span className="text-primary">Link</span>
             </span>

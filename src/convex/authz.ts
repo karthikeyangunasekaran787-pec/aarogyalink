@@ -767,6 +767,16 @@ function serverActorFields(actor: WriteActor): Record<string, unknown> {
 }
 
 /**
+ * Statuses a referral must be able to show completion information for before it
+ * may be closed (see mergeReferralsScoped).
+ */
+const MISSED_FOLLOWUP_STATUSES = new Set<string>([
+  REFERRAL_STATUS.AWAITING_CONFIRMATION,
+  REFERRAL_STATUS.MISSED,
+  REFERRAL_STATUS.CONTACTED,
+]);
+
+/**
  * Referral writes keep the working fields editable but never let a caller jump
  * the workflow: a status change that the canonical model does not allow is
  * dropped (the stored record wins), so the collection path cannot be used to
@@ -828,6 +838,18 @@ function mergeReferralsScoped(
       // field edits through (notes, appointment details, …).
       out.push({ ...record, status: storedRecord.status });
       continue;
+    }
+    if (statusChange && next === REFERRAL_STATUS.CLOSED && MISSED_FOLLOWUP_STATUSES.has(previous ?? '')) {
+      // A referral is never closed without the required completion information:
+      // leaving the missed-referral queue needs a documented outcome AND a note.
+      // Without them the stored status stands, so the offline collection path
+      // cannot close a missed referral silently either.
+      const hasOutcome = typeof record.closureOutcome === 'string' && record.closureOutcome.length > 0;
+      const hasNotes = typeof record.closureNotes === 'string' && record.closureNotes.trim().length > 0;
+      if (!hasOutcome || !hasNotes) {
+        out.push({ ...record, status: storedRecord.status });
+        continue;
+      }
     }
     out.push(record);
   }

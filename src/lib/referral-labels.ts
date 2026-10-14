@@ -21,6 +21,11 @@ const STATUS_KEYS: Record<string, TranslationKey> = {
   followup: 'followup',
   closed: 'referralClosed',
   cancelled: 'cancelled',
+  // Missed-referral follow-up cycle (off the care pathway).
+  awaiting_confirmation: 'statusAwaitingConfirmation',
+  missed: 'statusMissed',
+  contacted: 'statusContacted',
+  rescheduled: 'statusRescheduled',
 };
 
 /** The translation key for one canonical referral status. */

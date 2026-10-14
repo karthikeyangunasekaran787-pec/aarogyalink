@@ -18,7 +18,57 @@ export type ReferralStatus =
   | 'treatment'        // TREATMENT_STARTED
   | 'followup'         // FOLLOW_UP
   | 'closed'           // CLOSED
-  | 'cancelled';       // CANCELLED (terminal, explicit)
+  | 'cancelled'        // CANCELLED (terminal, explicit)
+  // Missed-referral follow-up cycle (see src/lib/missed-referrals.ts): the
+  // expected time passed without a recorded arrival. Uncertainty is its own
+  // status, so a hospital that failed to update its records never makes a
+  // referral "missed".
+  | 'awaiting_confirmation' // AWAITING_CONFIRMATION — attendance uncertain
+  | 'missed'                // MISSED — non-attendance documented, follow-up open
+  | 'contacted'             // CONTACTED — patient reached about the missed visit
+  | 'rescheduled';          // RESCHEDULED — new appointment after a missed visit
+
+/** Why the patient did not attend. Chosen by a person, never inferred. */
+export type MissedReason =
+  | 'transport'
+  | 'financial'
+  | 'forgot'
+  | 'no_appointment_available'
+  | 'could_not_contact'
+  | 'patient_refused'
+  | 'attended_another_hospital'
+  | 'other';
+
+/**
+ * How the follow-up contact was made. These are recorded by the health worker
+ * for a contact THEY made (a call from their own phone, a home visit, a message
+ * they sent) — AarogyaLink itself does not send SMS, WhatsApp or push.
+ */
+export type ContactMethod =
+  | 'phone_call'
+  | 'home_visit'
+  | 'in_person'
+  | 'sms'
+  | 'whatsapp'
+  | 'other';
+
+/** The documented outcome required to close a missed referral. */
+export type MissedClosureOutcome =
+  | 'patient_unreachable'
+  | 'patient_refused'
+  | 'attended_another_hospital'
+  | 'clinically_resolved'
+  | 'duplicate_referral';
+
+/** Derived follow-up state of one referral (never stored — see the lib). */
+export type ReferralFollowupState =
+  | 'on_track'
+  | 'awaiting_confirmation'
+  | 'missed'
+  | 'contacted'
+  | 'rescheduled'
+  | 'closed'
+  | 'cancelled';
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'missed';
 export type FollowupStatus = 'scheduled' | 'completed' | 'missed' | 'overdue' | 'rescheduled';
 
@@ -337,6 +387,40 @@ export interface Referral {
   acceptedByName?: string;
   assignedDoctorId?: string;
   assignedDoctorName?: string;
+  // ── Missed-referral follow-up (all optional: existing records stay valid) ──
+  /** When the expected attendance was noticed to have passed (uncertainty). */
+  awaitingConfirmationAt?: string;
+  awaitingConfirmationByName?: string;
+  awaitingConfirmationByUserId?: string;
+  /** Confirmed non-attendance: who documented it, when, and why. */
+  missedAt?: string;
+  missedReason?: MissedReason;
+  missedNotes?: string;
+  missedByName?: string;
+  missedByUserId?: string;
+  missedByRole?: string;
+  /** Administrative escalation level derived from the clinical priority. */
+  escalationLevel?: 'follow_up_queue' | 'prompt' | 'emergency_protocol';
+  /** When the escalation rule expects the patient to have been contacted. */
+  followupDueAt?: string;
+  /** Last follow-up contact (attempt or successful contact). */
+  lastContactAt?: string;
+  lastContactMethod?: ContactMethod;
+  lastContactReached?: boolean;
+  lastContactByName?: string;
+  contactAttemptCount?: number;
+  nextFollowUpDate?: string;
+  actionTaken?: string;
+  /** Rescheduling after a missed visit. */
+  rescheduledAt?: string;
+  rescheduledByName?: string;
+  rescheduleCount?: number;
+  /** Documented closure of a missed referral. */
+  closureOutcome?: MissedClosureOutcome | 'treatment_completed';
+  closureNotes?: string;
+  /** Verified attendance elsewhere (the referral was not, in fact, missed). */
+  attendedElsewhereHospital?: string;
+  attendedElsewhereDate?: string;
 }
 
 export interface ReferralEvent {
@@ -357,7 +441,26 @@ export interface ReferralEvent {
   actorRole?: string;
   hospitalId?: string;
   notes?: string;
-  metadata?: { doctorId?: string; doctorName?: string };
+  metadata?: {
+    doctorId?: string;
+    doctorName?: string;
+    /** Contact attempt / contacted events. */
+    method?: string;
+    reached?: boolean;
+    actionTaken?: string;
+    nextFollowUpDate?: string;
+    reason?: string;
+    /** rescheduled events. */
+    date?: string;
+    time?: string;
+    /** closure events. */
+    outcome?: string;
+    /** Notification attempts (in-app audit record; no SMS/push is sent). */
+    channel?: string;
+    deliveryStatus?: string;
+    dedupeKey?: string;
+    escalationLevel?: string;
+  };
   // Structured actor identity (Convex records both namings).
   performedByName?: string;
   // Audit attribution — who actually performed the transition, in which role

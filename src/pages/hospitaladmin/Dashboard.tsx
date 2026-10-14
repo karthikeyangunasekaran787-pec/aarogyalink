@@ -18,6 +18,8 @@ import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import { useReferralEngine } from '@/hooks/use-referral-engine';
+// Arrival confirmation for appointments whose time has passed.
+import { AwaitingConfirmationPanel } from '@/components/referrals/AwaitingConfirmationPanel';
 import {
   Inbox, CheckCircle2, ScanLine, Package, XCircle, Trash2, Plus,
   Users, Building2, Clock, Calendar, Search, Stethoscope
@@ -174,6 +176,11 @@ export default function HospitalAdminDashboard() {
 
         {/* ── Referrals Tab ──────────────────────────────── */}
         <TabsContent value="referrals" className="mt-4 space-y-4">
+          {/* Referrals whose expected time passed with no arrival recorded. They
+              are UNCERTAIN, not missed: the desk records what actually
+              happened (late arrival / did not attend / attended elsewhere). */}
+          <AwaitingConfirmationPanel referrals={facilityReferrals} />
+
           {/* Closure engine metrics for this hospital — computed from stored data */}
           <ReferralClosureStats referrals={facilityReferrals} events={referralEvents} />
 

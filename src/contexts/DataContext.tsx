@@ -26,8 +26,12 @@ import type {
   HealthWorker, Vitals, HealthRecord, MedicalReport, ReportType, MedicineStock,
   Diagnostic, VillageAccessScore, Notification, ReferralEvent, Consultation,
   ReferralPrediction, ReferralStatus, AppointmentStatus, FollowupStatus,
-  DistrictAnalytics, ReferralFunnelStage, Role, User, Hospital, District
+  DistrictAnalytics, ReferralFunnelStage, Role, User, Hospital, District,
+  MissedReason, MissedClosureOutcome
 } from '@/types';
+// The missed-referral follow-up rules (detection, escalation deadlines) are
+// shared with the backend sweep so both sides agree on what "overdue" means.
+import { ESCALATION_RULES, type FollowupContactInput } from '@/lib/missed-referrals';
 
 // Initial data: base demo fixtures + the second district (Tiruchirappalli).
 import {
@@ -59,6 +63,12 @@ const REFERRAL_STEP_MAP: Record<ReferralStatus, number> = Object.fromEntries(
 ) as Record<ReferralStatus, number>;
 // Cancelled is terminal and sits outside the ordered chain.
 REFERRAL_STEP_MAP.cancelled = REFERRAL_STEP_MAP.closed;
+// The missed-visit statuses are reported at the "Appointment Scheduled" step
+// they were interrupted at, so funnel counts stay truthful.
+REFERRAL_STEP_MAP.awaiting_confirmation = REFERRAL_STEP_MAP.scheduled;
+REFERRAL_STEP_MAP.missed = REFERRAL_STEP_MAP.scheduled;
+REFERRAL_STEP_MAP.contacted = REFERRAL_STEP_MAP.scheduled;
+REFERRAL_STEP_MAP.rescheduled = REFERRAL_STEP_MAP.scheduled;
 
 /**
  * What a referral action returns. `ok:false` carries the SERVER's reason (the
@@ -123,6 +133,15 @@ interface DataContextValue {
   completeFollowupById: (followupId: string) => void;
   markFollowupMissed: (followupId: string) => void;
   closeReferral: (referralId: string, notes?: string) => Promise<ReferralActionResult>;
+  // Missed-referral follow-up. Each one is validated by the backend against the
+  // stored referral and the caller's session binding, never by the UI.
+  markAttendanceUncertain: (referralId: string) => Promise<ReferralActionResult>;
+  confirmMissedReferral: (referralId: string, reason: MissedReason, notes?: string) => Promise<ReferralActionResult>;
+  logContactAttempt: (referralId: string, input: FollowupContactInput) => Promise<ReferralActionResult>;
+  recordContact: (referralId: string, input: FollowupContactInput) => Promise<ReferralActionResult>;
+  rescheduleReferral: (referralId: string, date: string, time: string, notes?: string) => Promise<ReferralActionResult>;
+  closeMissedReferral: (referralId: string, outcome: MissedClosureOutcome, notes: string, otherHospitalName?: string) => Promise<ReferralActionResult>;
+  recordAttendanceElsewhere: (referralId: string, otherHospitalName: string, attendedDate: string, notes?: string) => Promise<ReferralActionResult>;
   createReferral: (data: Omit<Referral, 'id' | 'referralId' | 'status' | 'currentStep' | 'totalSteps' | 'createdAt' | 'updatedAt' | 'isOverdue'>) => void;
 
   // Appointment actions
@@ -772,13 +791,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const confirmArrival = useCallback((referralId: string) =>
     runReferralAction('verify_arrival', referralId, {}, () => {
+      // Offline fallback mirrors the backend: a LATE arrival counts too, so a
+      // referral flagged as uncertain or re-scheduled can still be verified.
+      const arrivalFrom: string[] = [REFERRAL_STATUS.SCHEDULED, REFERRAL_STATUS.AWAITING_CONFIRMATION, REFERRAL_STATUS.RESCHEDULED];
       setReferrals(prev => prev.map(r => {
-        if (r.id !== referralId || r.status !== REFERRAL_STATUS.SCHEDULED) return r;
+        if (r.id !== referralId || !arrivalFrom.includes(r.status)) return r;
         return {
           ...r,
           status: REFERRAL_STATUS.ARRIVAL_VERIFIED,
           currentStep: referralStepOf(REFERRAL_STATUS.ARRIVAL_VERIFIED),
           totalSteps: REFERRAL_TOTAL_STEPS,
+          isOverdue: false,
           updatedAt: now(),
         };
       }));
@@ -932,6 +955,197 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setFollowups(prev => prev.map(f => f.referralId === referralId ? { ...f, status: 'completed' as FollowupStatus } : f));
       addReferralEvent(referralId, REFERRAL_STATUS.CLOSED, 'Referral closed.');
     }), [runReferralAction, addReferralEvent]);
+
+  // ── Missed-referral follow-up ─────────────────────────────────
+  /**
+   * Note that the expected appointment time has passed with nothing recorded.
+   * This is NOT "missed": attendance is uncertain, and the referral is only
+   * surfaced for a person to check. The backend refuses it until the expected
+   * time has genuinely passed.
+   */
+  const markAttendanceUncertain = useCallback((referralId: string) =>
+    runReferralAction('mark_unconfirmed', referralId, {}, () => {
+      setReferrals(prev => prev.map(r => (r.id === referralId
+        ? {
+            ...r,
+            status: REFERRAL_STATUS.AWAITING_CONFIRMATION,
+            currentStep: referralStepOf(REFERRAL_STATUS.AWAITING_CONFIRMATION),
+            totalSteps: REFERRAL_TOTAL_STEPS,
+            awaitingConfirmationAt: now(),
+            awaitingConfirmationByName: currentUser?.name,
+            isOverdue: true,
+            updatedAt: now(),
+          }
+        : r)));
+      addReferralEvent(referralId, REFERRAL_STATUS.AWAITING_CONFIRMATION,
+        'Expected appointment time passed with no arrival recorded — attendance awaiting confirmation.');
+    }), [runReferralAction, addReferralEvent, currentUser]);
+
+  /**
+   * A person documented that the patient did not attend: the referral enters the
+   * follow-up queue with the administrative contact deadline its clinical
+   * priority already implies (the priority itself is never touched).
+   */
+  const confirmMissedReferral = useCallback((referralId: string, reason: MissedReason, notes?: string) =>
+    runReferralAction('confirm_missed', referralId, { reason, notes }, () => {
+      setReferrals(prev => prev.map(r => {
+        if (r.id !== referralId) return r;
+        const rule = ESCALATION_RULES[r.priority] ?? ESCALATION_RULES.routine;
+        return {
+          ...r,
+          status: REFERRAL_STATUS.MISSED,
+          currentStep: referralStepOf(REFERRAL_STATUS.MISSED),
+          totalSteps: REFERRAL_TOTAL_STEPS,
+          missedAt: now(),
+          missedReason: reason,
+          missedNotes: notes,
+          missedByName: currentUser?.name,
+          missedByUserId: currentUser?.id,
+          missedByRole: currentUser?.role,
+          escalationLevel: rule.level,
+          followupDueAt: new Date(Date.now() + rule.contactWithinHours * 36e5).toISOString(),
+          isOverdue: true,
+          updatedAt: now(),
+        };
+      }));
+      addReferralEvent(referralId, REFERRAL_STATUS.MISSED,
+        `Missed appointment confirmed (${reason.replace(/_/g, ' ')}). Follow-up opened.`);
+    }), [runReferralAction, addReferralEvent, currentUser]);
+
+  /** A contact attempt that did NOT reach the patient — recorded, not "contacted". */
+  const logContactAttempt = useCallback((referralId: string, input: FollowupContactInput) =>
+    runReferralAction('log_contact_attempt', referralId, {
+      method: input.method,
+      reached: false,
+      actionTaken: input.actionTaken,
+      nextFollowUpDate: input.nextFollowUpDate,
+      notes: input.notes,
+      reason: input.reason,
+    }, () => {
+      setReferrals(prev => prev.map(r => (r.id === referralId
+        ? {
+            ...r,
+            lastContactAt: now(),
+            lastContactMethod: input.method,
+            lastContactReached: false,
+            lastContactByName: currentUser?.name,
+            contactAttemptCount: (r.contactAttemptCount ?? 0) + 1,
+            actionTaken: input.actionTaken || r.actionTaken,
+            nextFollowUpDate: input.nextFollowUpDate || r.nextFollowUpDate,
+            missedReason: input.reason || r.missedReason,
+            updatedAt: now(),
+          }
+        : r)));
+      addReferralEvent(referralId, REFERRAL_STATUS.MISSED,
+        `Follow-up contact attempt (${input.method.replace(/_/g, ' ')}) — patient not reached.`);
+    }), [runReferralAction, addReferralEvent, currentUser]);
+
+  /** The patient was reached: only a person's record can mark that. */
+  const recordContact = useCallback((referralId: string, input: FollowupContactInput) =>
+    runReferralAction('record_contact', referralId, {
+      method: input.method,
+      reached: true,
+      actionTaken: input.actionTaken,
+      nextFollowUpDate: input.nextFollowUpDate,
+      notes: input.notes,
+    }, () => {
+      setReferrals(prev => prev.map(r => (r.id === referralId
+        ? {
+            ...r,
+            status: REFERRAL_STATUS.CONTACTED,
+            currentStep: referralStepOf(REFERRAL_STATUS.CONTACTED),
+            totalSteps: REFERRAL_TOTAL_STEPS,
+            lastContactAt: now(),
+            lastContactMethod: input.method,
+            lastContactReached: true,
+            lastContactByName: currentUser?.name,
+            contactedAt: now(),
+            contactedByName: currentUser?.name,
+            contactAttemptCount: (r.contactAttemptCount ?? 0) + 1,
+            actionTaken: input.actionTaken || r.actionTaken,
+            nextFollowUpDate: input.nextFollowUpDate || r.nextFollowUpDate,
+            updatedAt: now(),
+          }
+        : r)));
+      addReferralEvent(referralId, REFERRAL_STATUS.CONTACTED,
+        `Patient reached by ${input.method.replace(/_/g, ' ')}${input.actionTaken ? ` — ${input.actionTaken}` : ''}.`);
+    }), [runReferralAction, addReferralEvent, currentUser]);
+
+  /** New appointment after a missed visit; a new cycle for detection. */
+  const rescheduleReferral = useCallback((referralId: string, date: string, time: string, notes?: string) =>
+    runReferralAction('reschedule_referral', referralId, { date, time, notes }, () => {
+      setReferrals(prev => prev.map(r => (r.id === referralId
+        ? {
+            ...r,
+            status: REFERRAL_STATUS.RESCHEDULED,
+            currentStep: referralStepOf(REFERRAL_STATUS.RESCHEDULED),
+            totalSteps: REFERRAL_TOTAL_STEPS,
+            appointmentDate: date,
+            appointmentTime: time,
+            rescheduledAt: now(),
+            rescheduledByName: currentUser?.name,
+            rescheduleCount: (r.rescheduleCount ?? 0) + 1,
+            isOverdue: false,
+            updatedAt: now(),
+          }
+        : r)));
+      addReferralEvent(referralId, REFERRAL_STATUS.RESCHEDULED,
+        `Appointment rescheduled to ${date} at ${time}.`);
+    }), [runReferralAction, addReferralEvent, currentUser]);
+
+  /**
+   * Close an unresolved missed referral. A documented outcome AND a note are
+   * required: a referral is never closed without the completion information.
+   */
+  const closeMissedReferral = useCallback((referralId: string, outcome: MissedClosureOutcome, notes: string, otherHospitalName?: string) =>
+    runReferralAction('close_missed', referralId, { outcome, notes, otherHospitalName }, () => {
+      setReferrals(prev => prev.map(r => (r.id === referralId
+        ? {
+            ...r,
+            status: REFERRAL_STATUS.CLOSED,
+            currentStep: referralStepOf(REFERRAL_STATUS.CLOSED),
+            totalSteps: REFERRAL_TOTAL_STEPS,
+            closedAt: now(),
+            closedByUserId: currentUser?.id,
+            closedByName: currentUser?.name,
+            closureOutcome: outcome,
+            closureNotes: notes,
+            attendedElsewhereHospital: outcome === 'attended_another_hospital' ? otherHospitalName : r.attendedElsewhereHospital,
+            isOverdue: false,
+            updatedAt: now(),
+          }
+        : r)));
+      addReferralEvent(referralId, REFERRAL_STATUS.CLOSED,
+        `Missed referral closed (${outcome.replace(/_/g, ' ')}). ${notes}`);
+    }), [runReferralAction, addReferralEvent, currentUser]);
+
+  /**
+   * Verified attendance at ANOTHER hospital: the visit was not missed, so the
+   * referral leaves the follow-up queue with that documented outcome instead of
+   * staying unresolved.
+   */
+  const recordAttendanceElsewhere = useCallback((referralId: string, otherHospitalName: string, attendedDate: string, notes?: string) =>
+    runReferralAction('record_attendance_elsewhere', referralId, { otherHospitalName, attendedDate, notes }, () => {
+      setReferrals(prev => prev.map(r => (r.id === referralId
+        ? {
+            ...r,
+            status: REFERRAL_STATUS.CLOSED,
+            currentStep: referralStepOf(REFERRAL_STATUS.CLOSED),
+            totalSteps: REFERRAL_TOTAL_STEPS,
+            closedAt: now(),
+            closedByUserId: currentUser?.id,
+            closedByName: currentUser?.name,
+            closureOutcome: 'attended_another_hospital',
+            closureNotes: notes || `Attendance verified at ${otherHospitalName} on ${attendedDate}.`,
+            attendedElsewhereHospital: otherHospitalName,
+            attendedElsewhereDate: attendedDate,
+            isOverdue: false,
+            updatedAt: now(),
+          }
+        : r)));
+      addReferralEvent(referralId, REFERRAL_STATUS.CLOSED,
+        `Verified attendance at ${otherHospitalName} on ${attendedDate}.`);
+    }), [runReferralAction, addReferralEvent, currentUser]);
 
   const createReferral = useCallback((data: Omit<Referral, 'id' | 'referralId' | 'status' | 'currentStep' | 'totalSteps' | 'createdAt' | 'updatedAt' | 'isOverdue'>) => {
     const num = nextReferralNum++;
@@ -1548,6 +1762,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     currentFacilities,
     acceptReferral, rejectReferral, scheduleReferral, confirmArrival, startConsultation,
     completeConsultation, addTreatment, scheduleFollowup, createFollowup, completeFollowup, closeReferral, createReferral,
+    markAttendanceUncertain, confirmMissedReferral, logContactAttempt, recordContact,
+    rescheduleReferral, closeMissedReferral, recordAttendanceElsewhere,
     bookAppointment, cancelAppointment, completeAppointment,
     addPatient, addDoctor, addHealthWorker, addVitals, addHealthRecord, addConsultation,
     completeFollowupById, markFollowupMissed,

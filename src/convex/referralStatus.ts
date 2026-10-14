@@ -26,6 +26,16 @@ export const REFERRAL_STATUS = {
   FOLLOW_UP: 'followup',
   CLOSED: 'closed',
   CANCELLED: 'cancelled',
+  // ── Missed-referral follow-up workflow ─────────────────────────────────
+  // These four sit BETWEEN "Appointment Scheduled" and "Arrival Verified":
+  // they describe what happened when the patient did not turn up. They are
+  // deliberately NOT steps of the on-track chain (REFERRAL_STEPS below stays
+  // the care pathway), because a referral never "passes through" a missed
+  // visit on its way to care.
+  AWAITING_CONFIRMATION: 'awaiting_confirmation',
+  MISSED: 'missed',
+  CONTACTED: 'contacted',
+  RESCHEDULED: 'rescheduled',
 } as const;
 
 export type ReferralStatusValue = (typeof REFERRAL_STATUS)[keyof typeof REFERRAL_STATUS];
@@ -50,12 +60,49 @@ export const REFERRAL_TOTAL_STEPS = REFERRAL_STEPS.length;
  * Allowed forward transitions. The terminal statuses allow nothing further, and
  * a referral may be EXITED (to a terminal state) at any point — which is why the
  * UI distinguishes the normal path from an explicit cancellation.
+ *
+ * The missed-referral cycle is:
+ *   scheduled → awaiting_confirmation → missed → contacted → rescheduled
+ * and from `rescheduled` the referral either reaches care (patient_arrived) or
+ * goes round the cycle again. Attendance is never assumed to be absent: the
+ * uncertain state (awaiting_confirmation) exists precisely so that a hospital
+ * failing to record an arrival is NOT treated as a missed appointment.
  */
 export const REFERRAL_TRANSITIONS: Record<ReferralStatusValue, ReferralStatusValue[]> = {
   [REFERRAL_STATUS.CREATED]: [REFERRAL_STATUS.ACCEPTED, REFERRAL_STATUS.CANCELLED],
   [REFERRAL_STATUS.ACCEPTED]: [REFERRAL_STATUS.DOCTOR_ASSIGNED, REFERRAL_STATUS.CANCELLED],
   [REFERRAL_STATUS.DOCTOR_ASSIGNED]: [REFERRAL_STATUS.SCHEDULED, REFERRAL_STATUS.CANCELLED],
-  [REFERRAL_STATUS.SCHEDULED]: [REFERRAL_STATUS.ARRIVAL_VERIFIED, REFERRAL_STATUS.CANCELLED],
+  [REFERRAL_STATUS.SCHEDULED]: [
+    REFERRAL_STATUS.ARRIVAL_VERIFIED,
+    REFERRAL_STATUS.AWAITING_CONFIRMATION,
+    REFERRAL_STATUS.MISSED,
+    REFERRAL_STATUS.CANCELLED,
+  ],
+  // Uncertain attendance: the patient may still arrive, or may be confirmed
+  // missed, or may be documented as having attended another hospital.
+  [REFERRAL_STATUS.AWAITING_CONFIRMATION]: [
+    REFERRAL_STATUS.ARRIVAL_VERIFIED,
+    REFERRAL_STATUS.MISSED,
+    REFERRAL_STATUS.CLOSED,
+    REFERRAL_STATUS.CANCELLED,
+  ],
+  [REFERRAL_STATUS.MISSED]: [
+    REFERRAL_STATUS.CONTACTED,
+    REFERRAL_STATUS.CLOSED,
+    REFERRAL_STATUS.CANCELLED,
+  ],
+  [REFERRAL_STATUS.CONTACTED]: [
+    REFERRAL_STATUS.RESCHEDULED,
+    REFERRAL_STATUS.MISSED,
+    REFERRAL_STATUS.CLOSED,
+    REFERRAL_STATUS.CANCELLED,
+  ],
+  [REFERRAL_STATUS.RESCHEDULED]: [
+    REFERRAL_STATUS.ARRIVAL_VERIFIED,
+    REFERRAL_STATUS.AWAITING_CONFIRMATION,
+    REFERRAL_STATUS.MISSED,
+    REFERRAL_STATUS.CANCELLED,
+  ],
   [REFERRAL_STATUS.ARRIVAL_VERIFIED]: [REFERRAL_STATUS.CONSULTATION_COMPLETED, REFERRAL_STATUS.CANCELLED],
   [REFERRAL_STATUS.CONSULTATION_COMPLETED]: [
     REFERRAL_STATUS.TREATMENT_STARTED,
@@ -68,14 +115,58 @@ export const REFERRAL_TRANSITIONS: Record<ReferralStatusValue, ReferralStatusVal
   [REFERRAL_STATUS.CANCELLED]: [],
 };
 
+/**
+ * Statuses that describe a missed visit rather than a stage of the care
+ * pathway. They are reported at the step the referral was interrupted at, so
+ * progress displays and the closure funnel keep counting the referral where it
+ * actually got to instead of pretending it went back to the start.
+ */
+const INTERRUPTED_AT: Partial<Record<string, ReferralStatusValue>> = {
+  [REFERRAL_STATUS.AWAITING_CONFIRMATION]: REFERRAL_STATUS.SCHEDULED,
+  [REFERRAL_STATUS.MISSED]: REFERRAL_STATUS.SCHEDULED,
+  [REFERRAL_STATUS.CONTACTED]: REFERRAL_STATUS.SCHEDULED,
+  [REFERRAL_STATUS.RESCHEDULED]: REFERRAL_STATUS.SCHEDULED,
+};
+
+/** Display labels for the statuses that are not steps of the care pathway. */
+const OFF_CHAIN_LABELS: Record<string, string> = {
+  [REFERRAL_STATUS.AWAITING_CONFIRMATION]: 'Awaiting Confirmation',
+  [REFERRAL_STATUS.MISSED]: 'Missed — Follow-up Required',
+  [REFERRAL_STATUS.CONTACTED]: 'Patient Contacted',
+  [REFERRAL_STATUS.RESCHEDULED]: 'Rescheduled',
+  [REFERRAL_STATUS.CANCELLED]: 'Cancelled',
+};
+
+/**
+ * Is this status part of a missed-referral follow-up (rather than the care
+ * pathway)? Used to decide which surfaces a referral belongs on.
+ */
+export function isFollowupStatus(status: string | undefined): boolean {
+  return (
+    status === REFERRAL_STATUS.AWAITING_CONFIRMATION ||
+    status === REFERRAL_STATUS.MISSED ||
+    status === REFERRAL_STATUS.CONTACTED ||
+    status === REFERRAL_STATUS.RESCHEDULED
+  );
+}
+
+/** Has this referral ever been through the missed-visit cycle? */
+export function isMissedStatus(status: string | undefined): boolean {
+  return (
+    status === REFERRAL_STATUS.MISSED ||
+    status === REFERRAL_STATUS.CONTACTED
+  );
+}
+
 /** Step number (1-based) of a status in the workflow. Unknown values → 1. */
 export function referralStepOf(status: string | undefined): number {
-  const idx = REFERRAL_STEPS.findIndex(s => s.status === status);
+  const effective = status ? INTERRUPTED_AT[status] ?? status : undefined;
+  const idx = REFERRAL_STEPS.findIndex(s => s.status === effective);
   return idx === -1 ? 1 : idx + 1;
 }
 
 export function referralStatusLabel(status: string | undefined): string {
-  if (status === REFERRAL_STATUS.CANCELLED) return 'Cancelled';
+  if (status && OFF_CHAIN_LABELS[status]) return OFF_CHAIN_LABELS[status];
   return REFERRAL_STEPS.find(s => s.status === status)?.label ?? 'Created';
 }
 
@@ -110,7 +201,22 @@ export type ReferralAction =
   | 'record_treatment'
   | 'schedule_followup'
   | 'close'
-  | 'cancel';
+  | 'cancel'
+  // ── Missed-referral follow-up workflow ────────────────────────────────
+  /** Expected time passed, attendance not recorded → uncertain, NOT missed. */
+  | 'mark_unconfirmed'
+  /** Non-attendance documented by a person → missed, follow-up opened. */
+  | 'confirm_missed'
+  /** A contact attempt that did not reach the patient (audit only). */
+  | 'log_contact_attempt'
+  /** The patient was reached → follow-up contact recorded. */
+  | 'record_contact'
+  /** New appointment after a missed visit. */
+  | 'reschedule_referral'
+  /** Close an unresolved missed referral with a documented outcome. */
+  | 'close_missed'
+  /** Verified attendance at another hospital (not a missed visit). */
+  | 'record_attendance_elsewhere';
 
 interface ActionSpec {
   /** Status the referral must be in for this action to apply. */
@@ -195,6 +301,81 @@ export const REFERRAL_ACTIONS: Record<ReferralAction, ActionSpec> = {
     permission: 'assigned_doctor',
     events: [{ type: 'cancelled', canonical: 'CANCELLED', description: 'Referral cancelled.' }],
   },
+  // ── Missed-referral follow-up workflow ────────────────────────────────
+  // Every one of these is performed by a PERSON. Nothing here guesses a
+  // patient's response, diagnoses anybody, or decides to escalate care on its
+  // own: the automatic part only ever notices that the expected time has passed
+  // (mark_unconfirmed) and surfaces the referral for a human to act on.
+  mark_unconfirmed: {
+    from: REFERRAL_STATUS.SCHEDULED,
+    to: REFERRAL_STATUS.AWAITING_CONFIRMATION,
+    permission: 'source_or_destination',
+    events: [{
+      type: 'awaiting_confirmation',
+      canonical: 'AWAITING_CONFIRMATION',
+      description: 'Expected appointment time passed with no arrival recorded — attendance awaiting confirmation.',
+    }],
+  },
+  confirm_missed: {
+    from: REFERRAL_STATUS.AWAITING_CONFIRMATION,
+    to: REFERRAL_STATUS.MISSED,
+    permission: 'source_or_destination',
+    events: [{
+      type: 'missed',
+      canonical: 'MISSED',
+      description: 'Missed appointment confirmed — referral entered the follow-up queue.',
+    }],
+  },
+  log_contact_attempt: {
+    from: REFERRAL_STATUS.MISSED,
+    to: REFERRAL_STATUS.MISSED,
+    permission: 'source_or_destination',
+    events: [{
+      type: 'contact_attempt',
+      canonical: 'CONTACT_ATTEMPT',
+      description: 'Follow-up contact attempt recorded.',
+    }],
+  },
+  record_contact: {
+    from: REFERRAL_STATUS.MISSED,
+    to: REFERRAL_STATUS.CONTACTED,
+    permission: 'source_or_destination',
+    events: [{
+      type: 'contacted',
+      canonical: 'CONTACTED',
+      description: 'Patient reached — follow-up contact recorded.',
+    }],
+  },
+  reschedule_referral: {
+    from: REFERRAL_STATUS.CONTACTED,
+    to: REFERRAL_STATUS.RESCHEDULED,
+    permission: 'source_or_destination',
+    events: [{
+      type: 'rescheduled',
+      canonical: 'RESCHEDULED',
+      description: 'Appointment rescheduled after a missed visit.',
+    }],
+  },
+  close_missed: {
+    from: REFERRAL_STATUS.MISSED,
+    to: REFERRAL_STATUS.CLOSED,
+    permission: 'source_or_destination',
+    events: [{
+      type: 'missed_closed',
+      canonical: 'CLOSED',
+      description: 'Missed referral closed with a documented outcome.',
+    }],
+  },
+  record_attendance_elsewhere: {
+    from: REFERRAL_STATUS.AWAITING_CONFIRMATION,
+    to: REFERRAL_STATUS.CLOSED,
+    permission: 'source_or_destination',
+    events: [{
+      type: 'attendance_elsewhere',
+      canonical: 'CLOSED',
+      description: 'Verified attendance at another hospital recorded.',
+    }],
+  },
 };
 
 /** Actions that may also be performed on other statuses (see `actionFrom`). */
@@ -209,7 +390,42 @@ const ACTION_OVERRIDES: Partial<Record<ReferralAction, ReferralStatusValue[]>> =
     REFERRAL_STATUS.SCHEDULED,
     REFERRAL_STATUS.ARRIVAL_VERIFIED,
     REFERRAL_STATUS.CONSULTATION_COMPLETED,
+    REFERRAL_STATUS.AWAITING_CONFIRMATION,
+    REFERRAL_STATUS.MISSED,
+    REFERRAL_STATUS.CONTACTED,
+    REFERRAL_STATUS.RESCHEDULED,
   ],
+  // The sweep marks an overdue appointment, and staff may do the same by hand.
+  mark_unconfirmed: [REFERRAL_STATUS.SCHEDULED, REFERRAL_STATUS.RESCHEDULED],
+  // Arrival is verified whenever the patient turns up — including LATE, after
+  // the appointment was flagged as uncertain or re-scheduled. A hospital that
+  // finally records the visit must never be blocked by the follow-up workflow.
+  verify_arrival: [
+    REFERRAL_STATUS.SCHEDULED,
+    REFERRAL_STATUS.AWAITING_CONFIRMATION,
+    REFERRAL_STATUS.RESCHEDULED,
+  ],
+  // Non-attendance can be documented straight from `scheduled` when nobody had
+  // marked the referral uncertain first, and again after a re-scheduled visit.
+  confirm_missed: [
+    REFERRAL_STATUS.SCHEDULED,
+    REFERRAL_STATUS.AWAITING_CONFIRMATION,
+    REFERRAL_STATUS.RESCHEDULED,
+  ],
+  // An attempt may be logged at any point in the cycle, including on a referral
+  // that is still only awaiting confirmation.
+  log_contact_attempt: [
+    REFERRAL_STATUS.SCHEDULED,
+    REFERRAL_STATUS.AWAITING_CONFIRMATION,
+    REFERRAL_STATUS.MISSED,
+    REFERRAL_STATUS.CONTACTED,
+    REFERRAL_STATUS.RESCHEDULED,
+  ],
+  // Only a CONFIRMED missed referral can become `contacted`: uncertainty is
+  // resolved by a person first, so a referral never skips the missed step.
+  record_contact: [REFERRAL_STATUS.MISSED],
+  close_missed: [REFERRAL_STATUS.MISSED, REFERRAL_STATUS.CONTACTED],
+  record_attendance_elsewhere: [REFERRAL_STATUS.AWAITING_CONFIRMATION, REFERRAL_STATUS.MISSED],
 };
 
 /** Statuses an action may be applied from. */

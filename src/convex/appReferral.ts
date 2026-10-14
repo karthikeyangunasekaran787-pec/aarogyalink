@@ -22,7 +22,19 @@ import { mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { getAuthUserId } from '@convex-dev/auth/server';
 import { v } from 'convex/values';
-import { parseEnvelope, payloadFits, serializeEnvelope } from './authz';
+import { districtFacilityIds, parseEnvelope, payloadFits, serializeEnvelope } from './authz';
+import {
+  ATTENDANCE_GRACE_HOURS,
+  CONTACT_METHOD_VALUES,
+  ESCALATION_RULES,
+  MISSED_CLOSURE_OUTCOMES,
+  MISSED_REASON_VALUES,
+  appointmentCycleKey,
+  hoursOverdue,
+  notificationEventId,
+  referralTouchesFacilities,
+} from '../lib/missed-referrals';
+import type { ContactMethod, MissedReason, Referral } from '../types';
 import {
   REFERRAL_ACTIONS,
   REFERRAL_STATUS,
@@ -57,6 +69,20 @@ const str = (value: unknown): string | undefined =>
 function isRecord(value: unknown): value is Record_ {
   return typeof value === 'object' && value !== null;
 }
+
+/**
+ * Actions that record an in-app follow-up notice in the audit trail. The set is
+ * explicit so a notice can never be recorded for an unrelated transition, and
+ * every id is derived from the referral + appointment cycle (never from the
+ * current time), which is what prevents duplicate notifications.
+ */
+const NOTIFYING_ACTIONS = new Set<ReferralAction>([
+  'confirm_missed',
+  'record_contact',
+  'reschedule_referral',
+  'close_missed',
+  'record_attendance_elsewhere',
+]);
 
 /** Event id: unique, and stable when the caller supplies an idempotency key. */
 function eventId(referralId: string, action: string, key: string | undefined): string {
@@ -124,11 +150,35 @@ function referralSides(referral: Record_) {
  * May this actor perform this action on this referral, at this status?
  * Returns a reason string when refused (used verbatim in the UI message).
  */
-function permissionError(action: ReferralAction, binding: Binding, referral: Record_): string | null {
-  // Platform-wide and district administrators oversee the whole workflow.
+async function permissionError(
+  ctx: Ctx,
+  action: ReferralAction,
+  binding: Binding,
+  referral: Record_,
+): Promise<string | null> {
+  // Platform-wide administrators oversee the whole workflow.
   if (binding.role === 'overall_admin') return null;
   if (binding.role === 'gov_admin') {
-    return binding.districtId ? null : 'Unauthorized: your district is not set for this session.';
+    if (!binding.districtId) return 'Unauthorized: your district is not set for this session.';
+    // A District Administrator acts only on referrals that touch one of THEIR
+    // district's facilities. The facility ids come from the STORED hospital
+    // records, so a crafted referral cannot pull the admin into another
+    // district, and this holds for backend actions exactly as it does for reads.
+    const hospitals = await readItems(ctx, 'hospitals');
+    const facilityIds = districtFacilityIds(
+      hospitals,
+      binding.districtId,
+      binding.districtName ?? binding.districtId,
+    );
+    const sides = referralSides(referral);
+    const touches = referralTouchesFacilities(
+      {
+        sourceFacilityId: sides.source ?? '',
+        destinationFacilityId: sides.destination ?? '',
+      },
+      facilityIds,
+    );
+    return touches ? null : 'Unauthorized: this referral belongs to another district.';
   }
   if (binding.role === 'patient') {
     return 'Unauthorized: patients cannot change referral status.';
@@ -194,6 +244,25 @@ export const transitionReferral = mutation({
     followUpType: v.optional(v.string()),
     instructions: v.optional(v.string()),
     clinicalNotes: v.optional(v.string()),
+    // ── Missed-referral follow-up ──────────────────────────────────────
+    /** Why the patient missed the appointment (a person chose this). */
+    reason: v.optional(v.string()),
+    /** How the follow-up contact was made (by the staff member, not the app). */
+    method: v.optional(v.string()),
+    /** Did the contact actually reach the patient? Never assumed. */
+    reached: v.optional(v.boolean()),
+    /** What the staff member did about it. */
+    actionTaken: v.optional(v.string()),
+    /** When the contact actually happened (the audit time stays server-set). */
+    contactAt: v.optional(v.string()),
+    /** When the patient should be contacted again (YYYY-MM-DD). */
+    nextFollowUpDate: v.optional(v.string()),
+    /** Documented outcome when closing a missed referral. */
+    outcome: v.optional(v.string()),
+    /** Hospital the patient actually attended (attendance elsewhere). */
+    otherHospitalName: v.optional(v.string()),
+    /** Date the patient attended that hospital (YYYY-MM-DD). */
+    attendedDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const binding = await requireBinding(ctx);
@@ -211,13 +280,18 @@ export const transitionReferral = mutation({
     const status = str(referral.status) as ReferralStatusValue | undefined;
 
     // ── Authorization (stored binding vs stored referral) ────────────
-    const denied = permissionError(action, binding, referral);
+    const denied = await permissionError(ctx, action, binding, referral);
     if (denied) {
       return { ok: false as const, reason: 'forbidden' as const, message: denied };
     }
 
     // ── Idempotency: the target status is already reached ────────────
-    const idempotent = spec.to === spec.from;
+    // An EVENT-ONLY action (a contact attempt) documents something without
+    // moving the referral, so it keeps the stored status and is validated
+    // against the statuses it may be recorded from instead of a target status.
+    const eventOnly = spec.to === spec.from;
+    const targetStatus = eventOnly ? status : spec.to;
+    const idempotent = eventOnly;
     if (!idempotent && status === spec.to) {
       return {
         ok: true as const,
@@ -253,7 +327,7 @@ export const transitionReferral = mutation({
           message: `Invalid status transition: ${referralStatusLabel(status)} → ${referralStatusLabel(spec.to)}.`,
         };
       }
-    } else if (status !== spec.to) {
+    } else if (!status || !actionFroms(action).includes(status)) {
       return {
         ok: false as const,
         reason: 'invalid_transition' as const,
@@ -264,6 +338,16 @@ export const transitionReferral = mutation({
 
     // ── Action-specific validation ──────────────────────────────────
     const now = new Date().toISOString();
+    const nowDate = new Date(now);
+    // When the contact actually happened, as stated by the person who made it.
+    // A future or unparseable value is ignored: the record can never be dated
+    // ahead of the system clock, and the event's own timestamp is always the
+    // server's audit time.
+    const requestedContactAt = args.contactAt ? new Date(args.contactAt) : null;
+    const contactAt =
+      requestedContactAt && !Number.isNaN(requestedContactAt.getTime()) && requestedContactAt.getTime() <= nowDate.getTime()
+        ? requestedContactAt.toISOString()
+        : now;
     let doctorId = args.doctorId;
     let doctorName = args.doctorName;
     let doctorStaffUserId = args.doctorStaffUserId;
@@ -298,11 +382,117 @@ export const transitionReferral = mutation({
       return { ok: false as const, reason: 'invalid_request' as const, message: 'A follow-up date is required.' };
     }
 
+    // ── Missed-referral follow-up validation ────────────────────────
+    // Nothing here guesses: a referral is only treated as missed/uncertain once
+    // the expected time has genuinely passed, and the reason, contact details
+    // and closure outcome all have to be supplied by a person.
+    if (action === 'mark_unconfirmed' || action === 'confirm_missed') {
+      const hours = hoursOverdue(
+        {
+          appointmentDate: str(referral.appointmentDate),
+          appointmentTime: str(referral.appointmentTime),
+        },
+        nowDate,
+      );
+      if (hours === null) {
+        return {
+          ok: false as const,
+          reason: 'invalid_request' as const,
+          message: 'This referral has no scheduled appointment to compare against.',
+        };
+      }
+      if (hours <= ATTENDANCE_GRACE_HOURS) {
+        return {
+          ok: false as const,
+          reason: 'not_due' as const,
+          message: 'The appointment time has not passed yet, so attendance cannot be missed.',
+        };
+      }
+    }
+
+    if (action === 'confirm_missed') {
+      if (!args.reason || !MISSED_REASON_VALUES.includes(args.reason as MissedReason)) {
+        return {
+          ok: false as const,
+          reason: 'invalid_request' as const,
+          message: 'Choose the reason the patient missed the appointment.',
+        };
+      }
+    }
+
+    if (action === 'log_contact_attempt') {
+      if (!args.method || !CONTACT_METHOD_VALUES.includes(args.method as ContactMethod)) {
+        return { ok: false as const, reason: 'invalid_request' as const, message: 'Choose how the contact was made.' };
+      }
+      if (args.reached === true) {
+        return {
+          ok: false as const,
+          reason: 'invalid_request' as const,
+          message: 'Record a successful contact as a contact, not as an attempt.',
+        };
+      }
+    }
+
+    if (action === 'record_contact') {
+      if (args.reached !== true) {
+        return {
+          ok: false as const,
+          reason: 'invalid_request' as const,
+          message: 'The patient can only be marked as contacted if they were actually reached.',
+        };
+      }
+      if (!args.method || !CONTACT_METHOD_VALUES.includes(args.method as ContactMethod)) {
+        return { ok: false as const, reason: 'invalid_request' as const, message: 'Choose how the patient was contacted.' };
+      }
+    }
+
+    if (action === 'reschedule_referral' && (!args.date || !args.time)) {
+      return {
+        ok: false as const,
+        reason: 'invalid_request' as const,
+        message: 'A new appointment date and time are required to reschedule.',
+      };
+    }
+
+    if (action === 'close_missed') {
+      const outcomes = MISSED_CLOSURE_OUTCOMES.map(o => o.value) as string[];
+      if (!args.outcome || !outcomes.includes(args.outcome)) {
+        return {
+          ok: false as const,
+          reason: 'invalid_request' as const,
+          message: 'A documented outcome is required to close a missed referral.',
+        };
+      }
+      if (!args.notes || !args.notes.trim()) {
+        return {
+          ok: false as const,
+          reason: 'invalid_request' as const,
+          message: 'A note is required to close a missed referral.',
+        };
+      }
+      if (args.outcome === 'attended_another_hospital' && !args.otherHospitalName?.trim()) {
+        return {
+          ok: false as const,
+          reason: 'invalid_request' as const,
+          message: 'Name the hospital the patient attended.',
+        };
+      }
+    }
+
+    if (action === 'record_attendance_elsewhere') {
+      if (!args.otherHospitalName?.trim()) {
+        return { ok: false as const, reason: 'invalid_request' as const, message: 'Name the hospital the patient attended.' };
+      }
+      if (!args.attendedDate?.trim()) {
+        return { ok: false as const, reason: 'invalid_request' as const, message: 'The date the patient attended is required.' };
+      }
+    }
+
     // ── Apply the transition to the stored record ───────────────────
     const updated: Record_ = {
       ...referral,
-      status: spec.to,
-      currentStep: referralStepOf(spec.to),
+      status: targetStatus,
+      currentStep: referralStepOf(targetStatus),
       totalSteps: REFERRAL_TOTAL_STEPS,
       updatedAt: now,
     };
@@ -361,6 +551,96 @@ export const transitionReferral = mutation({
         updated.closedByUserId = actor.id ?? actor.name;
         updated.closedByName = actor.name;
         updated.closureNotes = args.notes;
+        // Every closure carries a documented outcome. Reaching this point means
+        // the referral was treated (the workflow cannot be short-circuited), so
+        // the care itself is the completion information.
+        updated.closureOutcome = 'treatment_completed';
+        break;
+      // ── Missed-referral follow-up ──────────────────────────────────
+      case 'mark_unconfirmed':
+        // Uncertain attendance, NOT a missed appointment: the expected time has
+        // passed and nobody has recorded anything either way.
+        updated.awaitingConfirmationAt = now;
+        updated.awaitingConfirmationByName = actor.name;
+        updated.awaitingConfirmationByUserId = actor.id;
+        updated.isOverdue = true;
+        break;
+      case 'confirm_missed': {
+        // Non-attendance documented by a person: the referral enters the
+        // follow-up queue with the administrative escalation its clinical
+        // priority already implies (the priority itself is never changed here).
+        const priority = str(referral.priority) as keyof typeof ESCALATION_RULES | undefined;
+        const rule = ESCALATION_RULES[priority ?? 'routine'] ?? ESCALATION_RULES.routine;
+        updated.missedAt = now;
+        updated.missedReason = args.reason;
+        updated.missedNotes = args.notes;
+        updated.missedByName = actor.name;
+        updated.missedByUserId = actor.id;
+        updated.missedByRole = actor.role;
+        updated.escalationLevel = rule.level;
+        updated.followupDueAt = new Date(nowDate.getTime() + rule.contactWithinHours * 36e5).toISOString();
+        updated.isOverdue = true;
+        break;
+      }
+      case 'log_contact_attempt':
+        // An attempt that did not reach the patient. It is recorded for the
+        // follow-up audit trail and does NOT mark the patient as contacted.
+        updated.lastContactAt = contactAt;
+        updated.lastContactMethod = args.method;
+        updated.lastContactReached = false;
+        updated.lastContactByName = actor.name;
+        updated.contactAttemptCount = (Number(referral.contactAttemptCount) || 0) + 1;
+        if (args.actionTaken) updated.actionTaken = args.actionTaken;
+        if (args.nextFollowUpDate) updated.nextFollowUpDate = args.nextFollowUpDate;
+        if (args.reason) updated.missedReason = args.reason;
+        if (args.notes) updated.missedNotes = args.notes;
+        break;
+      case 'record_contact':
+        updated.lastContactAt = contactAt;
+        updated.lastContactMethod = args.method;
+        updated.lastContactReached = true;
+        updated.lastContactByName = actor.name;
+        updated.contactedAt = contactAt;
+        updated.contactedByName = actor.name;
+        updated.contactedByUserId = actor.id;
+        updated.contactAttemptCount = (Number(referral.contactAttemptCount) || 0) + 1;
+        if (args.actionTaken) updated.actionTaken = args.actionTaken;
+        if (args.nextFollowUpDate) updated.nextFollowUpDate = args.nextFollowUpDate;
+        break;
+      case 'reschedule_referral':
+        updated.appointmentDate = args.date;
+        updated.appointmentTime = args.time;
+        updated.rescheduledAt = now;
+        updated.rescheduledByName = actor.name;
+        updated.rescheduledByUserId = actor.id;
+        updated.rescheduleCount = (Number(referral.rescheduleCount) || 0) + 1;
+        updated.isOverdue = false;
+        if (args.nextFollowUpDate) updated.nextFollowUpDate = args.nextFollowUpDate;
+        if (args.notes) updated.rescheduleNotes = args.notes;
+        break;
+      case 'close_missed':
+        updated.closedAt = now;
+        updated.closedByUserId = actor.id ?? actor.name;
+        updated.closedByName = actor.name;
+        updated.closureOutcome = args.outcome;
+        updated.closureNotes = args.notes;
+        updated.isOverdue = false;
+        if (args.outcome === 'attended_another_hospital') {
+          updated.attendedElsewhereHospital = args.otherHospitalName;
+        }
+        break;
+      case 'record_attendance_elsewhere':
+        // Verified attendance at another hospital: the visit was not missed, so
+        // the referral is closed with that outcome rather than left unresolved.
+        updated.closedAt = now;
+        updated.closedByUserId = actor.id ?? actor.name;
+        updated.closedByName = actor.name;
+        updated.closureOutcome = 'attended_another_hospital';
+        updated.closureNotes = args.notes
+          ?? `Attendance verified at ${args.otherHospitalName} on ${args.attendedDate}.`;
+        updated.attendedElsewhereHospital = args.otherHospitalName;
+        updated.attendedElsewhereDate = args.attendedDate;
+        updated.isOverdue = false;
         break;
       case 'cancel':
       case 'reject':
@@ -377,6 +657,30 @@ export const transitionReferral = mutation({
     const events = await readItems(ctx, 'referralEvents');
     const existingIds = new Set(events.filter(isRecord).map(e => str(e.id)));
     const appended: unknown[] = [];
+
+    /** Structured detail the follow-up screens read back from the audit trail. */
+    const metadata =
+      action === 'assign_doctor'
+        ? { doctorId, doctorName }
+        : action === 'confirm_missed'
+          ? { reason: args.reason, escalationLevel: updated.escalationLevel as string | undefined }
+          : action === 'record_contact' || action === 'log_contact_attempt'
+            ? {
+                method: args.method,
+                reached: args.reached === true,
+                actionTaken: args.actionTaken,
+                nextFollowUpDate: args.nextFollowUpDate,
+                reason: args.reason,
+                contactAt,
+              }
+            : action === 'reschedule_referral'
+              ? { date: args.date, time: args.time }
+              : action === 'close_missed'
+                ? { outcome: args.outcome }
+                : action === 'record_attendance_elsewhere'
+                  ? { outcome: 'attended_another_hospital' as const }
+                  : undefined;
+
     for (const kind of spec.events) {
       const id = eventId(args.referralId, kind.type, args.idempotencyKey);
       if (existingIds.has(id)) continue; // replay of an already-applied write
@@ -384,11 +688,11 @@ export const transitionReferral = mutation({
       appended.push({
         id,
         referralId: args.referralId,
-        status: spec.to,
+        status: targetStatus,
         eventType: kind.type,
         canonicalStatus: kind.canonical,
         previousStatus: status,
-        newStatus: spec.to,
+        newStatus: targetStatus,
         description: args.notes ? `${kind.description} ${args.notes}` : kind.description,
         notes: args.notes,
         performedBy: actor.name,
@@ -400,8 +704,46 @@ export const transitionReferral = mutation({
         actorRole: actor.role,
         hospitalId: actor.hospitalId,
         timestamp: now,
-        metadata: action === 'assign_doctor' ? { doctorId, doctorName } : undefined,
+        metadata,
       });
+    }
+
+    // ── Notification attempt (in-app record only) ────────────────────
+    // Recorded in the same append-only audit trail, with a DETERMINISTIC id per
+    // referral + appointment cycle, so a repeated write (or a second device)
+    // can never produce a second notice for the same missed visit. The only
+    // channel that exists here is this in-app record: AarogyaLink does not send
+    // SMS, WhatsApp or push messages.
+    if (NOTIFYING_ACTIONS.has(action)) {
+      const cycle = appointmentCycleKey({
+        appointmentDate: str(referral.appointmentDate),
+        appointmentTime: str(referral.appointmentTime),
+      });
+      const dedupeKey = `${cycle}:${action}`;
+      const id = notificationEventId(args.referralId, cycle, action);
+      if (!existingIds.has(id)) {
+        existingIds.add(id);
+        appended.push({
+          id,
+          referralId: args.referralId,
+          status: targetStatus,
+          eventType: 'notification_attempt',
+          canonicalStatus: 'NOTIFICATION',
+          previousStatus: status,
+          newStatus: targetStatus,
+          description: 'Follow-up notice recorded for the health team (in-app record).',
+          performedBy: actor.name,
+          performedByUserId: actor.id,
+          performedByRole: actor.role,
+          performedByFacilityId: actor.hospitalId,
+          actorId: actor.id,
+          actorName: actor.name,
+          actorRole: actor.role,
+          hospitalId: actor.hospitalId,
+          timestamp: now,
+          metadata: { channel: 'in_app', deliveryStatus: 'recorded', dedupeKey },
+        });
+      }
     }
 
     const nextReferrals = referrals.map(r => (isRecord(r) && str(r.id) === args.referralId ? updated : r));
@@ -426,8 +768,9 @@ export const transitionReferral = mutation({
       status: spec.to,
       referral: updated,
       events: appended,
-      message:
-        action === 'cancel' || action === 'reject'
+      message: eventOnly
+        ? `Contact attempt recorded — the referral stays ${referralStatusLabel(targetStatus).toLowerCase()}.`
+        : action === 'cancel' || action === 'reject'
           ? `Referral ${referralStatusLabel(spec.to).toLowerCase()}.`
           : `Referral moved to ${referralStatusLabel(spec.to)}.`,
     };
@@ -488,7 +831,10 @@ export const verifyArrival = mutation({
         message: 'This QR code belongs to a referral for another hospital.',
       };
     }
-    if (status !== REFERRAL_STATUS.SCHEDULED) {
+    // A late arrival is still an arrival: a referral that was flagged as
+    // uncertain (or re-scheduled) can be verified by the receiving hospital just
+    // like a scheduled one.
+    if (!actionFroms('verify_arrival').includes(status as ReferralStatusValue)) {
       return {
         ok: false as const,
         reason: 'invalid_transition' as const,

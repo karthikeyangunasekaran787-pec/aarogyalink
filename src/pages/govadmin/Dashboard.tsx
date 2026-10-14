@@ -12,8 +12,12 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { StatTile } from '@/components/shared/StatTile';
 import {
   Users, FileText, Clock, AlertTriangle, TrendingUp, Activity,
-  Building2, MapPin, CheckCircle2, Heart
+  Building2, MapPin, CheckCircle2, Heart, CalendarClock
 } from 'lucide-react';
+// The district's missed-referral metrics use the SAME formulas as the
+// health-worker follow-up queue, computed from the stored records.
+import { MISSED_REASONS, missedReferralMetrics, referralTouchesFacilities } from '@/lib/missed-referrals';
+import type { TranslationKey } from '@/lib/i18n';
 
 export default function GovDashboard() {
   const { currentUser } = useApp();
@@ -73,6 +77,18 @@ export default function GovDashboard() {
 
   const maxMonthlyCreated = Math.max(...monthlyTrends.map(m => m.created), 1);
 
+  // Missed referrals and follow-up, computed from the district's actual records
+  // (the same formulas the health-worker queue and the backend sweep use).
+  // The referral set is restricted to this district's facilities, so a district
+  // administrator can never be shown another district's patients — the same
+  // rule the backend applies when it scopes the collection it hands over.
+  const districtReferrals = useMemo(() => {
+    const facilityIds = new Set(scopedFacilities.map(f => f.id));
+    return referrals.filter(r => referralTouchesFacilities(r, facilityIds));
+  }, [referrals, scopedFacilities]);
+
+  const followupMetrics = useMemo(() => missedReferralMetrics(districtReferrals, new Date()), [districtReferrals]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -124,6 +140,79 @@ export default function GovDashboard() {
           label={t('rhasScore')}
         />
       </div>
+
+      {/* ── Missed referrals & follow-up (computed from actual records) ──── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="h-[1.125rem] w-[1.125rem] text-amber-600" />
+            {t('districtFollowupTitle')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatTile icon={Clock} tone="amber" value={followupMetrics.awaitingConfirmation} label={t('metricAwaitingConfirmation')} hint={t('awaitingConfirmationHint')} />
+            <StatTile icon={AlertTriangle} tone="red" value={followupMetrics.overdue} label={t('metricOverdueReferrals')} />
+            <StatTile icon={AlertTriangle} tone="red" value={followupMetrics.confirmedMissed} label={t('metricConfirmedMissed')} />
+            <StatTile icon={Clock} tone="red" value={followupMetrics.unresolvedMissed} label={t('metricUnresolvedMissed')} />
+            <StatTile icon={CheckCircle2} tone="emerald" value={followupMetrics.successfulFollowUps} label={t('metricSuccessfulFollowups')} />
+            <StatTile icon={CalendarClock} tone="blue" value={followupMetrics.rescheduledAppointments} label={t('metricRescheduledAppointments')} />
+            <StatTile
+              icon={TrendingUp}
+              tone="emerald"
+              value={followupMetrics.completionRate === null ? t('metricNoData') : `${followupMetrics.completionRate}%`}
+              label={t('metricCompletionRate')}
+            />
+            <StatTile
+              icon={AlertTriangle}
+              tone="amber"
+              value={followupMetrics.missedReferralRate === null ? t('metricNoData') : `${followupMetrics.missedReferralRate}%`}
+              label={t('metricMissedRate')}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs font-medium text-foreground">{t('metricFollowupTime')}</p>
+              <p className="text-lg font-bold text-foreground">
+                {followupMetrics.avgFollowUpCompletionHours === null
+                  ? t('metricNoData')
+                  : t('hoursUnit', { count: followupMetrics.avgFollowUpCompletionHours })}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {followupMetrics.medianFollowUpCompletionHours === null
+                  ? t('metricNoData')
+                  : `${followupMetrics.medianFollowUpCompletionHours} h (median)`}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs font-medium text-foreground">{t('reasonsTitle')}</p>
+              {followupMetrics.reasons.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('metricNoData')}</p>
+              ) : (
+                <ul className="mt-1 space-y-1">
+                  {followupMetrics.reasons.map(entry => {
+                    const spec = MISSED_REASONS.find(r => r.value === entry.reason);
+                    return (
+                      <li key={entry.reason} className="flex items-center justify-between text-xs text-foreground">
+                        <span>{spec ? t(spec.key as TranslationKey) : entry.reason}</span>
+                        <Badge variant="outline" className="text-[10px]">{entry.count}</Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {followupMetrics.breachedEscalations > 0 && (
+            <p className="text-xs text-red-600 font-medium flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {followupMetrics.breachedEscalations} × {t('escalationBreached')}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ── Referral Funnel (computed from actual data) ──────── */}

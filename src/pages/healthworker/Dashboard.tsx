@@ -22,6 +22,8 @@ import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmente
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import { ReportUploadDialog } from '@/components/reports/ReportUploadDialog';
+// The missed-referral follow-up queue (see src/lib/missed-referrals.ts).
+import { MissedReferralsPanel } from '@/components/referrals/MissedReferralsPanel';
 import {
   Users, AlertTriangle, FileText, Bell, UserPlus,
   Search, Activity, Stethoscope, PenLine, ChevronRight,
@@ -102,7 +104,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
   const closedReferrals = referrals.filter(r => r.status === 'closed' && (r.sourceFacilityId === hwHospitalId || r.destinationFacilityId === hwHospitalId));
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'patients' | 'referrals' | 'followups'>('overview');
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'patients' | 'referrals' | 'followups' | 'missed'>('overview');
 
   // Create Referral form state
   const [showReferralForm, setShowReferralForm] = useState(false);
@@ -407,6 +409,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
           { value: 'patients', label: t('tabPatients', language) },
           { value: 'referrals', label: t('tabReferrals', language) },
           { value: 'followups', label: t('tabFollowups', language) },
+          { value: 'missed', label: t('missedReferrals', language) },
         ] satisfies ReadonlyArray<SegmentedOption<typeof selectedTab>>}
       />
 
@@ -905,6 +908,10 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedTab === 'missed' && (
+        <MissedReferralsPanel referrals={myReferrals} />
       )}
 
       {selectedTab === 'followups' && (

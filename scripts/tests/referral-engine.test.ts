@@ -83,9 +83,23 @@ describe('canonical status model', () => {
 
   test('each action is only valid from the status the engine expects', () => {
     expect(actionFroms('accept')).toEqual(['created']);
-    expect(actionFroms('verify_arrival')).toEqual(['scheduled']);
     expect(actionFroms('schedule_followup')).toEqual(['treatment']);
     expect(actionFroms('close')).toEqual(['treatment', 'followup']);
+  });
+
+  test('a late arrival can always be verified by the receiving hospital', () => {
+    // The patient turning up LATE — after the appointment was flagged uncertain
+    // or even rescheduled — must never be blocked by the follow-up workflow.
+    expect(actionFroms('verify_arrival')).toEqual(['scheduled', 'awaiting_confirmation', 'rescheduled']);
+  });
+
+  test('the missed-referral cycle only moves forward through a person', () => {
+    // Uncertainty is resolved by someone confirming non-attendance; a referral
+    // can never jump straight to CONTACTED.
+    expect(actionFroms('record_contact')).toEqual(['missed']);
+    expect(actionFroms('reschedule_referral')).toEqual(['contacted']);
+    expect(actionFroms('confirm_missed')).toEqual(['scheduled', 'awaiting_confirmation', 'rescheduled']);
+    expect(actionFroms('close_missed')).toEqual(['missed', 'contacted']);
   });
 });
 

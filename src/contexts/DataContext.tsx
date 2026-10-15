@@ -132,7 +132,12 @@ interface DataContextValue {
   completeFollowup: (referralId: string) => Promise<ReferralActionResult>;
   completeFollowupById: (followupId: string) => void;
   markFollowupMissed: (followupId: string) => void;
-  closeReferral: (referralId: string, notes?: string) => Promise<ReferralActionResult>;
+  /**
+   * Permanently close a referral. When the referral is at FOLLOW-UP the caller
+   * must also confirm the follow-up was completed (`followUpResolved`) — the
+   * backend refuses closure on a follow-up that was never recorded.
+   */
+  closeReferral: (referralId: string, notes?: string, followUpResolved?: boolean) => Promise<ReferralActionResult>;
   // Missed-referral follow-up. Each one is validated by the backend against the
   // stored referral and the caller's session binding, never by the UI.
   markAttendanceUncertain: (referralId: string) => Promise<ReferralActionResult>;
@@ -880,6 +885,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
           status: REFERRAL_STATUS.FOLLOW_UP,
           currentStep: referralStepOf(REFERRAL_STATUS.FOLLOW_UP),
           totalSteps: REFERRAL_TOTAL_STEPS,
+          // Stored exactly like the engine stores it, so the offline record and
+          // the synced one describe the follow-up the same way (the closure gate
+          // and the open-referral tracker both read it).
+          followUpDate: date,
+          followUpType: time,
+          followUpInstructions: instructions,
           updatedAt: now(),
         };
       }));
@@ -938,9 +949,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setFollowups(prev => prev.map(f => f.id === followupId ? { ...f, status: 'missed' as FollowupStatus } : f));
   }, []);
 
-  /** Permanent closure — the backend refuses anything but the final steps. */
-  const closeReferral = useCallback((referralId: string, notes?: string) =>
-    runReferralAction('close', referralId, { notes }, () => {
+  /**
+   * Permanent closure — the backend refuses anything but the final steps, and
+   * requires the follow-up behind a FOLLOW-UP referral to be resolved first
+   * (see src/lib/referral-closure.ts). The confirmation is stored on the record
+   * so the offline collection path applies the same gate on sync.
+   */
+  const closeReferral = useCallback((referralId: string, notes?: string, followUpResolved?: boolean) =>
+    runReferralAction('close', referralId, { notes, followUpResolved }, () => {
       setReferrals(prev => prev.map(r => {
         if (r.id !== referralId) return r;
         return {
@@ -950,11 +966,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
           totalSteps: REFERRAL_TOTAL_STEPS,
           closedAt: now(),
           updatedAt: now(),
+          ...(followUpResolved
+            ? { followUpResolvedAt: now(), followUpResolvedByName: currentUser?.name }
+            : {}),
         };
       }));
       setFollowups(prev => prev.map(f => f.referralId === referralId ? { ...f, status: 'completed' as FollowupStatus } : f));
       addReferralEvent(referralId, REFERRAL_STATUS.CLOSED, 'Referral closed.');
-    }), [runReferralAction, addReferralEvent]);
+    }), [runReferralAction, addReferralEvent, currentUser]);
 
   // ── Missed-referral follow-up ─────────────────────────────────
   /**

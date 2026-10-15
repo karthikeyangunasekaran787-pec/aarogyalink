@@ -20,6 +20,7 @@ import {
   canTransition,
   referralStepOf,
 } from './referralStatus';
+import { validateReferralClosure } from '../lib/referral-closure';
 
 export type SessionScope =
   /** Overall Administrator: the whole platform, every district. */
@@ -767,16 +768,6 @@ function serverActorFields(actor: WriteActor): Record<string, unknown> {
 }
 
 /**
- * Statuses a referral must be able to show completion information for before it
- * may be closed (see mergeReferralsScoped).
- */
-const MISSED_FOLLOWUP_STATUSES = new Set<string>([
-  REFERRAL_STATUS.AWAITING_CONFIRMATION,
-  REFERRAL_STATUS.MISSED,
-  REFERRAL_STATUS.CONTACTED,
-]);
-
-/**
  * Referral writes keep the working fields editable but never let a caller jump
  * the workflow: a status change that the canonical model does not allow is
  * dropped (the stored record wins), so the collection path cannot be used to
@@ -839,14 +830,28 @@ function mergeReferralsScoped(
       out.push({ ...record, status: storedRecord.status });
       continue;
     }
-    if (statusChange && next === REFERRAL_STATUS.CLOSED && MISSED_FOLLOWUP_STATUSES.has(previous ?? '')) {
-      // A referral is never closed without the required completion information:
-      // leaving the missed-referral queue needs a documented outcome AND a note.
-      // Without them the stored status stands, so the offline collection path
-      // cannot close a missed referral silently either.
-      const hasOutcome = typeof record.closureOutcome === 'string' && record.closureOutcome.length > 0;
-      const hasNotes = typeof record.closureNotes === 'string' && record.closureNotes.trim().length > 0;
-      if (!hasOutcome || !hasNotes) {
+    if (statusChange && next === REFERRAL_STATUS.CLOSED) {
+      // ONE closure rule, shared with the engine and the UI
+      // (src/lib/referral-closure.ts): the closure must carry its completion
+      // information, and a referral at FOLLOW-UP is only closed once its
+      // follow-up is resolved. Without it the stored status stands, so the
+      // offline collection path cannot close a referral silently either.
+      const closure = validateReferralClosure(
+        {
+          outcome: str(record.closureOutcome),
+          notes: str(record.closureNotes),
+          otherHospitalName: str(record.attendedElsewhereHospital),
+          followUpResolved: typeof record.followUpResolvedAt === 'string' && record.followUpResolvedAt.length > 0,
+        },
+        {
+          from: previous,
+          now: new Date(),
+          followUpDate: str(storedRecord.followUpDate),
+          followUpTime: str(storedRecord.followUpTime),
+          attendedElsewhereHospital: str(storedRecord.attendedElsewhereHospital),
+        },
+      );
+      if (!closure.ok) {
         out.push({ ...record, status: storedRecord.status });
         continue;
       }

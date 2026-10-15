@@ -326,24 +326,44 @@ async function main() {
   );
 
   // ── 8) Follow-up then final closure ─────────────────────────────
+  // The follow-up is always a week AHEAD of the run, so the check below cannot
+  // pass just because the date happens to have gone by.
+  const followUpDate = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
   const followup = await trans(doctor.client, {
     referralId,
     action: 'schedule_followup',
-    followUpDate: '2026-10-19',
+    followUpDate,
     followUpType: '10:00',
     instructions: 'Review blood pressure and medication adherence.',
   });
   check('the doctor schedules a follow-up', followup.ok === true, followup.message);
   ref = await stored(observer, referralId);
   check('stored status is FOLLOW_UP', s(ref?.status) === 'followup', ref?.status);
-  check('the follow-up date is stored', s(ref?.followUpDate) === '2026-10-19', ref?.followUpDate);
+  check('the follow-up date is stored', s(ref?.followUpDate) === followUpDate, ref?.followUpDate);
 
-  const close = await trans(doctor.client, { referralId, action: 'close', notes: 'Care completed; follow-up done.' });
-  check('the doctor closes the referral', close.ok === true, close.message);
+  // Closure is permanent, and a scheduled follow-up is not a completed one: the
+  // engine refuses to close until the follow-up is resolved by a person.
+  const premature = await trans(doctor.client, { referralId, action: 'close', notes: 'Care completed.' });
+  check('a referral is not closed while its follow-up is still pending', premature.ok === false, premature.message);
+  check(
+    'the refused closure leaves the referral at FOLLOW_UP',
+    s((await stored(observer, referralId))?.status) === 'followup',
+    (await stored(observer, referralId))?.status,
+  );
+
+  const close = await trans(doctor.client, {
+    referralId,
+    action: 'close',
+    notes: 'Care completed; follow-up done.',
+    followUpResolved: true,
+  });
+  check('the doctor closes the referral once the follow-up is confirmed', close.ok === true, close.message);
   ref = await stored(observer, referralId);
   check('stored status is CLOSED', s(ref?.status) === 'closed', ref?.status);
   check('closure is attributed to the stored doctor identity', s(ref?.closedByName) === s(doctor.user.name), { stored: ref?.closedByName, actor: doctor.user.name });
   check('closure is timestamped', !!s(ref?.closedAt), ref?.closedAt);
+  check('the follow-up confirmation is on the record', !!s(ref?.followUpResolvedAt), ref?.followUpResolvedAt);
+  check('the closure carries a documented outcome', s(ref?.closureOutcome) === 'treatment_completed', ref?.closureOutcome);
 
   const afterClose = await trans(doctor.client, { referralId, action: 'record_treatment', notes: 'late note' });
   check('a closed referral cannot be moved again', afterClose.ok === false, afterClose.message);

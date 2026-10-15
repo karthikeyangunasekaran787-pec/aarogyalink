@@ -17,6 +17,8 @@ import {
 // The district's missed-referral metrics use the SAME formulas as the
 // health-worker follow-up queue, computed from the stored records.
 import { MISSED_REASONS, missedReferralMetrics, referralTouchesFacilities } from '@/lib/missed-referrals';
+import { OpenReferralTracker } from '@/components/shared/OpenReferralTracker';
+import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
 import type { TranslationKey } from '@/lib/i18n';
 
 export default function GovDashboard() {
@@ -29,7 +31,7 @@ export default function GovDashboard() {
   // hands over (convex/authz.ts) and `currentFacilities` is scoped to the
   // signed-in district administrator's district as well.
   const {
-    patients, referrals, followups, currentFacilities,
+    patients, referrals, followups, currentFacilities, referralEvents,
     villageAccessScores, districtAnalytics: liveAnalytics, referralFunnel,
   } = useData();
 
@@ -213,6 +215,13 @@ export default function GovDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Closure engine: what the district still owes, and how fast it
+              closes referrals. Both read the same district records. ────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <OpenReferralTracker referrals={districtReferrals} events={referralEvents} limit={8} />
+        <ReferralClosureStats referrals={districtReferrals} events={referralEvents} title={t('referralClosureEngine')} />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ── Referral Funnel (computed from actual data) ──────── */}

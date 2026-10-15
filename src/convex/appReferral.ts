@@ -27,13 +27,13 @@ import {
   ATTENDANCE_GRACE_HOURS,
   CONTACT_METHOD_VALUES,
   ESCALATION_RULES,
-  MISSED_CLOSURE_OUTCOMES,
   MISSED_REASON_VALUES,
   appointmentCycleKey,
   hoursOverdue,
   notificationEventId,
   referralTouchesFacilities,
 } from '../lib/missed-referrals';
+import { validateReferralClosure } from '../lib/referral-closure';
 import type { ContactMethod, MissedReason, Referral } from '../types';
 import {
   REFERRAL_ACTIONS,
@@ -263,6 +263,11 @@ export const transitionReferral = mutation({
     otherHospitalName: v.optional(v.string()),
     /** Date the patient attended that hospital (YYYY-MM-DD). */
     attendedDate: v.optional(v.string()),
+    /**
+     * The clinician closing a referral at FOLLOW-UP confirms the follow-up was
+     * actually completed. Only a person ever sets this (see referral-closure.ts).
+     */
+    followUpResolved: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const binding = await requireBinding(ctx);
@@ -339,6 +344,8 @@ export const transitionReferral = mutation({
     // ── Action-specific validation ──────────────────────────────────
     const now = new Date().toISOString();
     const nowDate = new Date(now);
+    /** Set when an action above validated a closure (see referral-closure.ts). */
+    let validatedClosure: { ok: true; outcome: string; notes?: string } | null = null;
     // When the contact actually happened, as stated by the person who made it.
     // A future or unparseable value is ignored: the record can never be dated
     // ahead of the system clock, and the event's own timestamp is always the
@@ -454,29 +461,35 @@ export const transitionReferral = mutation({
       };
     }
 
-    if (action === 'close_missed') {
-      const outcomes = MISSED_CLOSURE_OUTCOMES.map(o => o.value) as string[];
-      if (!args.outcome || !outcomes.includes(args.outcome)) {
-        return {
-          ok: false as const,
-          reason: 'invalid_request' as const,
-          message: 'A documented outcome is required to close a missed referral.',
-        };
+    if (action === 'close' || action === 'close_missed') {
+      // ONE closure rule for both paths, shared with the collection-path merge
+      // (convex/authz.ts) and with the UI: the outcome, the note and the
+      // follow-up gate are validated in src/lib/referral-closure.ts.
+      const followUps =
+        action === 'close' ? await readItems(ctx, 'followups') : [];
+      const storedFollowUp = followUps.find(
+        f => isRecord(f) && str(f.referralId) === args.referralId,
+      );
+      const closure = validateReferralClosure(
+        {
+          outcome: args.outcome,
+          notes: args.notes,
+          otherHospitalName: args.otherHospitalName,
+          followUpResolved: args.followUpResolved,
+        },
+        {
+          from: status,
+          now: nowDate,
+          followUpDate: str(referral.followUpDate),
+          followUpTime: str(referral.followUpTime),
+          followUpStatus: isRecord(storedFollowUp) ? str(storedFollowUp.status) : undefined,
+          attendedElsewhereHospital: str(referral.attendedElsewhereHospital),
+        },
+      );
+      if (!closure.ok) {
+        return { ok: false as const, reason: 'invalid_request' as const, message: closure.message };
       }
-      if (!args.notes || !args.notes.trim()) {
-        return {
-          ok: false as const,
-          reason: 'invalid_request' as const,
-          message: 'A note is required to close a missed referral.',
-        };
-      }
-      if (args.outcome === 'attended_another_hospital' && !args.otherHospitalName?.trim()) {
-        return {
-          ok: false as const,
-          reason: 'invalid_request' as const,
-          message: 'Name the hospital the patient attended.',
-        };
-      }
+      validatedClosure = closure;
     }
 
     if (action === 'record_attendance_elsewhere') {
@@ -486,6 +499,21 @@ export const transitionReferral = mutation({
       if (!args.attendedDate?.trim()) {
         return { ok: false as const, reason: 'invalid_request' as const, message: 'The date the patient attended is required.' };
       }
+      // Same closure rule as the other paths: the outcome is fixed (the patient
+      // attended elsewhere, so the visit was not missed) and the note is the
+      // documented attendance. Validated rather than assumed.
+      const closure = validateReferralClosure(
+        {
+          outcome: 'attended_another_hospital',
+          notes: args.notes ?? `Attendance verified at ${args.otherHospitalName.trim()} on ${args.attendedDate.trim()}.`,
+          otherHospitalName: args.otherHospitalName,
+        },
+        { from: status, now: nowDate, attendedElsewhereHospital: str(referral.attendedElsewhereHospital) },
+      );
+      if (!closure.ok) {
+        return { ok: false as const, reason: 'invalid_request' as const, message: closure.message };
+      }
+      validatedClosure = closure;
     }
 
     // ── Apply the transition to the stored record ───────────────────
@@ -550,11 +578,18 @@ export const transitionReferral = mutation({
         updated.closedAt = now;
         updated.closedByUserId = actor.id ?? actor.name;
         updated.closedByName = actor.name;
-        updated.closureNotes = args.notes;
+        updated.closureNotes = validatedClosure?.notes ?? args.notes;
         // Every closure carries a documented outcome. Reaching this point means
-        // the referral was treated (the workflow cannot be short-circuited), so
-        // the care itself is the completion information.
-        updated.closureOutcome = 'treatment_completed';
+        // the referral was treated AND its follow-up (when there was one) is
+        // resolved, so the care itself is the completion information.
+        updated.closureOutcome = validatedClosure?.outcome ?? 'treatment_completed';
+        // The clinician's confirmation that the follow-up was done is itself
+        // part of the record, so the offline collection path can honour the
+        // same gate instead of closing on a scheduled-but-unseen follow-up.
+        if (args.followUpResolved === true) {
+          updated.followUpResolvedAt = now;
+          updated.followUpResolvedByName = actor.name;
+        }
         break;
       // ── Missed-referral follow-up ──────────────────────────────────
       case 'mark_unconfirmed':
@@ -622,10 +657,10 @@ export const transitionReferral = mutation({
         updated.closedAt = now;
         updated.closedByUserId = actor.id ?? actor.name;
         updated.closedByName = actor.name;
-        updated.closureOutcome = args.outcome;
-        updated.closureNotes = args.notes;
+        updated.closureOutcome = validatedClosure?.outcome ?? args.outcome;
+        updated.closureNotes = validatedClosure?.notes ?? args.notes;
         updated.isOverdue = false;
-        if (args.outcome === 'attended_another_hospital') {
+        if (updated.closureOutcome === 'attended_another_hospital') {
           updated.attendedElsewhereHospital = args.otherHospitalName;
         }
         break;
@@ -635,8 +670,8 @@ export const transitionReferral = mutation({
         updated.closedAt = now;
         updated.closedByUserId = actor.id ?? actor.name;
         updated.closedByName = actor.name;
-        updated.closureOutcome = 'attended_another_hospital';
-        updated.closureNotes = args.notes
+        updated.closureOutcome = validatedClosure?.outcome ?? 'attended_another_hospital';
+        updated.closureNotes = validatedClosure?.notes
           ?? `Attendance verified at ${args.otherHospitalName} on ${args.attendedDate}.`;
         updated.attendedElsewhereHospital = args.otherHospitalName;
         updated.attendedElsewhereDate = args.attendedDate;

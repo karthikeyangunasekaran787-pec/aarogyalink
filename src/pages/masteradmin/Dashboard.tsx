@@ -19,6 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatTile, type StatTone } from '@/components/shared/StatTile';
+import { OpenReferralTracker } from '@/components/shared/OpenReferralTracker';
+import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -50,7 +52,7 @@ type DistrictStats = {
 export default function MasterAdminDashboard() {
   const { currentUser, language } = useApp();
   const {
-    districts, hospitals, doctors, healthWorkers, patients, referrals,
+    districts, hospitals, doctors, healthWorkers, patients, referrals, referralEvents,
     staffUsers, addDistrict, addStaffUser, removeStaffUser,
     toggleHospitalStatus, resetDemoData, getHospitalsForDistrict,
   } = useData();
@@ -364,6 +366,15 @@ export default function MasterAdminDashboard() {
           <StatTile key={kpi.label} icon={kpi.icon} tone={kpi.tone} value={kpi.value} label={kpi.label} />
         ))}
       </div>
+
+      {/* ── Platform-wide closure engine: every open referral's next step, and
+              the closure figures the same records produce. ─────────────── */}
+      {view === 'dashboard' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <OpenReferralTracker referrals={referrals} events={referralEvents} limit={8} />
+          <ReferralClosureStats referrals={referrals} events={referralEvents} title={t('referralClosureEngine', language)} />
+        </div>
+      )}
 
       {/* ── Create district form ───────────────────────────────── */}
       {showDistrictForm && (

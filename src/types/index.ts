@@ -374,6 +374,10 @@ export interface Referral {
   totalSteps: number;
   appointmentDate?: string;
   appointmentTime?: string;
+  /** Scheduled follow-up (set by the engine when a follow-up is arranged). */
+  followUpDate?: string;
+  followUpType?: string;
+  followUpInstructions?: string;
   createdAt: string;
   updatedAt: string;
   closedAt?: string;
@@ -418,6 +422,13 @@ export interface Referral {
   /** Documented closure of a missed referral. */
   closureOutcome?: MissedClosureOutcome | 'treatment_completed';
   closureNotes?: string;
+  /**
+   * The clinician closing a referral at FOLLOW-UP confirmed the follow-up was
+   * done. Required before closure (src/lib/referral-closure.ts) — the app never
+   * assumes a scheduled follow-up happened.
+   */
+  followUpResolvedAt?: string;
+  followUpResolvedByName?: string;
   /** Verified attendance elsewhere (the referral was not, in fact, missed). */
   attendedElsewhereHospital?: string;
   attendedElsewhereDate?: string;

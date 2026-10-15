@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { StatTile } from '@/components/shared/StatTile';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
+import { OpenReferralTracker } from '@/components/shared/OpenReferralTracker';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import { useReferralEngine } from '@/hooks/use-referral-engine';
 // Arrival confirmation for appointments whose time has passed.
@@ -183,6 +184,9 @@ export default function HospitalAdminDashboard() {
 
           {/* Closure engine metrics for this hospital — computed from stored data */}
           <ReferralClosureStats referrals={facilityReferrals} events={referralEvents} />
+
+          {/* What this hospital owes next, one step per open referral */}
+          <OpenReferralTracker referrals={facilityReferrals} events={referralEvents} />
 
           <div className="flex gap-3">
             <div className="relative flex-1">

@@ -9,8 +9,12 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Activity, Clock, Timer, TrendingUp } from 'lucide-react';
-import { REFERRAL_STATUS, REFERRAL_STEPS, type ReferralStatusValue } from '@/convex/referralStatus';
+import { Activity, Clock, ListChecks, Timer, TrendingUp } from 'lucide-react';
+import { REFERRAL_STATUS, REFERRAL_STEPS, type ReferralAction, type ReferralStatusValue } from '@/convex/referralStatus';
+import { useTranslation } from '@/hooks/use-translation';
+import { followupStateOf, isInFollowupQueue } from '@/lib/missed-referrals';
+import { hoursInStatus, isOpenReferral, nextActionFor } from '@/lib/referral-next-action';
+import type { TranslationKey } from '@/lib/i18n';
 import type { Referral, ReferralEvent, ReferralStatus } from '@/types';
 
 export interface ClosureStats {
@@ -25,6 +29,19 @@ export interface ClosureStats {
   avgAcceptHours: number | null;
   avgConsultHours: number | null;
   avgClosureHours: number | null;
+  // ── Work still outstanding (the same figures the tracker lists) ──────
+  /** Referrals still in flight: not closed and not cancelled. */
+  open: number;
+  /** Open referrals whose next step is already past its due date. */
+  overdue: number;
+  /** Open referrals waiting on a person in the missed-visit cycle. */
+  awaitingFollowup: number;
+  /** Referrals where non-attendance was documented by a person (ever). */
+  missed: number;
+  /** Mean hours open referrals have spent in their current status. */
+  avgTimeInStatusHours: number | null;
+  /** The step each open referral is waiting for, most common first. */
+  nextActions: { action: ReferralAction; labelKey: TranslationKey; count: number }[];
 }
 
 const hoursBetween = (from: string | undefined, to: string | undefined): number | null => {
@@ -42,7 +59,11 @@ const mean = (values: number[]): number | null =>
 const eventStatusOf = (event: ReferralEvent): string | undefined =>
   event.newStatus ?? event.canonicalStatus ?? event.status;
 
-export function computeClosureStats(referrals: Referral[], events: ReferralEvent[]): ClosureStats {
+export function computeClosureStats(
+  referrals: Referral[],
+  events: ReferralEvent[],
+  now: Date = new Date(),
+): ClosureStats {
   const eventsByReferral = new Map<string, ReferralEvent[]>();
   for (const event of events) {
     const list = eventsByReferral.get(event.referralId);
@@ -93,6 +114,20 @@ export function computeClosureStats(referrals: Referral[], events: ReferralEvent
     if (closedHours !== null) closureTimes.push(closedHours);
   }
 
+  // ── Outstanding work, derived from the same records ────────────────
+  const openReferrals = referrals.filter(isOpenReferral);
+  const nextActionCounts = new Map<string, { action: ReferralAction; labelKey: TranslationKey; count: number }>();
+  for (const referral of openReferrals) {
+    const next = nextActionFor(referral, now);
+    if (!next) continue;
+    const entry = nextActionCounts.get(next.action);
+    if (entry) entry.count += 1;
+    else nextActionCounts.set(next.action, { action: next.action, labelKey: next.labelKey, count: 1 });
+  }
+  const statusTimes = openReferrals
+    .map(referral => hoursInStatus(referral, events, now))
+    .filter((hours): hours is number => hours !== null);
+
   return {
     total: referrals.length,
     byStatus,
@@ -102,6 +137,12 @@ export function computeClosureStats(referrals: Referral[], events: ReferralEvent
     avgAcceptHours: mean(acceptTimes),
     avgConsultHours: mean(consultTimes),
     avgClosureHours: mean(closureTimes),
+    open: openReferrals.length,
+    overdue: openReferrals.filter(r => nextActionFor(r, now)?.overdue === true).length,
+    awaitingFollowup: openReferrals.filter(r => isInFollowupQueue(followupStateOf(r, now))).length,
+    missed: referrals.filter(r => !!r.missedAt).length,
+    avgTimeInStatusHours: mean(statusTimes),
+    nextActions: [...nextActionCounts.values()].sort((a, b) => b.count - a.count),
   };
 }
 
@@ -133,6 +174,7 @@ export function ReferralClosureStats({
   events: ReferralEvent[];
   title?: string;
 }) {
+  const { t } = useTranslation();
   const stats = computeClosureStats(referrals, events);
 
   return (
@@ -176,8 +218,45 @@ export function ReferralClosureStats({
               </p>
             </div>
 
+            {/* Outstanding work — the same records the tracker lists */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="rounded-lg border border-border p-2.5">
+                <p className="text-lg font-bold tabular-nums text-foreground">{stats.open}</p>
+                <p className="text-[11px] text-muted-foreground">{t('openReferrals')}</p>
+              </div>
+              <div className="rounded-lg border border-border p-2.5">
+                <p className={`text-lg font-bold tabular-nums ${stats.overdue > 0 ? 'text-red-600' : 'text-foreground'}`}>
+                  {stats.overdue}
+                </p>
+                <p className="text-[11px] text-muted-foreground">{t('overdue')}</p>
+              </div>
+              <div className="rounded-lg border border-border p-2.5">
+                <p className="text-lg font-bold tabular-nums text-foreground">{stats.awaitingFollowup}</p>
+                <p className="text-[11px] text-muted-foreground">{t('followupQueue')}</p>
+              </div>
+              <div className="rounded-lg border border-border p-2.5">
+                <p className="text-lg font-bold tabular-nums text-foreground">{stats.missed}</p>
+                <p className="text-[11px] text-muted-foreground">{t('metricConfirmedMissed')}</p>
+              </div>
+            </div>
+
+            {/* Next step each open referral is waiting for */}
+            {stats.nextActions.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                  <ListChecks className="h-3.5 w-3.5 text-primary" /> {t('nextAction')}
+                </p>
+                {stats.nextActions.map(entry => (
+                  <div key={entry.action} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{t(entry.labelKey)}</span>
+                    <span className="font-medium text-foreground tabular-nums">{entry.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Timing — real event timestamps only */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               <div className="rounded-lg border border-border p-2.5">
                 <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" /> Avg. time to acceptance
@@ -195,6 +274,12 @@ export function ReferralClosureStats({
                   <Timer className="h-3 w-3" /> Avg. time to closure
                 </p>
                 <p className="text-sm font-semibold text-foreground mt-0.5">{formatHours(stats.avgClosureHours)}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" /> Avg. time in current step
+                </p>
+                <p className="text-sm font-semibold text-foreground mt-0.5">{formatHours(stats.avgTimeInStatusHours)}</p>
               </div>
             </div>
 

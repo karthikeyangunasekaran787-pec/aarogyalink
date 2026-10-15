@@ -20,6 +20,7 @@ import { StatTile } from '@/components/shared/StatTile';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { ReferralProgressMini } from '@/components/shared/ReferralTimeline';
 import { ReferralClosureStats } from '@/components/shared/ReferralClosureStats';
+import { OpenReferralTracker } from '@/components/shared/OpenReferralTracker';
 import { PriorityBadge } from '@/components/shared/RiskBadge';
 import { ReportList } from '@/components/reports/ReportList';
 import {
@@ -86,6 +87,12 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
     )
   );
   const doctorFollowups = followups.filter(f => f.doctorId === doctor.id);
+  // Referrals this doctor is authorised to work on — the same set the closure
+  // metrics and the open-referral tracker both read.
+  const engineReferrals = useMemo(
+    () => referrals.filter(r => r.doctorId === doctor.id || r.destinationFacilityId === doctor.facilityId),
+    [referrals, doctor.id, doctor.facilityId],
+  );
   // Walk-in visits this doctor recorded from a scanned Health Card. They are
   // their own record type — no appointment or referral was invented for them.
   const walkInPatients = consultations
@@ -100,6 +107,10 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [consultingReferral, setConsultingReferral] = useState<string | null>(null);
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
+  // Closure confirmation: the doctor records the follow-up result, then closes.
+  const [closingReferral, setClosingReferral] = useState<string | null>(null);
+  const [closeNote, setCloseNote] = useState('');
+  const [followUpConfirmed, setFollowUpConfirmed] = useState(false);
 
   // Patient search by Health Card ID or name
   const searchResults = patientSearchQuery.trim()
@@ -146,9 +157,30 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
     if (result.ok) setConsultingReferral(refId);
   };
 
+  /**
+   * Permanent closure. A referral at FOLLOW-UP is only closed once the doctor
+   * confirms the follow-up was actually done — closure is final, so the app
+   * never treats a scheduled follow-up as a completed one (the backend applies
+   * the same rule and reports the refusal).
+   */
   const handleCloseReferral = async (refId: string) => {
-    const result = await closeReferral(refId, consultationNotes || undefined);
+    const referral = referrals.find(r => r.id === refId);
+    const needsFollowUpConfirmation = referral?.status === 'followup';
+    if (needsFollowUpConfirmation && !followUpConfirmed) {
+      showFeedback('Confirm the follow-up was completed before closing the referral.');
+      return;
+    }
+    const result = await closeReferral(
+      refId,
+      (closeNote.trim() || consultationNotes) || undefined,
+      needsFollowUpConfirmation,
+    );
     showFeedback(result.message);
+    if (result.ok) {
+      setClosingReferral(null);
+      setCloseNote('');
+      setFollowUpConfirmed(false);
+    }
   };
 
   const handleCompleteConsultation = async (refId: string) => {
@@ -540,9 +572,17 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
 
           {/* Referral Closure Engine metrics (this doctor's authorised referrals) */}
           <ReferralClosureStats
-            referrals={referrals.filter(r => r.doctorId === doctor.id || r.destinationFacilityId === doctor.facilityId)}
+            referrals={engineReferrals}
             events={referralEvents}
             title={t('referralClosureEngine', language)}
+          />
+
+          {/* What this doctor owes next, one step per open referral */}
+          <OpenReferralTracker
+            referrals={engineReferrals}
+            events={referralEvents}
+            title={t('openReferrals', language)}
+            limit={5}
           />
 
           {/* Active Referrals */}
@@ -610,10 +650,67 @@ function DoctorDashboardContent({ doctor }: { doctor: Doctor }) {
                         <Badge className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
                           Follow-up {ref.appointmentDate ? `on ${ref.appointmentDate}` : 'scheduled'}
                         </Badge>
-                        {/* FOLLOW_UP → CLOSED: the only permanent closure. */}
-                        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handleCloseReferral(ref.id)}>
-                          <CheckCircle2 className="h-3 w-3" /> Close Referral
-                        </Button>
+                        {/* FOLLOW_UP → CLOSED: the only permanent closure, and it
+                            needs the follow-up outcome on the record. */}
+                        {closingReferral === ref.id ? (
+                          <div className="w-full space-y-2 rounded-lg border border-border p-3">
+                            <p className="text-xs font-medium text-foreground">
+                              Closing this referral ends care permanently.
+                            </p>
+                            <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                checked={followUpConfirmed}
+                                onChange={e => setFollowUpConfirmed(e.target.checked)}
+                                className="mt-0.5"
+                              />
+                              <span>
+                                The follow-up has been completed
+                                {ref.appointmentDate ? ` (scheduled ${ref.appointmentDate})` : ''}.
+                              </span>
+                            </label>
+                            <Input
+                              value={closeNote}
+                              onChange={e => setCloseNote(e.target.value)}
+                              placeholder="Outcome note (what the follow-up found)"
+                              className="h-8 text-xs"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs gap-1"
+                                disabled={!followUpConfirmed}
+                                onClick={() => handleCloseReferral(ref.id)}
+                              >
+                                <CheckCircle2 className="h-3 w-3" /> Close Referral
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  setClosingReferral(null);
+                                  setFollowUpConfirmed(false);
+                                  setCloseNote('');
+                                }}
+                              >
+                                {t('cancel', language)}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => {
+                              setClosingReferral(ref.id);
+                              setFollowUpConfirmed(false);
+                              setCloseNote('');
+                            }}
+                          >
+                            <CheckCircle2 className="h-3 w-3" /> Close Referral
+                          </Button>
+                        )}
                       </>
                     )}
                     {ref.status === 'closed' && (

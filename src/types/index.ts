@@ -70,6 +70,25 @@ export type ReferralFollowupState =
   | 'closed'
   | 'cancelled';
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'missed';
+/** Who created the booking. Absent on seeded/legacy records (a patient booking). */
+export type AppointmentBookingSource = 'PATIENT' | 'HEALTH_WORKER' | 'HOSPITAL_STAFF';
+/** One recorded change to an appointment. Append-only: a change never erases
+ *  the previous date, time or status. */
+export type AppointmentHistoryAction = 'booked' | 'rescheduled' | 'cancelled';
+export interface AppointmentHistoryEntry {
+  id: string;
+  action: AppointmentHistoryAction;
+  at: string;
+  byUserId?: string;
+  byName: string;
+  byRole?: string;
+  fromDate?: string;
+  fromTime?: string;
+  toDate?: string;
+  toTime?: string;
+  reason?: string;
+}
+
 export type FollowupStatus = 'scheduled' | 'completed' | 'missed' | 'overdue' | 'rescheduled';
 
 export type StaffStatus = 'active' | 'disabled' | 'pending_password_change';
@@ -302,6 +321,33 @@ export interface Appointment {
   reason: string;
   notes?: string;
   createdAt: string;
+  // ── Booking provenance (optional: seeded/legacy rows stay valid) ──────────
+  /** Human-readable appointment reference, e.g. APT-2026-000007. */
+  appointmentId?: string;
+  /** Patient details captured at booking, so the hospital queue is readable
+   *  even when the patient record itself is not in that caller's scope. */
+  patientName?: string;
+  healthCardId?: string;
+  doctorName?: string;
+  facilityName?: string;
+  /** Booking source — HEALTH_WORKER when a health worker booked on the
+   *  patient's behalf. The patient always remains the person receiving care. */
+  bookingSource?: AppointmentBookingSource;
+  /** The health worker (or staff member) who created the booking. */
+  bookedByUserId?: string;
+  bookedByName?: string;
+  bookedByRole?: string;
+  bookedByFacilityId?: string;
+  /** Existing referral this appointment belongs to, when one was selected. */
+  referralId?: string;
+  updatedAt?: string;
+  cancelledAt?: string;
+  cancelledByName?: string;
+  cancellationReason?: string;
+  /** Append-only history of who changed what, and the previous values. */
+  history?: AppointmentHistoryEntry[];
+  /** Idempotency key of the booking request that created this row. */
+  idempotencyKey?: string;
 }
 
 export interface Consultation {

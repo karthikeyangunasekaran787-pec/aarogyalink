@@ -28,6 +28,9 @@ import { MissedReferralsPanel } from '@/components/referrals/MissedReferralsPane
 // patient registered by another health worker is the SAME record (see
 // src/convex/appPatient.ts), never a second one.
 import { FindPatientPanel } from '@/components/patients/FindPatientPanel';
+// Book a hospital appointment on a patient's behalf — the backend validates the
+// doctor, hospital and slot and records this health worker as the booker.
+import { BookAppointmentPanel } from '@/components/patients/BookAppointmentPanel';
 import {
   Users, AlertTriangle, FileText, Bell, UserPlus,
   Search, Activity, Stethoscope, PenLine, ChevronRight,
@@ -111,6 +114,7 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
   const [selectedTab, setSelectedTab] = useState<'overview' | 'patients' | 'referrals' | 'followups' | 'missed'>('overview');
   // "Find Existing Patient" — opened from the quick-action card.
   const [showFindPatient, setShowFindPatient] = useState(false);
+  const [showBookAppointment, setShowBookAppointment] = useState(false);
 
   /**
    * How many clinical records hang off this patient. Shown next to the verified
@@ -363,9 +367,22 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
         </div>
       )}
 
-      {/* Quick Actions — seven actions; the row fills a wide screen and wraps on
+      {/* Book Appointment for Patient — patient search → hospital → doctor →
+          real slots → reason → confirm. */}
+      {showBookAppointment && (
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => setShowBookAppointment(false)}>
+              <X className="h-3.5 w-3.5" /> {t('close', language)}
+            </Button>
+          </div>
+          <BookAppointmentPanel recordCounts={clinicalRecordCounts} />
+        </div>
+      )}
+
+      {/* Quick Actions — eight actions; the row fills a wide screen and wraps on
           small ones. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         <Link to="/health-worker/register">
           <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
             <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
@@ -417,6 +434,17 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
               <Bell className="h-5 w-5 text-amber-600" />
             </div>
             <span className="text-xs font-medium text-foreground">{t('followup', language)}</span>
+          </CardContent>
+        </Card>
+        <Card
+          className={`hover:shadow-md transition-shadow cursor-pointer h-full ${showBookAppointment ? 'ring-1 ring-primary/40' : ''}`}
+          onClick={() => setShowBookAppointment(open => !open)}
+        >
+          <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
+            <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <Calendar className="h-5 w-5 text-blue-600" />
+            </div>
+            <span className="text-xs font-medium text-foreground">{t('bookAppointmentForPatient', language)}</span>
           </CardContent>
         </Card>
         <Card

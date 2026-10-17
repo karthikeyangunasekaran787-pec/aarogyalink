@@ -156,6 +156,13 @@ interface DataContextValue {
 
   // Patient actions
   addPatient: (data: Omit<Patient, 'id' | 'userId' | 'createdAt' | 'healthCardId' | 'registeredAt'>) => Patient;
+  /**
+   * Adopt an authorized edit's stored patient record (see
+   * src/convex/appPatient.ts). The record returned by the backend replaces the
+   * local copy, so every surface showing that patient reflects the correction
+   * immediately and a colleague's newer edit is never rolled back locally.
+   */
+  updatePatientRecord: (patient: Patient) => void;
   addDoctor: (data: Omit<Doctor, 'id'>) => { doctor: Doctor; credentials: { doctorId: string; username: string; tempPassword: string } };
   addHealthWorker: (data: Omit<HealthWorker, 'id'>) => { hw: HealthWorker; credentials: { hwId: string; username: string; tempPassword: string } };
   addVitals: (data: Omit<Vitals, 'id'>) => void;
@@ -1221,12 +1228,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // backend can keep their record (and their clinical history) inside that
       // hospital. Seeded/legacy records stay unattributed and remain shared.
       registeredByFacilityId: data.registeredByFacilityId ?? currentUser?.facilityId,
+      // The REGISTERING health worker is recorded on the record itself and is
+      // never rewritten by a later edit, so a patient corrected by a colleague
+      // still shows who originally registered them. Taken from the signed-in
+      // account, not from the submitted form.
+      registeredByUserId: currentUser?.id ?? data.registeredByUserId,
+      registeredByName: currentUser?.name ?? data.registeredByName,
+      registeredByRole: currentUser?.role ?? data.registeredByRole,
+      recordVersion: 0,
       registeredAt: now().split('T')[0],
       createdAt: now().split('T')[0],
     };
     setPatients(prev => [...prev, patient]);
     return patient;
   }, [currentUser]);
+
+  /** Adopt an authorized edit's stored record (backend or offline path). */
+  const updatePatientRecord = useCallback((patient: Patient) => {
+    setPatients(prev => (prev.some(p => p.id === patient.id)
+      ? prev.map(p => (p.id === patient.id ? patient : p))
+      : [...prev, patient]));
+  }, []);
 
   const addDoctor = useCallback((data: Omit<Doctor, 'id'>) => {
     const num = nextDoctorNum++;
@@ -1790,7 +1812,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     markAttendanceUncertain, confirmMissedReferral, logContactAttempt, recordContact,
     rescheduleReferral, closeMissedReferral, recordAttendanceElsewhere,
     bookAppointment, cancelAppointment, completeAppointment,
-    addPatient, addDoctor, addHealthWorker, addVitals, addHealthRecord, addConsultation,
+    addPatient, updatePatientRecord, addDoctor, addHealthWorker, addVitals, addHealthRecord, addConsultation,
     completeFollowupById, markFollowupMissed,
     addNotification, markNotificationRead, markAllNotificationsRead, getNotificationsForUser,
     updateMedicineStock, addMedicineStock, removeMedicineStock,

@@ -24,6 +24,10 @@ import { PriorityBadge } from '@/components/shared/RiskBadge';
 import { ReportUploadDialog } from '@/components/reports/ReportUploadDialog';
 // The missed-referral follow-up queue (see src/lib/missed-referrals.ts).
 import { MissedReferralsPanel } from '@/components/referrals/MissedReferralsPanel';
+// Find an existing patient by Patient ID and correct permitted details — a
+// patient registered by another health worker is the SAME record (see
+// src/convex/appPatient.ts), never a second one.
+import { FindPatientPanel } from '@/components/patients/FindPatientPanel';
 import {
   Users, AlertTriangle, FileText, Bell, UserPlus,
   Search, Activity, Stethoscope, PenLine, ChevronRight,
@@ -90,7 +94,7 @@ export default function HWDashboard() {
 
 function HWDashboardContent({ hw }: { hw: HealthWorker }) {
   const { language } = useApp();
-  const { patients, referrals, followups, facilities, hospitals, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient, completeFollowupById, markFollowupMissed, completeFollowup  } = useData();
+  const { patients, referrals, followups, appointments, medicalReports, facilities, hospitals, createReferral, addNotification, getReferralEvents, addVitals, getVitalsForPatient, completeFollowupById, markFollowupMissed, completeFollowup  } = useData();
 
   // Hospital isolation: show only patients and referrals from this HW's hospital.
   // The backend already scopes `patients` to this hospital's register, so no
@@ -105,6 +109,20 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState<'overview' | 'patients' | 'referrals' | 'followups' | 'missed'>('overview');
+  // "Find Existing Patient" — opened from the quick-action card.
+  const [showFindPatient, setShowFindPatient] = useState(false);
+
+  /**
+   * How many clinical records hang off this patient. Shown next to the verified
+   * record so a demographic correction is visibly separate from the patient's
+   * vitals, reports, referrals and appointments (which it never touches).
+   */
+  const clinicalRecordCounts = (patientId: string) => ({
+    vitals: getVitalsForPatient(patientId).length,
+    reports: medicalReports.filter(r => r.patientId === patientId).length,
+    referrals: referrals.filter(r => r.patientId === patientId).length,
+    appointments: appointments.filter(a => a.patientId === patientId).length,
+  });
 
   // Create Referral form state
   const [showReferralForm, setShowReferralForm] = useState(false);
@@ -331,8 +349,23 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
         />
       </div>
 
-      {/* Quick Actions — six actions, so the row divides evenly (3 × 2 / 6 × 1) */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {/* Find Existing Patient — Patient ID lookup + authorized edit of the
+          permitted demographic details of a patient any health worker at this
+          facility registered. */}
+      {showFindPatient && (
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => setShowFindPatient(false)}>
+              <X className="h-3.5 w-3.5" /> {t('close', language)}
+            </Button>
+          </div>
+          <FindPatientPanel recordCounts={clinicalRecordCounts} />
+        </div>
+      )}
+
+      {/* Quick Actions — seven actions; the row fills a wide screen and wraps on
+          small ones. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         <Link to="/health-worker/register">
           <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
             <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
@@ -384,6 +417,17 @@ function HWDashboardContent({ hw }: { hw: HealthWorker }) {
               <Bell className="h-5 w-5 text-amber-600" />
             </div>
             <span className="text-xs font-medium text-foreground">{t('followup', language)}</span>
+          </CardContent>
+        </Card>
+        <Card
+          className={`hover:shadow-md transition-shadow cursor-pointer h-full ${showFindPatient ? 'ring-1 ring-primary/40' : ''}`}
+          onClick={() => setShowFindPatient(open => !open)}
+        >
+          <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Search className="h-5 w-5 text-primary" />
+            </div>
+            <span className="text-xs font-medium text-foreground">{t('findExistingPatient', language)}</span>
           </CardContent>
         </Card>
       </div>

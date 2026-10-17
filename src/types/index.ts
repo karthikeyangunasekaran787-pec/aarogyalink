@@ -138,7 +138,63 @@ export interface Patient {
    * Absent on seeded/legacy records, which are treated as shared demo data.
    */
   registeredByFacilityId?: string;
+  /**
+   * The health worker who REGISTERED this patient. Captured at registration and
+   * never rewritten: a colleague who later corrects the demographic details
+   * becomes the editor (see `lastEditedBy*`), not the owner of the record.
+   */
+  registeredByUserId?: string;
+  registeredByName?: string;
+  registeredByRole?: Role;
+  /**
+   * Optimistic-concurrency counter, incremented by every accepted demographic
+   * edit (src/lib/patient-record.ts). A save that carries an older version is
+   * refused instead of overwriting a colleague's newer information.
+   */
+  recordVersion?: number;
+  lastEditedAt?: string;
+  lastEditedByUserId?: string;
+  lastEditedByName?: string;
+  lastEditedByFacilityId?: string;
+  /** Append-only audit trail of demographic edits, newest last. */
+  editHistory?: PatientEditEntry[];
   createdAt: string;
+}
+
+/** One field changed by a demographic edit, with its previous and new value. */
+export interface PatientEditChange {
+  field: string;
+  from: string;
+  to: string;
+}
+
+/**
+ * One recorded edit of a patient's demographic details. Written by the
+ * authorized edit path only (src/convex/appPatient.ts), so the user, time and
+ * changed values cannot be edited from the client afterwards.
+ */
+export interface PatientEditEntry {
+  id: string;
+  /** The Patient ID the edit was made against (immutable identity). */
+  patientId: string;
+  healthCardId?: string;
+  editedAt: string;
+  editedByUserId?: string;
+  editedByName: string;
+  editedByRole?: string;
+  editedByFacilityId?: string;
+  reason?: string;
+  previousVersion: number;
+  newVersion: number;
+  changes: PatientEditChange[];
+}
+
+/** The authenticated actor performing a patient edit. */
+export interface PatientEditActor {
+  userId?: string;
+  name: string;
+  role?: string;
+  facilityId?: string;
 }
 
 export interface HealthWorker {

@@ -687,6 +687,12 @@ function mergeScoped(
   return out;
 }
 
+/** Edit counter of a patient record (0 for records written before versioning). */
+function patientRecordVersionOf(record: unknown): number {
+  const value = isRecord(record) ? record.recordVersion : undefined;
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
 /** Preserve everything the caller does not own; apply only its own patients. */
 function mergePatientsInScope(
   stored: unknown[],
@@ -709,7 +715,18 @@ function mergePatientsInScope(
     if (storedRecord) {
       // Existing records are judged by their STORED owner, so a crafted payload
       // cannot claim a patient that belongs to another facility.
-      if (ownedByMe(storedRecord)) out.push(record);
+      if (!ownedByMe(storedRecord)) continue;
+      // Concurrent edits: a device that has not yet seen a colleague's newer
+      // demographic edit pushes an OLDER version of the record. Accepting it
+      // would silently roll the record back, so the stored (newer) record is
+      // kept instead. The editing path itself is a dedicated mutation
+      // (convex/appPatient.ts) whose version check refuses the stale save and
+      // tells the user to reload; this is the collection-level safety net.
+      if (patientRecordVersionOf(record) < patientRecordVersionOf(storedRecord)) {
+        out.push(storedRecord);
+        continue;
+      }
+      out.push(record);
       continue;
     }
     const owner = str(record.registeredByFacilityId);

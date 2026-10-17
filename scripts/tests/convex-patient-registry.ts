@@ -189,7 +189,10 @@ try {
     );
   }
 
-  const stamp = Date.now().toString(36).toUpperCase();
+  // Real Patient IDs are `P123`-shaped and Health Card IDs are
+  // `HC-2026-0001`-shaped: id characters plus digits. The live fixtures must
+  // obey the same form, or the lookup rejects them as a typo (`invalid_code`).
+  const stamp = `${Date.now().toString(36).toUpperCase()}${Date.now() % 1000}`;
   const testPatientId = `plive-${stamp.toLowerCase()}`;
   const testCardId = `HC-LIVE-${stamp}`;
   const testVitalsId = `v-live-${stamp.toLowerCase()}`;

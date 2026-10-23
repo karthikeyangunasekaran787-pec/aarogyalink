@@ -185,7 +185,12 @@ describe('the collection path applies the same closure rules', () => {
     mergeAuthorizedWrite('referrals', stored, incoming, hospital, { actor }) as Referral[];
 
   test('a FOLLOW-UP referral is not closed while its follow-up is unrecorded', () => {
-    const stored = referral({ status: REFERRAL_STATUS.FOLLOW_UP, followUpDate: '2026-10-20' });
+    // A follow-up that is still UPCOMING is unresolved by definition. The date
+    // is computed instead of hardcoded: the collection path validates against
+    // the real clock, so a fixed date turns this into a passing (or failing)
+    // test depending on the day the suite runs.
+    const upcomingFollowUp = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const stored = referral({ status: REFERRAL_STATUS.FOLLOW_UP, followUpDate: upcomingFollowUp });
     const merged = write([stored], [referral({ status: REFERRAL_STATUS.CLOSED, closedAt: '2026-10-15T12:00:00.000Z' })]);
     expect(merged[0].status).toBe(REFERRAL_STATUS.FOLLOW_UP);
   });

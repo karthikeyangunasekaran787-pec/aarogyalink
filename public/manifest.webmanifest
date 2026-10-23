@@ -1,29 +1,40 @@
 {
+  "id": "/",
   "name": "AarogyaLink",
   "short_name": "AarogyaLink",
   "description": "Rural healthcare access, referral closure and follow-up platform — No Patient Lost in the Referral Loop",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f6fafb",
   "theme_color": "#0d9488",
+  "categories": ["health", "medical", "productivity"],
   "icons": [
     {
-      "src": "/assets/aarogyalink-logo-full.png",
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/aarogyalink-mark.png",
-      "sizes": "512x512",
+      "src": "/icons/maskable-192.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/assets/aarogyalink-mark.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

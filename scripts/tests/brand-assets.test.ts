@@ -11,6 +11,7 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { PNG } from 'pngjs';
 
 import { BRAND_FULL_SOURCES, BRAND_MARK_SOURCES } from '../../src/lib/brand-assets';
 
@@ -83,6 +84,73 @@ describe('official brand artwork', () => {
       const bytes = statSync(publicPath(src)).size;
       expect(bytes).toBeGreaterThan(10_000);
       expect(bytes).toBeLessThan(3_000_000);
+    }
+  });
+});
+
+/**
+ * The installed Android app takes its launcher icon and its splash screen from
+ * `manifest.webmanifest`, not from the in-app `<BrandLogo>`. When that manifest
+ * declared 512x512 while pointing at JPEG data (1536x410 and 1536x1536) and an
+ * SVG wrapper whose canvas was 65,536 x 4,293,001,768 px, Android installed a
+ * blank white icon and painted a black square on the splash. These tests hold
+ * the declaration and the files together.
+ */
+describe('installed-app assets', () => {
+  const root = (path: string) => resolve(import.meta.dir, '../..', path);
+  const manifest = JSON.parse(readFileSync(root('public/manifest.webmanifest'), 'utf8')) as {
+    background_color: string;
+    icons: Array<{ src: string; sizes: string; type: string; purpose: string }>;
+  };
+
+  test('every declared icon is a real PNG at exactly its declared size', () => {
+    expect(manifest.icons.length).toBeGreaterThanOrEqual(4);
+    for (const icon of manifest.icons) {
+      expect(icon.type).toBe('image/png');
+      const file = publicPath(icon.src);
+      expect(existsSync(file)).toBe(true);
+      const { width, height } = pngHeader(file);
+      expect(`${width}x${height}`).toBe(icon.sizes);
+    }
+  });
+
+  test('both icon purposes are declared', () => {
+    const purposes = manifest.icons.map(icon => icon.purpose);
+    expect(purposes).toContain('any');
+    // Without a maskable icon Android shrinks the "any" artwork into its own
+    // shape, which is what left a small, blank-looking circle on the home screen.
+    expect(purposes).toContain('maskable');
+  });
+
+  test('the installed icons are opaque and carry the emblem, not an empty tile', () => {
+    for (const icon of manifest.icons) {
+      const png = PNG.sync.read(readFileSync(publicPath(icon.src)));
+      let minAlpha = 255;
+      let ink = 0;
+      for (let i = 0; i < png.data.length; i += 4) {
+        minAlpha = Math.min(minAlpha, png.data[i + 3]);
+        // Transparency and washed-out artwork are what made the splash icon
+        // read as a black/white square instead of the logo.
+        if ((png.data[i] + png.data[i + 1] + png.data[i + 2]) / 3 < 200) ink++;
+      }
+      expect(minAlpha).toBe(255);
+      expect(ink / (png.width * png.height)).toBeGreaterThan(0.05);
+    }
+  });
+
+  test('the page points at the PNG icons for the tab and the home screen', () => {
+    const html = readFileSync(root('index.html'), 'utf8');
+    for (const href of [
+      '/icons/favicon-32.png',
+      '/icons/apple-touch-icon.png',
+      '/manifest.webmanifest',
+    ]) {
+      expect(html).toContain(href);
+    }
+    expect(html).toContain('rel="apple-touch-icon"');
+    expect(html).toContain('name="theme-color"');
+    for (const src of ['/icons/favicon-32.png', '/icons/apple-touch-icon.png']) {
+      expect(existsSync(publicPath(src))).toBe(true);
     }
   });
 });

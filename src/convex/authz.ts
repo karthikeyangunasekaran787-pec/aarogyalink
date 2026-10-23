@@ -963,6 +963,46 @@ function mergeDistrictWrite(
   return mergeScoped(stored, incoming, ownsStored, canCreate);
 }
 
+/**
+ * Hospital fields a hospital user may never write on their OWN row. Identity,
+ * district ownership, the creating administrator and every credential stay as
+ * stored, so a crafted payload cannot move a hospital to another district,
+ * claim another administrator account or rewrite its own login.
+ */
+const HOSPITAL_SERVER_OWNED_FIELDS = new Set([
+  'id',
+  'hospitalId',
+  'district',
+  'districtId',
+  'districtName',
+  'createdByUserId',
+  'createdAt',
+  'adminUserId',
+  ...HOSPITAL_ADMIN_FIELDS,
+]);
+
+/**
+ * Write merge for a hospital user: they maintain their OWN directory entry and
+ * nothing else. Every other hospital row is preserved exactly as stored (the
+ * caller receives the whole directory to pick referral destinations from, so a
+ * write must never round-trip those redacted rows over the stored ones), and
+ * the server-owned fields of their own row are restated from storage.
+ */
+function mergeOwnHospitalRow(stored: unknown[], incoming: unknown[], hospitalId: string): unknown[] {
+  const submitted = incoming.find(record => isRecord(record) && str(record.id) === hospitalId);
+  if (!isRecord(submitted)) return stored;
+
+  const writable = Object.keys(submitted).filter(field => !HOSPITAL_SERVER_OWNED_FIELDS.has(field));
+  if (writable.length === 0) return stored;
+
+  return stored.map(record => {
+    if (!isRecord(record) || str(record.id) !== hospitalId) return record;
+    const patch: Record<string, unknown> = {};
+    for (const field of writable) patch[field] = submitted[field];
+    return { ...record, ...patch };
+  });
+}
+
 /** Merge one collection payload for a write from the given scope. */
 export function mergeAuthorizedWrite(
   key: string,
@@ -1006,11 +1046,12 @@ export function mergeAuthorizedWrite(
     // District-level analytics are read-only for hospital users.
     if (DISTRICT_ONLY.has(key)) return stored;
 
-    // The hospital directory is READ-ONLY for hospital users: they may read
-    // every hospital to pick a referral destination, but only the District
-    // Administrator registers or edits hospitals. Leaving this writable would
-    // also let a redacted payload overwrite the stored record's credentials.
-    if (key === 'hospitals') return stored;
+    // The hospital directory is read-mostly for hospital users: they may read
+    // every hospital to pick a referral destination and maintain their OWN
+    // entry (contact details, beds, departments, services, status). Registering
+    // or removing a hospital stays with the District Administrator, and the
+    // server-owned fields of the caller's row are never taken from the payload.
+    if (key === 'hospitals') return mergeOwnHospitalRow(stored, incoming, scope.hospitalId);
 
     // Patients are attributed to the registering hospital, so a hospital may
     // only create/update its own and can never touch another hospital's record.

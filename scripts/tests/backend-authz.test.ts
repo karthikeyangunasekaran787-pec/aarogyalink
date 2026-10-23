@@ -200,6 +200,76 @@ describe('WRITE scoping', () => {
     expect(merged.find(d => d.id === 'd2')?.name).toBe('Doctor B');
   });
 
+  test('a hospital admin maintains its own directory entry, and only there', () => {
+    const stored = [
+      {
+        ...districtHospitals[0],
+        phone: '04322-111111',
+        totalBeds: 100,
+        status: 'active',
+        adminUserId: 'uadmin-1',
+        adminUsername: 'hosadmin.pdk001',
+        adminTempPassword: 'secret',
+        createdByUserId: 'udistrict-1',
+      },
+      districtHospitals[1],
+    ];
+    // The client receives the whole directory, so the other row round-trips too.
+    const edited = { ...stored[0], phone: '04322-222222', totalBeds: 120, status: 'suspended' };
+    const merged = mergeAuthorizedWrite('hospitals', stored, [edited, stored[1]], hospitalA) as Record<string, unknown>[];
+
+    const own = merged.find(h => h.id === 'h1')!;
+    expect(own.phone).toBe('04322-222222');
+    expect(own.totalBeds).toBe(120);
+    expect(own.status).toBe('suspended');
+    expect(merged.find(h => h.id === 'h6')).toEqual(stored[1]);
+  });
+
+  test('a hospital admin cannot rewrite identity, district or credentials on its own row', () => {
+    const stored = [
+      {
+        ...districtHospitals[0],
+        status: 'active',
+        adminUserId: 'uadmin-1',
+        adminUsername: 'hosadmin.pdk001',
+        adminTempPassword: 'secret',
+        createdByUserId: 'udistrict-1',
+      },
+    ];
+    const tampered = {
+      ...stored[0],
+      name: 'Renamed Hospital',
+      status: 'suspended',
+      district: 'Tiruchirappalli',
+      districtId: 'DIST-TRY',
+      hospitalId: 'HOS-HACKED',
+      adminUserId: 'uattacker',
+      adminUsername: 'attacker',
+      adminTempPassword: 'attacker',
+      createdByUserId: 'uattacker',
+    };
+    const merged = mergeAuthorizedWrite('hospitals', stored, [tampered], hospitalA) as Record<string, unknown>[];
+
+    expect(merged).toHaveLength(1);
+    // Its own details stay editable…
+    expect(merged[0].name).toBe('Renamed Hospital');
+    expect(merged[0].status).toBe('suspended');
+    // …while identity, district ownership and credentials come from storage.
+    expect(merged[0].hospitalId).toBe('HOS-PDK-001');
+    expect(merged[0].district).toBe('Pudukkottai');
+    expect(merged[0].districtId).toBe('DIST-PDK');
+    expect(merged[0].adminUserId).toBe('uadmin-1');
+    expect(merged[0].adminUsername).toBe('hosadmin.pdk001');
+    expect(merged[0].adminTempPassword).toBe('secret');
+    expect(merged[0].createdByUserId).toBe('udistrict-1');
+  });
+
+  test('a hospital cannot add or remove a hospital row', () => {
+    const stored = [{ ...districtHospitals[0] }, { ...districtHospitals[1] }];
+    const merged = mergeAuthorizedWrite('hospitals', stored, [stored[1]], hospitalA) as { id: string }[];
+    expect(merged.map(h => h.id)).toEqual(['h1', 'h6']);
+  });
+
   test('hospital cannot forge a record into another hospital on create', () => {
     const forged = { id: 'd7', name: 'Forged', facilityId: 'h2' };
     const merged = mergeAuthorizedWrite('doctors', doctors, [forged], hospitalA) as { id: string }[];
@@ -520,7 +590,7 @@ describe('hospital directory (referral origin + appointment booking)', () => {
     expect(rows.every(h => h.adminTempPassword === undefined)).toBe(true);
   });
 
-  test('a hospital user cannot write the directory (forged payload is dropped)', () => {
+  test("a hospital user cannot write another hospital's directory entry", () => {
     const forged = [{ id: 'h6', name: 'Forged', adminTempPassword: 'Stolen' }];
     const merged = mergeAuthorizedWrite('hospitals', directory, forged, hospitalA) as Record<string, unknown>[];
     expect(merged.map(h => h.id)).toEqual(['h1', 'h6']);

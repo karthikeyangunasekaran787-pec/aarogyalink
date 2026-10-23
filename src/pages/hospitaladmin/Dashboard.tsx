@@ -3,10 +3,11 @@
 // ============================================================================
 
 import { useState } from 'react';
-import type { Facility } from '@/types';
+import type { Facility, Hospital } from '@/types';
 import { useApp } from '@/contexts/AppContext';
 import { useData } from '@/contexts/DataContext';
 import { t } from '@/lib/i18n';
+import type { Language, TranslationKey } from '@/lib/i18n';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,13 +28,29 @@ import {
   MapPin, Phone, Mail, Bed, ShieldCheck, Edit3, Save, ChevronDown, AlertTriangle
 } from 'lucide-react';
 
+/** What the hospital-admin edit form holds while it is open. */
+type FacilityFormState = {
+  name: string;
+  type: Hospital['type'];
+  address: string;
+  village: string;
+  district: string;
+  state: string;
+  phone: string;
+  email: string;
+  departments: string;
+  services: string;
+  totalBeds: number;
+  occupiedBeds: number;
+};
+
 export default function HospitalAdminDashboard() {
   const { language, currentUser } = useApp();
   const {
     referrals, referralEvents, facilities, hospitals, medicineStock, diagnostics, doctors,
     acceptReferral, rejectReferral, scheduleReferral,
     addMedicineStock, removeMedicineStock,
-    updateHospital, toggleHospitalStatus, removeHospital, addHospital
+    updateHospital, toggleHospitalStatus, addHospital
   } = useData();
   // Referral Closure Engine: doctor assignment + QR arrival verification are
   // validated against the stored record by the backend.
@@ -53,13 +70,12 @@ export default function HospitalAdminDashboard() {
 
   // Facility management state (hospital admin edits their own hospital).
   const [showFacilityForm, setShowFacilityForm] = useState(false);
-  const [facilityForm, setFacilityForm] = useState({
-    name: '', type: 'government' as const, address: '', village: '', district: '',
+  const [facilityForm, setFacilityForm] = useState<FacilityFormState>({
+    name: '', type: 'government', address: '', village: '', district: '',
     state: '', phone: '', email: '', departments: '', services: '',
     totalBeds: 0, occupiedBeds: 0
   });
   const [facilityFormDirty, setFacilityFormDirty] = useState(false);
-  const [confirmRemoveFacility, setConfirmRemoveFacility] = useState<string | null>(null);
   const [facilitySaveFeedback, setFacilitySaveFeedback] = useState<string | null>(null);
   const pendingReferrals = facilityReferrals.filter(r => r.status === 'created');
   const closedReferrals = facilityReferrals.filter(r => r.status === 'closed');
@@ -90,7 +106,7 @@ export default function HospitalAdminDashboard() {
   };
 
   // Convert the editable facility form into the Hospital shape the data layer expects.
-  function facilityFormToHospital(draft: typeof facilityForm, hospitalId: string): Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'> {
+  function facilityFormToHospital(draft: FacilityFormState): Partial<Hospital> {
     return {
       name: draft.name.trim(),
       type: draft.type,
@@ -104,7 +120,6 @@ export default function HospitalAdminDashboard() {
       services: servicesList(draft.services),
       totalBeds: Math.max(0, draft.totalBeds),
       occupiedBeds: Math.max(0, Math.min(draft.totalBeds, draft.occupiedBeds)),
-      status: 'active',
     };
   }
 
@@ -125,27 +140,66 @@ export default function HospitalAdminDashboard() {
   // Doctors who actually belong to THIS hospital (the engine re-checks this).
   const facilityDoctors = doctors.filter(d => d.facilityId === facility.id);
 
-  /** The hospital record this admin is allowed to edit. */
-  const facilityHospital = hospitals.find(h => h.id === currentUser?.facilityId)
-    ?? facilities.find(f => f.id === currentUser?.facilityId)
-    ?? null;
+  /**
+   * The hospital record this admin may edit. Only a hospital row carries the
+   * status / email / services the editor writes, so an account bound to a
+   * seeded facility (no hospital record) gets the "not available" state.
+   */
+  const facilityHospital: Hospital | null =
+    hospitals.find(h => h.id === currentUser?.facilityId) ?? null;
 
   /** Staff accounts bound to this facility, so the admin can see who serves it. */
-  const facilityAdmins = [
-    ...(currentUser ? [currentUser] : []),
-    ...doctors.filter(d => d.facilityId === facility.id),
+  const facilityAdmins: { id: string; name: string; role: string }[] = [
+    ...(currentUser ? [{ id: currentUser.id, name: currentUser.name, role: currentUser.role }] : []),
+    ...doctors
+      .filter(d => d.facilityId === facility.id)
+      .map(d => ({ id: d.id, name: d.name, role: 'doctor' })),
   ];
 
-  /** Persist a facility edit through the existing data-layer mutations. */
+  /** Load the stored hospital into the edit form (never a blank draft). */
+  const populateFacilityForm = () => {
+    if (!facilityHospital) return;
+    setFacilityForm({
+      name: facilityHospital.name,
+      type: facilityHospital.type,
+      address: facilityHospital.address,
+      village: facilityHospital.village ?? '',
+      district: facilityHospital.district,
+      state: facilityHospital.state,
+      phone: facilityHospital.phone,
+      email: facilityHospital.email,
+      departments: facilityHospital.departments.join(', '),
+      services: facilityHospital.services.join(', '),
+      totalBeds: facilityHospital.totalBeds,
+      occupiedBeds: facilityHospital.occupiedBeds,
+    });
+  };
+
+  /** Persist a facility edit through the existing data-layer mutation. */
   async function handleSaveFacility() {
     if (!facilityHospital || !facilityFormDirty) return;
-    await runStep('facility', async () => {
-      const patch = facilityFormToHospital(facilityForm, facilityHospital.id);
-      updateHospital(facilityHospital.id, patch);
-      return { ok: true, message: t('facilitySaveSuccess', language) };
-    });
-    setFacilityFormDirty(false);
+    setBusy('facility');
+    try {
+      updateHospital(facilityHospital.id, facilityFormToHospital(facilityForm));
+      setFacilityFormDirty(false);
+      setShowFacilityForm(false);
+      showFacilityFeedback(t('facilitySaveSuccess', language));
+    } finally {
+      setBusy(null);
+    }
   }
+
+  /** Suspend / re-activate this hospital after the confirmation modal. */
+  const handleToggleFacilityStatus = () => {
+    if (!facilityHospital) return;
+    toggleHospitalStatus(facilityHospital.id);
+    setConfirmToggleStatus(false);
+    showFacilityFeedback(
+      facilityHospital.status === 'active'
+        ? t('facilityDeactivated', language)
+        : t('facilityActivated', language),
+    );
+  };
 
   /**
    * Every workflow step reports the SERVER's verdict: the engine owns the state
@@ -561,76 +615,46 @@ export default function HospitalAdminDashboard() {
                 </Button>
               </div>
 
-              {showFacilityForm && (
-                <FacilityForm
-                  hospital={facilityHospital}
-                  form={facilityForm}
-                  dirty={facilityFormDirty}
-                  onUpdate={updated => { setFacilityForm(updated); setFacilityFormDirty(true); }}
-                  onCancel={() => setShowFacilityForm(false)}
-                  onSave={() => handleSaveFacility()}
-                  saving={busy === 'facility'}
-                  submitLabel={t('facilitySave', language)}
-                  language={language}
-                  t={t}
-                />
-              )}
-
-              {!showFacilityForm && facilityHospital && (
-                <FacilityReadonlyCard
-                  hospital={facilityHospital}
-                  t={t}
-                  language={language}
-                />
+              {facilityHospital ? (
+                <FacilityReadonlyCard hospital={facilityHospital} language={language} />
+              ) : (
+                <p className="text-sm text-muted-foreground">{t('facilityNoData', language)}</p>
               )}
             </CardContent>
           </Card>
 
-          {/* Status + danger zone */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('facilityStatusLabel', language)}</p>
-                    <p className="text-sm font-semibold text-foreground mt-1">{facilityHospital?.status === 'active' ? t('facilityApprovedLabel', language) : t('facilitySuspendedLabel', language)}</p>
-                  </div>
-                  {facilityHospital && (
-                    <Button
-                      size="sm"
-                      variant={facilityHospital.status === 'active' ? 'outline' : 'default'}
-                      className="gap-1.5"
-                      onClick={() => { setConfirmToggleStatus(true); setShowFacilityForm(true); populateFacilityForm(); }}
-                    >
-                      {facilityHospital.status === 'active' ? t('pause', language) : t('resume', language)}
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  )}
+          {/* Status — suspension is reversible, so the hospital may do it itself.
+              Registering or removing a hospital stays with the District Admin. */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('facilityStatusLabel', language)}</p>
+                  <p className="text-sm font-semibold text-foreground mt-1">
+                    {facilityHospital
+                      ? facilityHospital.status === 'active'
+                        ? t('facilityApprovedLabel', language)
+                        : t('facilitySuspendedLabel', language)
+                      : t('facilityNoData', language)}
+                  </p>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-2">{t('facilityStatusHint', language)}</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-red-200/60">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('remove', language)}</p>
-                      <p className="text-sm font-semibold text-foreground mt-1">{t('facilityRemoveConfirm', language)}</p>
-                    </div>
-                  </div>
-                  {facilityHospital && (
-                    <Button size="sm" variant="destructive" onClick={() => setConfirmRemoveFacility(facilityHospital.id)}>
-                      <Trash2 className="h-3.5 w-3.5 mr-1" /> {t('facilityRemove', language)}
-                    </Button>
-                  )}
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-2">{t('facilityRemoveHint', language)}</p>
-              </CardContent>
-            </Card>
-          </div>
+                {facilityHospital && (
+                  <Button
+                    size="sm"
+                    variant={facilityHospital.status === 'active' ? 'outline' : 'default'}
+                    className="gap-1.5"
+                    onClick={() => setConfirmToggleStatus(true)}
+                  >
+                    {facilityHospital.status === 'active'
+                      ? t('facilityPause', language)
+                      : t('facilityResume', language)}
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2">{t('facilityStatusHint', language)}</p>
+            </CardContent>
+          </Card>
 
           {/* Hospital admins serving this facility */}
           {facilityHospital && (
@@ -671,7 +695,6 @@ export default function HospitalAdminDashboard() {
             </div>
 
             <FacilityForm
-              hospital={facilityHospital}
               form={facilityForm}
               dirty={facilityFormDirty}
               onUpdate={updated => { setFacilityForm(updated); setFacilityFormDirty(true); }}
@@ -680,33 +703,38 @@ export default function HospitalAdminDashboard() {
               saving={busy === 'facility'}
               submitLabel={t('facilitySave', language)}
               language={language}
-              t={t}
             />
           </div>
         </div>
       )}
 
-      {/* Remove facility confirmation */}
-      {confirmRemoveFacility && (
+      {/* Suspend / activate confirmation */}
+      {confirmToggleStatus && facilityHospital && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmRemoveFacility(null)} />
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmToggleStatus(false)} />
           <div className="relative bg-background rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-red-50 flex items-center justify-center">
-                <Trash2 className="h-5 w-5 text-red-500" />
+              <div className="h-10 w-10 rounded-full bg-amber-50 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-foreground">{t('facilityRemoveConfirm', language)}</h3>
-                <p className="text-xs text-muted-foreground">{t('facilityRemoveHint', language)}</p>
+                <h3 className="text-sm font-semibold text-foreground">
+                  {facilityHospital.status === 'active'
+                    ? t('facilitySuspendedLabel', language)
+                    : t('facilityApprovedLabel', language)}
+                </h3>
+                <p className="text-xs text-muted-foreground">{t('facilityStatusHint', language)}</p>
               </div>
             </div>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setConfirmRemoveFacility(null)}>{t('cancel', language)}</Button>
-              <Button variant="destructive" className="flex-1" onClick={() => {
-                removeHospital(confirmRemoveFacility);
-                setConfirmRemoveFacility(null);
-                showFeedback(t('facilityRemoved', language));
-              }}>{t('facilityRemove', language)}</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmToggleStatus(false)}>
+                {t('cancel', language)}
+              </Button>
+              <Button className="flex-1" onClick={handleToggleFacilityStatus}>
+                {facilityHospital.status === 'active'
+                  ? t('facilityPause', language)
+                  : t('facilityResume', language)}
+              </Button>
             </div>
           </div>
         </div>
@@ -750,14 +778,14 @@ export default function HospitalAdminDashboard() {
 function FacilityForm({
   form, dirty, onUpdate, onCancel, onSave, saving, submitLabel, language,
 }: {
-  form: typeof facilityForm;
+  form: FacilityFormState;
   dirty: boolean;
-  onUpdate: (updated: typeof facilityForm) => void;
+  onUpdate: (updated: FacilityFormState) => void;
   onCancel: () => void;
   onSave: () => void;
   saving: boolean;
   submitLabel: string;
-  language: string;
+  language: Language;
 }) {
   return (
     <div className="space-y-3">
@@ -768,7 +796,7 @@ function FacilityForm({
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium">{t('facilityTypeLabel', language)}</label>
-          <select value={form.type} onChange={e => onUpdate({ ...form, type: e.target.value as typeof form.type })}
+          <select value={form.type} onChange={e => onUpdate({ ...form, type: e.target.value as FacilityFormState['type'] })}
             className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm">
             <option value="government">{t('facilityTypeHospital', language)}</option>
             <option value="private">{t('facilityTypePrivate', language)}</option>
@@ -838,25 +866,18 @@ function FacilityForm({
 }
 
 /** A read-only summary card for the facility profile. */
+const FACILITY_TYPE_KEYS: Record<Hospital['type'], TranslationKey> = {
+  government: 'facilityTypeHospital',
+  private: 'facilityTypePrivate',
+  trust: 'facilityTypeTrust',
+  charitable: 'facilityTypeCharitable',
+};
+
 function FacilityReadonlyCard({
   hospital, language,
 }: {
-  hospital: {
-    id: string;
-    name: string | null | undefined;
-    type: string;
-    address: string | null | undefined;
-    village: string | null | undefined;
-    district: string | null | undefined;
-    state: string | null | undefined;
-    phone: string | null | undefined;
-    email: string | null | undefined;
-    totalBeds: number;
-    occupiedBeds: number;
-    departments: string[];
-    services: string[];
-  };
-  language: string;
+  hospital: Hospital;
+  language: Language;
 }) {
   const nameLabel = t('facilityNameLabel', language);
   const typeLabel = t('facilityTypeLabel', language);
@@ -869,8 +890,6 @@ function FacilityReadonlyCard({
   const servicesLabel = t('facilityServicesLabel', language);
   const notProvided = t('notProvided', language);
 
-  const typeKey = `facilityType${hospital.type.charAt(0).toUpperCase() + hospital.type.slice(1)}`;
-
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <div>
@@ -879,7 +898,7 @@ function FacilityReadonlyCard({
       </div>
       <div>
         <p className="text-xs text-muted-foreground">{typeLabel}</p>
-        <p className="text-sm text-foreground">{t(typeKey, language)}</p>
+        <p className="text-sm text-foreground">{t(FACILITY_TYPE_KEYS[hospital.type], language)}</p>
       </div>
       <div>
         <p className="text-xs text-muted-foreground">{addressLabel}</p>

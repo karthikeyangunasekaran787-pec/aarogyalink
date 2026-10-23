@@ -111,14 +111,31 @@
           location.reload();
         });
       }
+      function short(url) {
+        return String(url || "").split(location.origin).join("");
+      }
       window.addEventListener(
         "error",
         function (event) {
           var target = event.target;
           if (target && target !== window && (target.tagName === "SCRIPT" || target.tagName === "LINK")) {
-            fail("A required file failed to load. Check your connection and retry.");
+            var url = target.src || target.href || "";
+            /*
+             * Only a SAME-ORIGIN asset can stop the app from starting (the
+             * bundle itself). Optional third-party helpers — the preview's
+             * screenshot library lives on a CDN — fail on offline/blocked
+             * networks without affecting the app, so they must never be
+             * reported as a startup failure.
+             */
+            if (url.indexOf(location.origin) !== 0) return;
+            fail("A required file failed to load: " + short(url) + ". Check your connection and retry.");
           } else if (event.message) {
-            fail(String(event.message));
+            fail(
+              String(event.message) +
+                (event.filename
+                  ? " (" + short(event.filename) + ":" + (event.lineno || 0) + ")"
+                  : ""),
+            );
           }
         },
         true,

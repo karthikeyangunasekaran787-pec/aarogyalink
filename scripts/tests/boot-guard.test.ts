@@ -37,6 +37,8 @@ interface Harness {
   fire(type: string, event: { target: unknown; message?: string }): void;
   /** How many times the Retry button asked for a reload. */
   reloads(): number;
+  /** Fire the timers the guard scheduled (the 8s hung-start watchdog). */
+  runTimers(): void;
 }
 
 /** Run the guard against a private document root and a stubbed `location`. */
@@ -46,9 +48,14 @@ function loadGuard(): Harness {
   doc.body.innerHTML = '<div id="root"><div id="boot-splash"></div></div>';
 
   const listeners: Record<string, Listener[]> = {};
+  const timers: Array<() => void> = [];
   const fakeWindow = {
     addEventListener(type: string, listener: Listener) {
       (listeners[type] ||= []).push(listener);
+    },
+    setTimeout(callback: () => void) {
+      timers.push(callback);
+      return timers.length;
     },
   };
   let reloads = 0;
@@ -58,22 +65,27 @@ function loadGuard(): Harness {
   new Function('window', 'document', 'location', guardSource())(
     fakeWindow,
     doc,
-    { reload: () => { reloads += 1; } },
+    { reload: () => { reloads += 1; }, origin: ORIGIN },
   );
 
   return {
     doc,
     fire: (type, event) => (listeners[type] || []).forEach(listener => listener(event)),
     reloads: () => reloads,
+    runTimers: () => timers.splice(0).forEach(timer => timer()),
   };
 }
 
+/** The page's own origin, as `location.origin` reports it in a browser. */
+const ORIGIN = 'http://localhost:3000';
+
 /** A stand-in for the `<script>` element whose module graph failed to load. */
-function failedScriptElement(doc: Window['document']): Element {
-  const script = doc.createElement('script');
-  doc.body.appendChild(script);
-  return script;
+function failedScriptElement(src = `${ORIGIN}/src/main.tsx`): Element {
+  return { tagName: 'SCRIPT', src } as unknown as Element;
 }
+
+/** The preview's screenshot library, served from a CDN (not our bundle). */
+const CDN_SCRIPT = 'https://cdn.jsdelivr.net/npm/html2canvas-pro@2.0.4/dist/html2canvas-pro.min.js';
 
 describe('entry failure guard', () => {
   test('a failed module load replaces the empty frame with a readable message', () => {
@@ -84,12 +96,14 @@ describe('entry failure guard', () => {
 
     // This is what the browser reports when a module script's dependency
     // 500s: an `error` event whose target is the script element.
-    fire('error', { target: failedScriptElement(doc) });
+    fire('error', { target: failedScriptElement() });
 
     const splash = doc.getElementById('boot-splash');
     expect(splash?.textContent).toContain('AarogyaLink');
     expect(splash?.textContent).toContain('The app could not finish starting.');
-    expect(splash?.textContent).toContain('A required file failed to load.');
+    expect(splash?.textContent).toContain('A required file failed to load');
+    // The reason names the file, so a broken deploy is diagnosable on screen.
+    expect(splash?.textContent).toContain('/src/main.tsx');
     expect(splash?.querySelector('.boot-name')).not.toBeNull();
     expect(splash?.querySelector('.boot-error')).not.toBeNull();
     expect(splash?.querySelector('.boot-hint')).not.toBeNull();
@@ -123,8 +137,8 @@ describe('entry failure guard', () => {
   test('a repeated failure keeps the first message instead of stacking', () => {
     const { doc, fire } = loadGuard();
 
-    fire('error', { target: failedScriptElement(doc) });
-    fire('error', { target: failedScriptElement(doc) });
+    fire('error', { target: failedScriptElement() });
+    fire('error', { target: failedScriptElement() });
     fire('unhandledrejection', { target: null });
 
     const splash = doc.getElementById('boot-splash');
@@ -132,7 +146,7 @@ describe('entry failure guard', () => {
     expect(splash?.querySelectorAll('.boot-error').length).toBe(1);
     expect(splash?.querySelectorAll('.boot-retry').length).toBe(1);
     // The first failure's wording wins — later ones neither append nor replace.
-    expect(splash?.textContent).toContain('A required file failed to load.');
+    expect(splash?.textContent).toContain('A required file failed to load');
     expect(splash?.textContent).not.toContain('An unexpected error interrupted startup.');
   });
 
@@ -144,10 +158,36 @@ describe('entry failure guard', () => {
     if (!root) throw new Error('test harness did not build the entry frame');
     root.textContent = '';
 
-    fire('error', { target: failedScriptElement(doc) });
+    fire('error', { target: failedScriptElement() });
     fire('unhandledrejection', { target: null });
 
     expect(doc.getElementById('boot-splash')).toBeNull();
     expect(root.textContent).toBe('');
+  });
+
+  test('a start that hangs silently reports a timeout instead of a blank frame', () => {
+    const hung = loadGuard();
+    hung.runTimers();
+    expect(hung.doc.getElementById('boot-splash')?.textContent).toContain(
+      'taking longer than expected',
+    );
+
+    // Once the app is mounted there is no splash left, so the watchdog is a
+    // no-op rather than a banner over a working page.
+    const mounted = loadGuard();
+    mounted.doc.getElementById('root')?.replaceChildren();
+    mounted.runTimers();
+    expect(mounted.doc.getElementById('boot-splash')).toBeNull();
+  });
+
+  test('an optional third-party script failing is not a startup failure', () => {
+    const { doc, fire } = loadGuard();
+
+    // The preview preloads its screenshot library from a CDN. When that CDN is
+    // unreachable the app still starts, so the frame must stay untouched
+    // instead of claiming the app could not start.
+    fire('error', { target: failedScriptElement(CDN_SCRIPT) });
+
+    expect(doc.getElementById('boot-splash')?.textContent).toBe('');
   });
 });

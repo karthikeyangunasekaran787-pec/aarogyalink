@@ -23,7 +23,8 @@ import { useReferralEngine } from '@/hooks/use-referral-engine';
 import { AwaitingConfirmationPanel } from '@/components/referrals/AwaitingConfirmationPanel';
 import {
   Inbox, CheckCircle2, ScanLine, Package, XCircle, Trash2, Plus,
-  Users, Building2, Clock, Calendar, Search, Stethoscope
+  Users, Building2, Clock, Calendar, Search, Stethoscope,
+  MapPin, Phone, Mail, Bed, ShieldCheck, Edit3, Save, ChevronDown, AlertTriangle
 } from 'lucide-react';
 
 export default function HospitalAdminDashboard() {
@@ -31,7 +32,8 @@ export default function HospitalAdminDashboard() {
   const {
     referrals, referralEvents, facilities, hospitals, medicineStock, diagnostics, doctors,
     acceptReferral, rejectReferral, scheduleReferral,
-    addMedicineStock, removeMedicineStock
+    addMedicineStock, removeMedicineStock,
+    updateHospital, toggleHospitalStatus, removeHospital, addHospital
   } = useData();
   // Referral Closure Engine: doctor assignment + QR arrival verification are
   // validated against the stored record by the backend.
@@ -48,6 +50,17 @@ export default function HospitalAdminDashboard() {
       name: currentUser?.facilityName || 'Your hospital',
     } as unknown as Facility);
   const facilityReferrals = referrals.filter(r => r.destinationFacilityId === facility.id);
+
+  // Facility management state (hospital admin edits their own hospital).
+  const [showFacilityForm, setShowFacilityForm] = useState(false);
+  const [facilityForm, setFacilityForm] = useState({
+    name: '', type: 'government' as const, address: '', village: '', district: '',
+    state: '', phone: '', email: '', departments: '', services: '',
+    totalBeds: 0, occupiedBeds: 0
+  });
+  const [facilityFormDirty, setFacilityFormDirty] = useState(false);
+  const [confirmRemoveFacility, setConfirmRemoveFacility] = useState<string | null>(null);
+  const [facilitySaveFeedback, setFacilitySaveFeedback] = useState<string | null>(null);
   const pendingReferrals = facilityReferrals.filter(r => r.status === 'created');
   const closedReferrals = facilityReferrals.filter(r => r.status === 'closed');
   const facilityMeds = medicineStock.filter(m => m.facilityId === facility.id);
@@ -64,14 +77,75 @@ export default function HospitalAdminDashboard() {
   const [showMedForm, setShowMedForm] = useState(false);
   const [medForm, setMedForm] = useState({ medicineName: '', quantity: 0, unit: 'tablets', expiryDate: '' });
   const [confirmDeleteMed, setConfirmDeleteMed] = useState<string | null>(null);
+  const [confirmToggleStatus, setConfirmToggleStatus] = useState<boolean>(false);
 
   const showFeedback = (msg: string) => {
     setActionFeedback(msg);
     setTimeout(() => setActionFeedback(null), 3000);
   };
 
+  const showFacilityFeedback = (msg: string) => {
+    setFacilitySaveFeedback(msg);
+    setTimeout(() => setFacilitySaveFeedback(null), 3000);
+  };
+
+  // Convert the editable facility form into the Hospital shape the data layer expects.
+  function facilityFormToHospital(draft: typeof facilityForm, hospitalId: string): Omit<Hospital, 'id' | 'hospitalId' | 'createdAt'> {
+    return {
+      name: draft.name.trim(),
+      type: draft.type,
+      address: draft.address.trim(),
+      village: draft.village.trim(),
+      district: draft.district.trim(),
+      state: draft.state.trim(),
+      phone: draft.phone.trim(),
+      email: draft.email.trim(),
+      departments: departmentsList(draft.departments),
+      services: servicesList(draft.services),
+      totalBeds: Math.max(0, draft.totalBeds),
+      occupiedBeds: Math.max(0, Math.min(draft.totalBeds, draft.occupiedBeds)),
+      status: 'active',
+    };
+  }
+
+  function departmentsList(raw: string): string[] {
+    return raw
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
+  function servicesList(raw: string): string[] {
+    return raw
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
   // Doctors who actually belong to THIS hospital (the engine re-checks this).
   const facilityDoctors = doctors.filter(d => d.facilityId === facility.id);
+
+  /** The hospital record this admin is allowed to edit. */
+  const facilityHospital = hospitals.find(h => h.id === currentUser?.facilityId)
+    ?? facilities.find(f => f.id === currentUser?.facilityId)
+    ?? null;
+
+  /** Staff accounts bound to this facility, so the admin can see who serves it. */
+  const facilityAdmins = [
+    ...(currentUser ? [currentUser] : []),
+    ...doctors.filter(d => d.facilityId === facility.id),
+  ];
+
+  /** Persist a facility edit through the existing data-layer mutations. */
+  async function handleSaveFacility() {
+    if (!facilityHospital || !facilityFormDirty) return;
+    await runStep('facility', async () => {
+      const patch = facilityFormToHospital(facilityForm, facilityHospital.id);
+      updateHospital(facilityHospital.id, patch);
+      return { ok: true, message: t('facilitySaveSuccess', language) };
+    });
+    setFacilityFormDirty(false);
+  }
 
   /**
    * Every workflow step reports the SERVER's verdict: the engine owns the state
@@ -173,6 +247,7 @@ export default function HospitalAdminDashboard() {
           <TabsTrigger value="qr"><ScanLine className="h-4 w-4 mr-1" /> QR Scan</TabsTrigger>
           <TabsTrigger value="meds">{t('medicineStock', language)}</TabsTrigger>
           <TabsTrigger value="diags">{t('diagnosticAvail', language)}</TabsTrigger>
+          <TabsTrigger value="facility-management"><Building2 className="h-4 w-4 mr-1" /> {t('facilityManagementTitle', language)}</TabsTrigger>
         </TabsList>
 
         {/* ── Referrals Tab ──────────────────────────────── */}
@@ -460,7 +535,182 @@ export default function HospitalAdminDashboard() {
             </Card>
           ))}
         </TabsContent>
+
+        {/* ── Facility Management Tab ─────────────────────────── */}
+        <TabsContent value="facility-management" className="mt-4 space-y-4">
+          {facilitySaveFeedback && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span>{facilitySaveFeedback}</span>
+            </div>
+          )}
+
+          {/* Facility profile editor */}
+          <Card className="border-primary/20">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    {t('facilityDetailsLabel', language)}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">{t('facilityManagementSubtitle', language)}</p>
+                </div>
+                <Button size="sm" className="gap-1.5" onClick={() => { populateFacilityForm(); setShowFacilityForm(true); setFacilityFormDirty(false); }}>
+                  <Edit3 className="h-3.5 w-3.5" /> {t('facilityManagementTitle', language)}
+                </Button>
+              </div>
+
+              {showFacilityForm && (
+                <FacilityForm
+                  hospital={facilityHospital}
+                  form={facilityForm}
+                  dirty={facilityFormDirty}
+                  onUpdate={updated => { setFacilityForm(updated); setFacilityFormDirty(true); }}
+                  onCancel={() => setShowFacilityForm(false)}
+                  onSave={() => handleSaveFacility()}
+                  saving={busy === 'facility'}
+                  submitLabel={t('facilitySave', language)}
+                  language={language}
+                  t={t}
+                />
+              )}
+
+              {!showFacilityForm && facilityHospital && (
+                <FacilityReadonlyCard
+                  hospital={facilityHospital}
+                  t={t}
+                  language={language}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Status + danger zone */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('facilityStatusLabel', language)}</p>
+                    <p className="text-sm font-semibold text-foreground mt-1">{facilityHospital?.status === 'active' ? t('facilityApprovedLabel', language) : t('facilitySuspendedLabel', language)}</p>
+                  </div>
+                  {facilityHospital && (
+                    <Button
+                      size="sm"
+                      variant={facilityHospital.status === 'active' ? 'outline' : 'default'}
+                      className="gap-1.5"
+                      onClick={() => { setConfirmToggleStatus(true); setShowFacilityForm(true); populateFacilityForm(); }}
+                    >
+                      {facilityHospital.status === 'active' ? t('pause', language) : t('resume', language)}
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">{t('facilityStatusHint', language)}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-red-200/60">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('remove', language)}</p>
+                      <p className="text-sm font-semibold text-foreground mt-1">{t('facilityRemoveConfirm', language)}</p>
+                    </div>
+                  </div>
+                  {facilityHospital && (
+                    <Button size="sm" variant="destructive" onClick={() => setConfirmRemoveFacility(facilityHospital.id)}>
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> {t('facilityRemove', language)}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">{t('facilityRemoveHint', language)}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Hospital admins serving this facility */}
+          {facilityHospital && (
+            <Card>
+              <CardContent className="p-4">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{t('staffManagement', language)} — {facilityHospital.name}</h3>
+                {facilityAdmins.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">{t('noDistrictAdminAssigned', language)}</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {facilityAdmins.map(user => (
+                      <li key={user.id} className="flex items-center justify-between text-sm">
+                        <span className="text-foreground">{user.name}</span>
+                        <Badge variant="outline" className="text-[10px] capitalize">{user.role}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
       </Tabs>
+
+      {/* Facility form modal */}
+      {showFacilityForm && facilityHospital && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowFacilityForm(false)} />
+          <div className="relative bg-background rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-primary" />
+                {t('facilityManagementTitle', language)}
+              </h3>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFacilityForm(false)}>
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <FacilityForm
+              hospital={facilityHospital}
+              form={facilityForm}
+              dirty={facilityFormDirty}
+              onUpdate={updated => { setFacilityForm(updated); setFacilityFormDirty(true); }}
+              onCancel={() => setShowFacilityForm(false)}
+              onSave={() => handleSaveFacility()}
+              saving={busy === 'facility'}
+              submitLabel={t('facilitySave', language)}
+              language={language}
+              t={t}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Remove facility confirmation */}
+      {confirmRemoveFacility && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmRemoveFacility(null)} />
+          <div className="relative bg-background rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-red-50 flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">{t('facilityRemoveConfirm', language)}</h3>
+                <p className="text-xs text-muted-foreground">{t('facilityRemoveHint', language)}</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmRemoveFacility(null)}>{t('cancel', language)}</Button>
+              <Button variant="destructive" className="flex-1" onClick={() => {
+                removeHospital(confirmRemoveFacility);
+                setConfirmRemoveFacility(null);
+                showFeedback(t('facilityRemoved', language));
+              }}>{t('facilityRemove', language)}</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Medicine Confirmation */}
       {confirmDeleteMed && (
@@ -495,3 +745,171 @@ export default function HospitalAdminDashboard() {
     </div>
   );
 }
+
+/** A compact, editable facility form aligned with the existing host form patterns. */
+function FacilityForm({
+  form, dirty, onUpdate, onCancel, onSave, saving, submitLabel, language,
+}: {
+  form: typeof facilityForm;
+  dirty: boolean;
+  onUpdate: (updated: typeof facilityForm) => void;
+  onCancel: () => void;
+  onSave: () => void;
+  saving: boolean;
+  submitLabel: string;
+  language: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityNameLabel', language)} *</label>
+          <Input value={form.name} onChange={e => onUpdate({ ...form, name: e.target.value })} className="h-9 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityTypeLabel', language)}</label>
+          <select value={form.type} onChange={e => onUpdate({ ...form, type: e.target.value as typeof form.type })}
+            className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm">
+            <option value="government">{t('facilityTypeHospital', language)}</option>
+            <option value="private">{t('facilityTypePrivate', language)}</option>
+            <option value="trust">{t('facilityTypeTrust', language)}</option>
+            <option value="charitable">{t('facilityTypeCharitable', language)}</option>
+          </select>
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityAddressLabel', language)}</label>
+          <Input value={form.address} onChange={e => onUpdate({ ...form, address: e.target.value })} className="h-9 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityVillageLabel', language)}</label>
+          <Input value={form.village} onChange={e => onUpdate({ ...form, village: e.target.value })} className="h-9 text-sm" />
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityDistrictLabel', language)}</label>
+          <Input value={form.district} onChange={e => onUpdate({ ...form, district: e.target.value })} className="h-9 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityStateLabel', language)}</label>
+          <Input value={form.state} onChange={e => onUpdate({ ...form, state: e.target.value })} className="h-9 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityPhoneLabel', language)}</label>
+          <Input value={form.phone} onChange={e => onUpdate({ ...form, phone: e.target.value })} className="h-9 text-sm" />
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityEmailLabel', language)}</label>
+          <Input type="email" value={form.email} onChange={e => onUpdate({ ...form, email: e.target.value })} className="h-9 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityTotalBedsLabel', language)}</label>
+          <Input type="number" min={0} value={form.totalBeds} onChange={e => onUpdate({ ...form, totalBeds: parseInt(e.target.value) || 0 })} className="h-9 text-sm" />
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityOccupiedBedsLabel', language)}</label>
+          <Input type="number" min={0} value={form.occupiedBeds} onChange={e => onUpdate({ ...form, occupiedBeds: parseInt(e.target.value) || 0 })} className="h-9 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium">{t('facilityDepartmentLabel', language)}</label>
+          <Input value={form.departments} onChange={e => onUpdate({ ...form, departments: e.target.value })} placeholder="e.g. Medicine, Pediatrics" className="h-9 text-sm" />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-medium">{t('facilityServicesLabel', language)}</label>
+        <Input value={form.services} onChange={e => onUpdate({ ...form, services: e.target.value })} placeholder="e.g. Emergency, In-patient" className="h-9 text-sm" />
+        <p className="text-[10px] text-muted-foreground">{t('facilityStatusHint', language)}</p>
+      </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button variant="outline" size="sm" onClick={onCancel}>{t('cancel', language)}</Button>
+        <Button size="sm" disabled={!dirty || saving} onClick={onSave}>
+          {saving ? <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" /> : null}
+          {submitLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** A read-only summary card for the facility profile. */
+function FacilityReadonlyCard({
+  hospital, language,
+}: {
+  hospital: {
+    id: string;
+    name: string | null | undefined;
+    type: string;
+    address: string | null | undefined;
+    village: string | null | undefined;
+    district: string | null | undefined;
+    state: string | null | undefined;
+    phone: string | null | undefined;
+    email: string | null | undefined;
+    totalBeds: number;
+    occupiedBeds: number;
+    departments: string[];
+    services: string[];
+  };
+  language: string;
+}) {
+  const nameLabel = t('facilityNameLabel', language);
+  const typeLabel = t('facilityTypeLabel', language);
+  const addressLabel = t('facilityAddressLabel', language);
+  const phoneLabel = t('facilityPhoneLabel', language);
+  const emailLabel = t('facilityEmailLabel', language);
+  const totalBedsLabel = t('facilityTotalBedsLabel', language);
+  const occupiedBedsLabel = t('facilityOccupiedBedsLabel', language);
+  const departmentLabel = t('facilityDepartmentLabel', language);
+  const servicesLabel = t('facilityServicesLabel', language);
+  const notProvided = t('notProvided', language);
+
+  const typeKey = `facilityType${hospital.type.charAt(0).toUpperCase() + hospital.type.slice(1)}`;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div>
+        <p className="text-xs text-muted-foreground">{nameLabel}</p>
+        <p className="text-sm font-semibold text-foreground">{hospital.name}</p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">{typeLabel}</p>
+        <p className="text-sm text-foreground">{t(typeKey, language)}</p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">{addressLabel}</p>
+        <p className="text-sm text-foreground">{[hospital.address, hospital.village, hospital.district, hospital.state].filter(Boolean).join(', ') || notProvided}</p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">{phoneLabel}</p>
+        <p className="text-sm text-foreground">{hospital.phone || notProvided}</p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">{emailLabel}</p>
+        <p className="text-sm text-foreground">{hospital.email || notProvided}</p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">{totalBedsLabel}</p>
+        <p className="text-sm text-foreground">{hospital.totalBeds} · {hospital.occupiedBeds} {occupiedBedsLabel.toLowerCase()}</p>
+      </div>
+      {hospital.departments.length > 0 && (
+        <div>
+          <p className="text-xs text-muted-foreground">{departmentLabel}</p>
+          <p className="text-sm text-foreground">{hospital.departments.join(', ')}</p>
+        </div>
+      )}
+      {hospital.services.length > 0 && (
+        <div>
+          <p className="text-xs text-muted-foreground">{servicesLabel}</p>
+          <p className="text-sm text-foreground">{hospital.services.join(', ')}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+

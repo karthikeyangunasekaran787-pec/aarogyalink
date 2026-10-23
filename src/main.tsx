@@ -1,4 +1,9 @@
-import '@vly-ai/integrations';
+// NOTE: `@vly-ai/integrations` is NOT imported here on purpose. The Vite plugin
+// injects `import '@vly-ai/integrations'` into index.html (see the html-proxy
+// module scripts), so it still loads — but on its own request instead of
+// blocking this entry. That package pulls in its AI SDK (~1 MB unminified in
+// dev), and on a slow mobile preview it was the single biggest reason the app
+// took more than eight seconds to put anything on screen.
 import { Toaster } from '@/components/ui/sonner';
 import { RequireAuth } from '@/components/RequireAuth';
 import { AppLayout } from '@/components/layout/AppLayout';

@@ -155,7 +155,13 @@
         if (!root || !document.getElementById("boot-splash")) return;
         if (root.children.length > 1) return;
         fail("The app is taking longer than expected to start. Check your connection and retry.");
-      }, 8000);
+        /*
+         * 30s, not 8s: a cold dev-server boot is ~6 MB across ~57 modules, and
+         * a phone on a slow connection can legitimately need more than eight
+         * seconds before React commits. A watchdog that fires inside normal
+         * loading time just replaces a slow start with a fake failure.
+         */
+      }, 30000);
     })();
   </script>
 </head>

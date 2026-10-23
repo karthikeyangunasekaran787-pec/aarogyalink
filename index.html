@@ -150,11 +150,36 @@
        * replaced the splash after 8s, say so and offer a retry. React removes
        * the splash on mount, so a working start never reaches this branch.
        */
+      /*
+       * Module requests that never finish: `responseEnd` stays 0 for a request
+       * that is still in flight or was dropped. Naming them turns "the app is
+       * slow" into the exact file the browser is waiting on.
+       */
+      function pendingModules() {
+        var waiting = [];
+        try {
+          var entries = performance.getEntriesByType("resource");
+          for (var i = entries.length - 1; i >= 0 && waiting.length < 3; i--) {
+            var entry = entries[i];
+            if (entry.responseEnd !== 0) continue;
+            if (!/\.(js|mjs|tsx?|css)(\?|$)/.test(entry.name)) continue;
+            waiting.push(short(entry.name));
+          }
+        } catch (error) {
+          /* diagnostics only — never fail the failure path itself */
+        }
+        return waiting;
+      }
       window.setTimeout(function () {
         var root = document.getElementById("root");
         if (!root || !document.getElementById("boot-splash")) return;
         if (root.children.length > 1) return;
-        fail("The app is taking longer than expected to start. Check your connection and retry.");
+        var waiting = pendingModules();
+        fail(
+          "The app is taking longer than expected to start." +
+            (waiting.length ? " Still waiting on: " + waiting.join(", ") + "." : "") +
+            " Check your connection and retry.",
+        );
         /*
          * 30s, not 8s: a cold dev-server boot is ~6 MB across ~57 modules, and
          * a phone on a slow connection can legitimately need more than eight

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/assets/aarogyalink-mark.svg" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AarogyaLink</title>
+  <style>
+    /*
+     * The entry container is EMPTY on purpose: entering the app must not show
+     * a logo, a spinner or any branded loader while the module graph arrives —
+     * the visitor asked to see the page itself. React clears #root's children
+     * on mount, so nothing here paints at any point.
+     *
+     * It is only populated by the failure path below, if the entry module
+     * never runs: then it becomes a readable message instead of a blank page.
+     */
+    #root > #boot-splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 24px;
+      text-align: center;
+      background: #f6f9fa;
+      font-family: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /*
+     * No spinner, no progress bar, no branded loader, no image: entering the
+     * app must not read as "loading" and the entry frame must not paint a
+     * logo while the module graph arrives. The container below stays empty
+     * until React mounts — the entry routes are bundled eagerly, so there is
+     * no chunk fetch to wait on behind it. Only the failure path fills it with
+     * a message.
+     */
+    #boot-splash .boot-name {
+      margin: 4px 0 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    #boot-splash .boot-error {
+      margin: 4px 0 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    #boot-splash .boot-hint {
+      margin: 0;
+      max-width: 34rem;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #64748b;
+    }
+    #boot-splash .boot-retry {
+      margin-top: 8px;
+      padding: 8px 18px;
+      border: 0;
+      border-radius: 8px;
+      background: #0d9488;
+      color: #fff;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #boot-splash .boot-retry:hover {
+      background: #0f766e;
+    }
+  </style>
+  <script>
+    /*
+     * If the entry module never runs — Vite still warming up, a transform
+     * failure, or an exception during module evaluation — React never mounts
+     * and the splash above would spin forever. Swap it for a readable message
+     * instead of leaving a permanently blank page.
+     *
+     * This is a no-op once the app is live: React removes the splash when it
+     * mounts, and the guard only acts while that element is still present.
+     */
+    (function () {
+      var shown = false;
+      function fail(detail) {
+        var splash = document.getElementById("boot-splash");
+        if (!splash || shown) return;
+        shown = true;
+        // React removes the splash when it mounts, so an empty shell is the
+        // only safe starting state — nil-out everything the loop leaves behind.
+        splash.textContent = "";
+        // Clear every appended child: keep removing from the end until each
+        // has been handed off (avoids self-referential splice loops).
+        while (splash.firstChild) splash.removeChild(splash.firstChild);
+        function add(tag, className, text) {
+          var node = document.createElement(tag);
+          if (className) node.className = className;
+          // textContent, never innerHTML: the detail string is never parsed.
+          node.textContent = text;
+          splash.appendChild(node);
+          return node;
+        }
+        add("div", "boot-name", "AarogyaLink");
+        add("p", "boot-error", "The app could not finish starting.");
+        add("p", "boot-hint", detail);
+        add("button", "boot-retry", "Retry").addEventListener("click", function () {
+          location.reload();
+        });
+      }
+      function short(url) {
+        return String(url || "").split(location.origin).join("");
+      }
+      window.addEventListener(
+        "error",
+        function (event) {
+          var target = event.target;
+          if (target && target !== window && (target.tagName === "SCRIPT" || target.tagName === "LINK")) {
+            var url = target.src || target.href || "";
+            /*
+             * Only a SAME-ORIGIN asset can stop the app from starting (the
+             * bundle itself). Optional third-party helpers — the preview's
+             * screenshot library lives on a CDN — fail on offline/blocked
+             * networks without affecting the app, so they must never be
+             * reported as a startup failure.
+             */
+            if (url.indexOf(location.origin) !== 0) return;
+            fail("A required file failed to load: " + short(url) + ". Check your connection and retry.");
+          } else if (event.message) {
+            fail(
+              String(event.message) +
+                (event.filename
+                  ? " (" + short(event.filename) + ":" + (event.lineno || 0) + ")"
+                  : ""),
+            );
+          }
+        },
+        true,
+      );
+      window.addEventListener("unhandledrejection", function () {
+        fail("An unexpected error interrupted startup.");
+      });
+      /*
+       * Last resort: a start that hangs silently (a stalled chunk request, a
+       * blocked module) fires neither event above, so the empty container above
+       * would just sit there looking like a blank page. If React has not
+       * replaced the splash after 8s, say so and offer a retry. React removes
+       * the splash on mount, so a working start never reaches this branch.
+       */
+      /*
+       * Module requests that never finish: `responseEnd` stays 0 for a request
+       * that is still in flight or was dropped. Naming them turns "the app is
+       * slow" into the exact file the browser is waiting on.
+       */
+      function pendingModules() {
+        var waiting = [];
+        try {
+          var entries = performance.getEntriesByType("resource");
+          for (var i = entries.length - 1; i >= 0 && waiting.length < 3; i--) {
+            var entry = entries[i];
+            if (entry.responseEnd !== 0) continue;
+            if (!/\.(js|mjs|tsx?|css)(\?|$)/.test(entry.name)) continue;
+            waiting.push(short(entry.name));
+          }
+        } catch (error) {
+          /* diagnostics only — never fail the failure path itself */
+        }
+        return waiting;
+      }
+      window.setTimeout(function () {
+        var root = document.getElementById("root");
+        if (!root || !document.getElementById("boot-splash")) return;
+        if (root.children.length > 1) return;
+        var waiting = pendingModules();
+        fail(
+          "The app is taking longer than expected to start." +
+            (waiting.length ? " Still waiting on: " + waiting.join(", ") + "." : "") +
+            " Check your connection and retry.",
+        );
+        /*
+         * 30s, not 8s: a cold dev-server boot is ~6 MB across ~57 modules, and
+         * a phone on a slow connection can legitimately need more than eight
+         * seconds before React commits. A watchdog that fires inside normal
+         * loading time just replaces a slow start with a fake failure.
+         */
+      }, 30000);
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/index-BIqc2yB0.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/react-vendor-CdwPjRcW.js">
+  <link rel="modulepreload" crossorigin href="/assets/forms-CR45Hecc.js">
+  <link rel="modulepreload" crossorigin href="/assets/framer-motion-6hM_evaA.js">
+  <link rel="modulepreload" crossorigin href="/assets/radix-ui-D-YphfPG.js">
+  <link rel="modulepreload" crossorigin href="/assets/charts-ONXM2PKF.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-B64OY1oM.css">
+</head>
+
+<body>
+  <div id="root">
+    <!-- Empty: no logo, no spinner, no splash while the app loads. -->
+    <div id="boot-splash"></div>
+  </div>
+</body>
+
+</html>

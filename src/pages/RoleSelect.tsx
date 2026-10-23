@@ -83,7 +83,7 @@ export default function RoleSelect() {
         };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f6fafb]">
+    <div className="relative min-h-screen overflow-hidden bg-[#f6f9fd]">
       {/* ── Background: 3D network, then a soft veil for text contrast ────── */}
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         <Suspense fallback={null}>

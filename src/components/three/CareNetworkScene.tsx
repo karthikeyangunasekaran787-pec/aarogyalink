@@ -35,11 +35,11 @@ import {
 const STAGES = [
   { key: 'patient', color: 0x2563eb },
   { key: 'health_worker', color: 0x0ea5e9 },
-  { key: 'facility', color: 0x0d9488 },
-  { key: 'doctor', color: 0x14b8a6 },
+  { key: 'facility', color: 0x1d4ed8 },
+  { key: 'doctor', color: 0x3b82f6 },
   { key: 'treatment', color: 0x16a34a },
   { key: 'followup', color: 0x65a30d },
-  { key: 'closed', color: 0x0f766e },
+  { key: 'closed', color: 0x1e40af },
 ] as const;
 
 const RING_RADIUS = 2.55;
@@ -148,7 +148,7 @@ export default function CareNetworkScene({ className, density = 'full' }: CareNe
     });
 
     // ── Connecting lines ────────────────────────────────────────────────────
-    // The muted ring shows the pathway; the teal segment closes the loop.
+    // The muted ring shows the pathway; the blue segment closes the loop.
     const ringPoints = positions.map(p => p.clone());
     const ringGeometry = new BufferGeometry().setFromPoints([...ringPoints, ringPoints[0]]);
     disposables.push(ringGeometry);
@@ -166,7 +166,7 @@ export default function CareNetworkScene({ className, density = 'full' }: CareNe
     ]);
     disposables.push(closureGeometry);
     const closureMaterial = new LineBasicMaterial({
-      color: 0x0d9488,
+      color: 0x1d4ed8,
       transparent: true,
       opacity: 0.55,
     });
@@ -185,7 +185,7 @@ export default function CareNetworkScene({ className, density = 'full' }: CareNe
     particleGeometry.setAttribute('position', new BufferAttribute(particlePositions, 3));
     disposables.push(particleGeometry);
     const particleMaterial = new PointsMaterial({
-      color: 0x0f766e,
+      color: 0x1e3a8a,
       size: 0.032,
       transparent: true,
       opacity: 0.4,

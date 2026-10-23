@@ -36,7 +36,7 @@ const CARD_H = 85;
 
 const SLATE = '#0f172a';
 const MUTED = '#64748b';
-const TEAL = '#0e9488';
+const ACCENT = '#0d57b3';
 const BLUE = '#1d6ff2';
 const LEAF = '#10b981';
 
@@ -79,12 +79,12 @@ export async function buildHealthCardPdf(input: HealthCardPdfInput): Promise<jsP
   doc.setFillColor(BLUE);
   doc.rect(0, 0, 3, 22, 'F');
 
-  // Emblem: the official PNG when present, otherwise drawn (teal tile + white cross).
+  // Emblem: the official PNG when present, otherwise drawn (blue tile + white cross).
   const mark = await loadMarkPng();
   if (mark) {
     doc.addImage(mark, 'PNG', 8, 4.5, 13, 13);
   } else {
-    doc.setFillColor(TEAL);
+    doc.setFillColor(ACCENT);
     doc.roundedRect(8, 4.5, 13, 13, 2.4, 2.4, 'F');
     doc.setFillColor('#ffffff');
     doc.roundedRect(12.7, 6.4, 3.6, 9.2, 1, 1, 'F');
@@ -100,7 +100,7 @@ export async function buildHealthCardPdf(input: HealthCardPdfInput): Promise<jsP
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.setTextColor(TEAL);
+  doc.setTextColor(ACCENT);
   doc.text(BRAND_TAGLINE, 25, 16);
 
   // ── Title ───────────────────────────────────────────────────────
@@ -116,20 +116,20 @@ export async function buildHealthCardPdf(input: HealthCardPdfInput): Promise<jsP
   doc.setCharSpace(0);
 
   // ── Fields (left column) ────────────────────────────────────────
-  const field = (label: string, value: string, y: number, options?: { teal?: boolean; size?: number }) => {
+  const field = (label: string, value: string, y: number, options?: { accent?: boolean; size?: number }) => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.setTextColor(MUTED);
     doc.text(label.toUpperCase(), 8, y);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(options?.size ?? 9.5);
-    doc.setTextColor(options?.teal ? TEAL : SLATE);
+    doc.setTextColor(options?.accent ? ACCENT : SLATE);
     const lines = doc.splitTextToSize(value, 62) as string[];
     doc.text(lines[0] ?? '—', 8, y + 4.6);
   };
 
   field('Patient Name', input.name || '—', 40);
-  field('Health Card ID', input.healthCardId || '—', 50, { teal: true });
+  field('Health Card ID', input.healthCardId || '—', 50, { accent: true });
   const ageLine = [
     typeof input.age === 'number' ? `${input.age} yrs` : undefined,
     input.gender ? input.gender.charAt(0).toUpperCase() + input.gender.slice(1) : undefined,

@@ -17,7 +17,7 @@ import type { RoleTint } from '@/lib/role-options';
 export type { RoleTint };
 
 const TINT_TILE: Record<RoleTint, string> = {
-  teal: 'bg-teal-50 text-teal-700 group-hover:bg-teal-100',
+  brand: 'bg-primary/10 text-primary group-hover:bg-primary/15',
   blue: 'bg-blue-50 text-blue-700 group-hover:bg-blue-100',
   violet: 'bg-violet-50 text-violet-700 group-hover:bg-violet-100',
   amber: 'bg-amber-50 text-amber-700 group-hover:bg-amber-100',
@@ -25,7 +25,7 @@ const TINT_TILE: Record<RoleTint, string> = {
 };
 
 const TINT_TILE_ACTIVE: Record<RoleTint, string> = {
-  teal: 'bg-primary text-primary-foreground',
+  brand: 'bg-primary text-primary-foreground',
   blue: 'bg-blue-600 text-white',
   violet: 'bg-violet-600 text-white',
   amber: 'bg-amber-600 text-white',
@@ -98,7 +98,7 @@ export function RoleCard({
           'hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2',
           'focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
           selected
-            ? 'border-primary bg-primary/[0.055] shadow-[0_10px_26px_-16px_rgba(13,148,136,0.75),0_0_0_1px_rgba(13,148,136,0.28)] -translate-y-0.5'
+            ? 'border-primary bg-primary/[0.055] shadow-[0_10px_26px_-16px_rgba(13,87,179,0.75),0_0_0_1px_rgba(13,87,179,0.28)] -translate-y-0.5'
             : 'border-slate-200/85 bg-white/80 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_6px_18px_-14px_rgba(16,24,40,0.22)] hover:border-primary/45 hover:shadow-[0_14px_30px_-18px_rgba(16,24,40,0.35)]',
         ].join(' ')}
       >

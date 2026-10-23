@@ -63,20 +63,20 @@ const HUB_RADIUS = 0.24;
 
 /**
  * Resting appearance of each node: a gentle gradient along the care pathway,
- * from deep clinical teal at the patient end to open sky at follow-up, so the
+ * from deep clinical blue at the patient end to open sky at follow-up, so the
  * chain reads as one continuous journey instead of nine identical dots.
- * The coordinating nodes stay distinct — blue for the district layer, brand
- * teal for the AarogyaLink hub.
+ * The coordinating nodes stay distinct — navy for the district layer, brand
+ * blue for the AarogyaLink hub.
  */
 const PATHWAY_COLORS = [
-  0x0d9488, 0x0fa396, 0x14b8a6, 0x06b6d4, 0x0ea5e9, 0x38bdf8, 0x7dd3fc,
+  0x1e40af, 0x1d4ed8, 0x2563eb, 0x3b82f6, 0x0ea5e9, 0x38bdf8, 0x7dd3fc,
 ];
 
 function restColor(key: NetworkNodeKey): number {
-  if (key === 'hub') return 0x0f766e;
-  if (key === 'district') return 0x2563eb;
+  if (key === 'hub') return 0x0d57b3;
+  if (key === 'district') return 0x1e3a8a;
   const index = PATHWAY_NODES.indexOf(key);
-  return PATHWAY_COLORS[index] ?? 0x0d9488;
+  return PATHWAY_COLORS[index] ?? 0x1d4ed8;
 }
 
 /** Brightened appearance when a node answers the current selection. */
@@ -271,7 +271,7 @@ export default function HealthcareNetwork3D({
     );
     disposables.push(pathwayGeometry);
     const pathwayMaterial = new LineBasicMaterial({
-      color: 0x2dd4bf,
+      color: 0x60a5fa,
       transparent: true,
       opacity: 0.32,
       blending: AdditiveBlending,
@@ -315,7 +315,7 @@ export default function HealthcareNetwork3D({
       const ringGeometry = new BufferGeometry().setFromPoints(ringPoints);
       disposables.push(ringGeometry);
       const ringMaterial = new LineBasicMaterial({
-        color: 0x14b8a6,
+        color: 0x3b82f6,
         transparent: true,
         opacity,
         blending: AdditiveBlending,
@@ -386,7 +386,7 @@ export default function HealthcareNetwork3D({
     particleGeometry.setAttribute('position', new BufferAttribute(particlePositions, 3));
     disposables.push(particleGeometry);
     const particleMaterial = new PointsMaterial({
-      color: 0x14b8a6,
+      color: 0x3b82f6,
       size: 0.03,
       transparent: true,
       opacity: 0.22,

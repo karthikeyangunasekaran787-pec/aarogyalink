@@ -17,7 +17,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof FileText; color: string; label:
   prescription: { icon: Pill, color: 'bg-emerald-100 text-emerald-600', label: 'prescriptionLabel' },
   vaccination: { icon: Syringe, color: 'bg-amber-100 text-amber-600', label: 'vaccination' },
   referral: { icon: ArrowUpRight, color: 'bg-red-100 text-red-600', label: 'referralPlain' },
-  treatment: { icon: Stethoscope, color: 'bg-teal-100 text-teal-600', label: 'treatmentStarted' },
+  treatment: { icon: Stethoscope, color: 'bg-cyan-100 text-cyan-700', label: 'treatmentStarted' },
 };
 
 type TimelineEntry = {

@@ -36,7 +36,7 @@ export function ContinueButton({ disabled, onClick }: ContinueButtonProps) {
         'focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
         disabled
           ? 'cursor-not-allowed bg-slate-300 text-white/90 shadow-none'
-          : 'bg-primary text-primary-foreground shadow-[0_10px_24px_-14px_rgba(13,148,136,0.85)] hover:bg-[rgb(15,118,110)] hover:shadow-[0_14px_30px_-14px_rgba(13,148,136,0.95)]',
+          : 'bg-primary text-primary-foreground shadow-[0_10px_24px_-14px_rgba(13,87,179,0.85)] hover:bg-[rgb(10,69,144)] hover:shadow-[0_14px_30px_-14px_rgba(13,87,179,0.95)]',
       ].join(' ')}
     >
       {t('continueLabel')}

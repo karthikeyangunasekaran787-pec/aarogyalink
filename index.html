@@ -126,6 +126,19 @@
       window.addEventListener("unhandledrejection", function () {
         fail("An unexpected error interrupted startup.");
       });
+      /*
+       * Last resort: a start that hangs silently (a stalled chunk request, a
+       * blocked module) fires neither event above, so the empty container above
+       * would just sit there looking like a blank page. If React has not
+       * replaced the splash after 8s, say so and offer a retry. React removes
+       * the splash on mount, so a working start never reaches this branch.
+       */
+      window.setTimeout(function () {
+        var root = document.getElementById("root");
+        if (!root || !document.getElementById("boot-splash")) return;
+        if (root.children.length > 1) return;
+        fail("The app is taking longer than expected to start. Check your connection and retry.");
+      }, 8000);
     })();
   </script>
 </head>
